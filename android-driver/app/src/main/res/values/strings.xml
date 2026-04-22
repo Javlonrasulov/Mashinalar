@@ -1,0 +1,105 @@
+<resources>
+  <string name="app_name">Mashinalar Driver</string>
+
+  <!-- Auth -->
+  <string name="login_title">Kirish</string>
+  <string name="login_field">Login</string>
+  <string name="password_field">Parol</string>
+  <string name="login_action">Kirish</string>
+
+  <!-- Common -->
+  <string name="loading">Kutilmoqda...</string>
+  <string name="sending">Yuborilmoqda...</string>
+  <string name="send">Yuborish</string>
+  <string name="back">Orqaga</string>
+  <string name="refresh">Yangilash</string>
+  <string name="logout">Chiqish</string>
+  <string name="status">Status</string>
+  <string name="days_left">Qoldi (kun)</string>
+
+  <!-- Home -->
+  <string name="home_title">Driver</string>
+  <string name="nav_home">Home</string>
+  <string name="nav_fuel">Zapravka yuborish</string>
+  <string name="nav_daily_km">Kun boshi / tugashi (KM)</string>
+  <string name="nav_tasks">Vazifalar</string>
+
+  <!-- Fuel -->
+  <string name="fuel_title">Zapravka</string>
+  <string name="amount_field">Summa</string>
+  <string name="vehicle_photo">Mashina rasmi</string>
+  <string name="receipt_photo">Chek rasmi</string>
+
+  <!-- Daily KM -->
+  <string name="daily_km_title">Kun KM</string>
+  <string name="start_km_field">Boshlang‘ich KM</string>
+  <string name="end_km_field">Yakuniy KM</string>
+  <string name="start_odometer_photo">Ish boshlanishi rasmi</string>
+  <string name="end_odometer_photo">Ish tugashi rasmi</string>
+
+  <!-- Tasks -->
+  <string name="tasks_title">Vazifalar</string>
+  <string name="task_submit_title">Vazifa topshirish</string>
+  <string name="comment_optional">Izoh (ixtiyoriy)</string>
+  <string name="add_photo">Rasm qo‘shish</string>
+
+  <!-- Permissions -->
+  <string name="camera_permission">Kamera ruxsatini bering</string>
+
+  <!-- Location gate (app blocked until GPS on) -->
+  <string name="location_gate_title">Lokatsiya o‘chiq</string>
+  <string name="location_gate_body">Ilova lokatsiya yoqilmaguncha ishlamaydi. Qurilmada GPS / lokatsiyani yoqing va bu ekranga qayting.</string>
+  <string name="open_location_settings">Lokatsiya sozlamalari</string>
+
+  <!-- Alerts -->
+  <string name="alert_gps_off_title">GPS o‘chiq</string>
+  <string name="alert_gps_off_body">Lokatsiyani yuborish uchun GPS’ni yoqing.</string>
+  <string name="alert_net_off_title">Internet yo‘q</string>
+  <string name="alert_net_off_body">Ma’lumotlar queue’da saqlanadi va internet kelganda yuboriladi.</string>
+
+  <!-- Language -->
+  <string name="language_title">Til</string>
+  <string name="lang_uz_latin">O‘zbek (lotin)</string>
+  <string name="lang_uz_cyrl">O‘zbek (kiril)</string>
+  <string name="lang_ru">Русский</string>
+  <string name="close">Yopish</string>
+
+  <!-- Camera / Tracking -->
+  <string name="camera_take_photo">Rasmga olish</string>
+  <string name="photo_edit">O‘zgartirish</string>
+  <string name="photo_delete">O‘chirish</string>
+  <string name="camera_not_ready">Kamera tayyor emas</string>
+  <string name="camera_opening">Kamera ochilmoqda…</string>
+  <string name="camera_open_failed">Kamera ochilmadi. Emulatorda kamera yo‘qligini tekshiring yoki ruxsat bering.</string>
+  <string name="tracking_notif_text">Lokatsiya yuborish faol</string>
+
+  <!-- Messages -->
+  <string name="msg_enter_amount">Summa kiriting</string>
+  <string name="msg_fuel_complete_all">Summa, mashina rasmi va chek rasmini to‘ldiring.</string>
+  <string name="msg_enter_km">Start/End KM kiriting</string>
+  <string name="msg_daily_km_start_km_required">Boshlang‘ich KM kiriting</string>
+  <string name="msg_daily_km_start_photo_required">Ish boshlanishi rasmini yuklang</string>
+  <string name="msg_daily_km_confirm_start_first">Avval kun boshlanishini yuboring</string>
+  <string name="msg_daily_km_start_submitted">Kun boshlanishi serverga yuborildi</string>
+  <string name="msg_daily_km_end_km_required">Yakuniy KM kiriting</string>
+  <string name="msg_daily_km_end_photo_required">Ish tugashi rasmini yuklang</string>
+  <string name="msg_sent">Muvaffaqiyatli yuborildi</string>
+
+  <!-- Home dashboard -->
+  <string name="home_vehicle_card_title">Mashina</string>
+  <string name="home_oil_card_title">Moy almashtirish</string>
+  <string name="home_oil_last_km">Oxirgi almashtirish (km)</string>
+  <string name="home_oil_last_at">Oxirgi almashtirish sanasi</string>
+  <string name="home_oil_next_km">Keyingi almashtirish (km)</string>
+  <string name="home_insurance_card_title">Sug‘urta</string>
+  <string name="home_insurance_end">Tugash sanasi</string>
+  <string name="home_insurance_warn">3 kundan kam qoldi — tekshiring</string>
+  <string name="home_stats_title">Statistika</string>
+  <string name="home_stats_last3">Oxirgi 3 kun (km)</string>
+  <string name="home_stats_today">Bugungi km</string>
+  <string name="home_tasks_title">Faol vazifalar</string>
+  <string name="home_tasks_deadline">Muddat</string>
+  <string name="home_tasks_empty">Faol vazifa yo‘q</string>
+  <string name="home_empty">Mashina biriktirilmagan</string>
+</resources>
+

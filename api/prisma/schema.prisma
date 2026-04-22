@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  DRIVER
+}
+
+enum ExpenseType {
+  FUEL
+  REPAIR
+  OIL
+  OTHER
+}
+
+enum TaskStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  role         UserRole
+  login        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  driver Driver?
+  auditLogs AuditLog[]
+}
+
+model Driver {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName  String
+  phone     String
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locationPoints LocationPoint[]
+  fuelReports    FuelReport[]
+  dailyKmReports DailyKmReport[]
+  tasks          Task[]
+
+  @@index([vehicleId])
+}
+
+model Vehicle {
+  id                   String    @id @default(cuid())
+  name                 String
+  model                String?
+  plateNumber          String    @unique
+  initialKm            Decimal   @db.Decimal(12, 2)
+  lastOilChangeKm      Decimal?  @db.Decimal(12, 2)
+  lastOilChangeAt      DateTime?
+  oilChangeIntervalKm  Int?
+  insuranceStartDate   DateTime?
+  insuranceEndDate     DateTime?
+  lastLatitude         Decimal?  @db.Decimal(10, 7)
+  lastLongitude        Decimal?  @db.Decimal(10, 7)
+  lastLocationAt       DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  drivers        Driver[]
+  locationPoints LocationPoint[]
+  fuelReports    FuelReport[]
+  dailyKmReports DailyKmReport[]
+  tasks          Task[]
+  expenses       Expense[]
+}
+
+model LocationPoint {
+  id         String   @id @default(cuid())
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId   String?
+  driver     Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  latitude   Decimal  @db.Decimal(10, 7)
+  longitude  Decimal  @db.Decimal(10, 7)
+  accuracyM  Float?
+  speed      Float?
+  heading    Float?
+  recordedAt DateTime @default(now())
+
+  @@index([vehicleId, recordedAt])
+  @@index([recordedAt])
+}
+
+model FuelReport {
+  id          String   @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId    String
+  driver      Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  amount      Decimal  @db.Decimal(14, 2)
+  currency    String   @default("UZS")
+  vehiclePhotoUrl String?
+  receiptPhotoUrl String?
+  latitude    Decimal? @db.Decimal(10, 7)
+  longitude   Decimal? @db.Decimal(10, 7)
+  createdAt   DateTime @default(now())
+
+  @@index([vehicleId, createdAt])
+  @@index([driverId])
+}
+
+model DailyKmReport {
+  id              String   @id @default(cuid())
+  vehicleId       String
+  vehicle         Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId        String
+  driver          Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  reportDate      DateTime @db.Date
+  startKm         Decimal  @db.Decimal(12, 2)
+  endKm           Decimal? @db.Decimal(12, 2)
+  startOdometerUrl String?
+  endOdometerUrl   String?
+  startLatitude    Decimal? @db.Decimal(10, 7)
+  startLongitude   Decimal? @db.Decimal(10, 7)
+  startRecordedAt  DateTime?
+  endLatitude      Decimal? @db.Decimal(10, 7)
+  endLongitude     Decimal? @db.Decimal(10, 7)
+  endRecordedAt    DateTime?
+  createdAt       DateTime @default(now())
+
+  @@unique([vehicleId, reportDate])
+  @@index([driverId])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId    String
+  driver      Driver     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  title       String
+  deadlineAt  DateTime
+  status      TaskStatus @default(PENDING)
+  note        String?
+  proofPhotoUrl String?
+  proofText   String?
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([deadlineAt])
+  @@index([driverId, status])
+}
+
+model Expense {
+  id        String      @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type      ExpenseType
+  amount    Decimal     @db.Decimal(14, 2)
+  currency  String      @default("UZS")
+  note      String?
+  spentAt   DateTime    @default(now())
+  createdAt DateTime    @default(now())
+
+  @@index([vehicleId, spentAt])
+  @@index([type])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorUserId String?
+  actor      User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  action     String
+  entity     String
+  entityId   String?
+  meta       Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+}

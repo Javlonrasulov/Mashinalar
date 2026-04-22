@@ -1,0 +1,83 @@
+<resources>
+  <string name="app_name">Mashinalar Driver</string>
+  <string name="login_title">Кириш</string>
+  <string name="login_field">Логин</string>
+  <string name="password_field">Парол</string>
+  <string name="login_action">Кириш</string>
+  <string name="loading">Кутилмоқда...</string>
+  <string name="sending">Юборилмоқда...</string>
+  <string name="send">Юбориш</string>
+  <string name="back">Орқага</string>
+  <string name="refresh">Янгилаш</string>
+  <string name="logout">Чиқиш</string>
+  <string name="status">Статус</string>
+  <string name="days_left">Қолди (кун)</string>
+  <string name="home_title">Ҳайдовчи</string>
+  <string name="nav_home">Бош саҳифа</string>
+  <string name="nav_fuel">Заправка юбориш</string>
+  <string name="nav_daily_km">Кун боши / тугаши (КМ)</string>
+  <string name="nav_tasks">Вазифалар</string>
+  <string name="fuel_title">Заправка</string>
+  <string name="amount_field">Сумма</string>
+  <string name="vehicle_photo">Машина расми</string>
+  <string name="receipt_photo">Чек расми</string>
+  <string name="daily_km_title">Кун КМ</string>
+  <string name="start_km_field">Бошланғич КМ</string>
+  <string name="end_km_field">Якуний КМ</string>
+  <string name="start_odometer_photo">Иш бошланиши расми</string>
+  <string name="end_odometer_photo">Иш тугаши расми</string>
+  <string name="tasks_title">Вазифалар</string>
+  <string name="task_submit_title">Вазифа топшириш</string>
+  <string name="comment_optional">Изоҳ (ихтиёрий)</string>
+  <string name="add_photo">Расм қўшиш</string>
+  <string name="camera_permission">Камера рухсатини беринг</string>
+  <string name="location_gate_title">Локация ўчиқ</string>
+  <string name="location_gate_body">Илова локация ёқилмагунча ишламайди. Қурилмада GPS / локацияни ёқинг ва бу экранга қайтинг.</string>
+  <string name="open_location_settings">Локация созламалари</string>
+  <string name="alert_gps_off_title">GPS ўчиқ</string>
+  <string name="alert_gps_off_body">Локацияни юбориш учун GPS’ни ёқинг.</string>
+  <string name="alert_net_off_title">Интернет йўқ</string>
+  <string name="alert_net_off_body">Ма’лумотлар навбатда сақланади ва интернет келганда юборилади.</string>
+
+  <string name="language_title">Тил</string>
+  <string name="lang_uz_latin">O‘zbek (lotin)</string>
+  <string name="lang_uz_cyrl">Ўзбек (кирил)</string>
+  <string name="lang_ru">Русский</string>
+  <string name="close">Ёпиш</string>
+
+  <string name="camera_take_photo">Расмга олиш</string>
+  <string name="photo_edit">Ўзгартириш</string>
+  <string name="photo_delete">Ўчириш</string>
+  <string name="camera_not_ready">Камера тайёр эмас</string>
+  <string name="camera_opening">Камера очилмоқда…</string>
+  <string name="camera_open_failed">Камера очилмади. Эмуляторда камера йўқлигини текширинг ёки рухсат беринг.</string>
+  <string name="tracking_notif_text">Локация юбориш фаол</string>
+
+  <string name="msg_enter_amount">Сумма киритинг</string>
+  <string name="msg_fuel_complete_all">Сумма, машина расми ва чек расмининг ҳаммасини тўлдиринг.</string>
+  <string name="msg_enter_km">Старт/Энд КМ киритинг</string>
+  <string name="msg_daily_km_start_km_required">Бошланғич КМ киритинг</string>
+  <string name="msg_daily_km_start_photo_required">Иш бошланиши расмини юкланг</string>
+  <string name="msg_daily_km_confirm_start_first">Аввал кун бошланишини юборинг</string>
+  <string name="msg_daily_km_start_submitted">Кун бошланиши серверга юборилди</string>
+  <string name="msg_daily_km_end_km_required">Якуний КМ киритинг</string>
+  <string name="msg_daily_km_end_photo_required">Иш тугаши расмини юкланг</string>
+  <string name="msg_sent">Муваффақиятли юборилди</string>
+
+  <string name="home_vehicle_card_title">Машина</string>
+  <string name="home_oil_card_title">Мой алмаштириш</string>
+  <string name="home_oil_last_km">Охирги алмаштириш (км)</string>
+  <string name="home_oil_last_at">Охирги алмаштириш санаси</string>
+  <string name="home_oil_next_km">Кейинги алмаштириш (км)</string>
+  <string name="home_insurance_card_title">Суғурта</string>
+  <string name="home_insurance_end">Тугаш санаси</string>
+  <string name="home_insurance_warn">3 кундан кам қолди — текширинг</string>
+  <string name="home_stats_title">Статистика</string>
+  <string name="home_stats_last3">Охирги 3 кун (км)</string>
+  <string name="home_stats_today">Бугунги км</string>
+  <string name="home_tasks_title">Фаол вазифалар</string>
+  <string name="home_tasks_deadline">Муддат</string>
+  <string name="home_tasks_empty">Фаол вазифа йўқ</string>
+  <string name="home_empty">Машина бириктирилмаган</string>
+</resources>
+

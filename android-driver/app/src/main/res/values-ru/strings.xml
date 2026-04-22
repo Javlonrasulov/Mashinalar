@@ -1,0 +1,83 @@
+<resources>
+  <string name="app_name">Mashinalar Driver</string>
+  <string name="login_title">Вход</string>
+  <string name="login_field">Логин</string>
+  <string name="password_field">Пароль</string>
+  <string name="login_action">Войти</string>
+  <string name="loading">Загрузка...</string>
+  <string name="sending">Отправка...</string>
+  <string name="send">Отправить</string>
+  <string name="back">Назад</string>
+  <string name="refresh">Обновить</string>
+  <string name="logout">Выйти</string>
+  <string name="status">Статус</string>
+  <string name="days_left">Осталось (дней)</string>
+  <string name="home_title">Водитель</string>
+  <string name="nav_home">Главная</string>
+  <string name="nav_fuel">Отправить заправку</string>
+  <string name="nav_daily_km">Начало / конец дня (км)</string>
+  <string name="nav_tasks">Задачи</string>
+  <string name="fuel_title">Заправка</string>
+  <string name="amount_field">Сумма</string>
+  <string name="vehicle_photo">Фото машины</string>
+  <string name="receipt_photo">Фото чека</string>
+  <string name="daily_km_title">Км за день</string>
+  <string name="start_km_field">Начальный км</string>
+  <string name="end_km_field">Конечный км</string>
+  <string name="start_odometer_photo">Фото начала работы</string>
+  <string name="end_odometer_photo">Фото окончания работы</string>
+  <string name="tasks_title">Задачи</string>
+  <string name="task_submit_title">Сдать задачу</string>
+  <string name="comment_optional">Комментарий (необязательно)</string>
+  <string name="add_photo">Добавить фото</string>
+  <string name="camera_permission">Разрешите доступ к камере</string>
+  <string name="location_gate_title">Локация выключена</string>
+  <string name="location_gate_body">Приложение не работает, пока не включена геолокация на устройстве. Включите GPS в настройках и вернитесь в приложение.</string>
+  <string name="open_location_settings">Настройки геолокации</string>
+  <string name="alert_gps_off_title">GPS выключен</string>
+  <string name="alert_gps_off_body">Включите GPS для отправки геолокации.</string>
+  <string name="alert_net_off_title">Нет интернета</string>
+  <string name="alert_net_off_body">Данные сохраняются в очереди и отправятся при появлении интернета.</string>
+
+  <string name="language_title">Язык</string>
+  <string name="lang_uz_latin">O‘zbek (lotin)</string>
+  <string name="lang_uz_cyrl">Ўзбек (кирил)</string>
+  <string name="lang_ru">Русский</string>
+  <string name="close">Закрыть</string>
+
+  <string name="camera_take_photo">Сделать фото</string>
+  <string name="photo_edit">Изменить</string>
+  <string name="photo_delete">Удалить</string>
+  <string name="camera_not_ready">Камера не готова</string>
+  <string name="camera_opening">Открывается камера…</string>
+  <string name="camera_open_failed">Не удалось открыть камеру. Проверьте разрешения или настройте камеру в эмуляторе.</string>
+  <string name="tracking_notif_text">Отправка геолокации активна</string>
+
+  <string name="msg_enter_amount">Введите сумму</string>
+  <string name="msg_fuel_complete_all">Укажите сумму, фото машины и фото чека.</string>
+  <string name="msg_enter_km">Введите старт/финиш км</string>
+  <string name="msg_daily_km_start_km_required">Введите начальный км</string>
+  <string name="msg_daily_km_start_photo_required">Загрузите фото начала работы</string>
+  <string name="msg_daily_km_confirm_start_first">Сначала отправьте начало дня</string>
+  <string name="msg_daily_km_start_submitted">Начало дня отправлено на сервер</string>
+  <string name="msg_daily_km_end_km_required">Введите конечный км</string>
+  <string name="msg_daily_km_end_photo_required">Загрузите фото окончания работы</string>
+  <string name="msg_sent">Успешно отправлено</string>
+
+  <string name="home_vehicle_card_title">Машина</string>
+  <string name="home_oil_card_title">Замена масла</string>
+  <string name="home_oil_last_km">Последняя замена (км)</string>
+  <string name="home_oil_last_at">Дата последней замены</string>
+  <string name="home_oil_next_km">Следующая замена (км)</string>
+  <string name="home_insurance_card_title">Страховка</string>
+  <string name="home_insurance_end">Дата окончания</string>
+  <string name="home_insurance_warn">Осталось меньше 3 дней — проверьте</string>
+  <string name="home_stats_title">Статистика</string>
+  <string name="home_stats_last3">Последние 3 дня (км)</string>
+  <string name="home_stats_today">Сегодня (км)</string>
+  <string name="home_tasks_title">Активные задачи</string>
+  <string name="home_tasks_deadline">Срок</string>
+  <string name="home_tasks_empty">Нет активных задач</string>
+  <string name="home_empty">Машина не назначена</string>
+</resources>
+
