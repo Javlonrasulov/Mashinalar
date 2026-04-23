@@ -3,6 +3,7 @@ package com.mashinalar.driver.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mashinalar.driver.core.ApiResult
+import com.mashinalar.driver.core.ServerErrorMapper
 import com.mashinalar.driver.data.network.DailyKmHistoryDto
 import com.mashinalar.driver.data.reports.ReportsRepository
 import com.mashinalar.driver.ui.util.LocationHelper
@@ -70,7 +71,7 @@ class DailyKmViewModel @Inject constructor(
         is ApiResult.Err ->
           _state.value = _state.value.copy(
             historyLoading = false,
-            historyError = hr.message,
+            historyError = ServerErrorMapper.localize(context, hr.message),
             minOdometerKm = minKm,
           )
       }
@@ -150,7 +151,9 @@ class DailyKmViewModel @Inject constructor(
               )
               loadHistory()
             }
-            is ApiResult.Err -> _state.value = s.copy(loading = false, message = r.message)
+            is ApiResult.Err ->
+              _state.value =
+                s.copy(loading = false, message = ServerErrorMapper.localize(context, r.message))
           }
         }
       }
@@ -206,7 +209,8 @@ class DailyKmViewModel @Inject constructor(
           _state.value = DailyKmUiState(message = context.getString(R.string.msg_sent))
           loadHistory()
         }
-        is ApiResult.Err -> _state.value = s.copy(loading = false, message = r.message)
+        is ApiResult.Err ->
+          _state.value = s.copy(loading = false, message = ServerErrorMapper.localize(context, r.message))
       }
     }
   }

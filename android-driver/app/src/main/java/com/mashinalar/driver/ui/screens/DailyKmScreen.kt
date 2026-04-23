@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.mashinalar.driver.core.ServerErrorMapper
 import com.mashinalar.driver.data.network.DailyKmHistoryDto
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -183,7 +184,7 @@ fun DailyKmScreen(
 
   LaunchedEffect(state.message) {
     val msg = state.message ?: return@LaunchedEffect
-    snackbarHost.showSnackbar(msg)
+    snackbarHost.showSnackbar(ServerErrorMapper.localize(context, msg))
   }
 
   LaunchedEffect(state.endSectionVisible) {
@@ -333,7 +334,7 @@ fun DailyKmScreen(
     }
     state.historyError?.let { err ->
       Text(
-        err,
+        ServerErrorMapper.localize(context, err),
         color = MaterialTheme.colorScheme.error,
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(bottom = 8.dp),

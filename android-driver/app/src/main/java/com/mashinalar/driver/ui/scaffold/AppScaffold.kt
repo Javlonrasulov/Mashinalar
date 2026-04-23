@@ -1,7 +1,11 @@
 package com.mashinalar.driver.ui.scaffold
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
@@ -14,7 +18,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.mashinalar.driver.R
@@ -64,7 +73,13 @@ fun AppScaffold(
         val items = listOf(Home, Fuel, DailyKm, Tasks)
         val entry = navController.currentBackStackEntryAsState().value
         val route = entry?.destination?.route
-        NavigationBar {
+        // Gorizontal padding — birinchi/oxirgi tab indikatori ekran chetida kesilib qolmasin.
+        NavigationBar(
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 12.dp),
+        ) {
           items.forEach { item ->
             NavigationBarItem(
               selected = route == item.route,
@@ -76,14 +91,28 @@ fun AppScaffold(
                 }
               },
               icon = {
-                when (item) {
-                  Home -> Icon(Icons.Filled.Home, contentDescription = null)
-                  Fuel -> Icon(Icons.Filled.LocalGasStation, contentDescription = null)
-                  DailyKm -> Icon(Icons.Filled.Route, contentDescription = null)
-                  Tasks -> Icon(Icons.Filled.Task, contentDescription = null)
+                Box(
+                  modifier = Modifier.fillMaxWidth(),
+                  contentAlignment = Alignment.Center,
+                ) {
+                  when (item) {
+                    Home -> Icon(Icons.Filled.Home, contentDescription = null)
+                    Fuel -> Icon(Icons.Filled.LocalGasStation, contentDescription = null)
+                    DailyKm -> Icon(Icons.Filled.Route, contentDescription = null)
+                    Tasks -> Icon(Icons.Filled.Task, contentDescription = null)
+                  }
                 }
               },
-              label = { Text(stringResource(item.labelRes)) },
+              label = {
+                Text(
+                  text = stringResource(item.labelRes),
+                  modifier = Modifier.fillMaxWidth(),
+                  textAlign = TextAlign.Center,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                  style = MaterialTheme.typography.labelSmall,
+                )
+              },
             )
           }
         }

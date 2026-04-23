@@ -68,7 +68,7 @@ fun TasksScreen(
             Text(t.title)
             Spacer(Modifier.height(4.dp))
             Row {
-              Text("${stringResource(R.string.status)}: ${t.status}")
+              Text("${stringResource(R.string.status)}: ${taskStatusLabel(t.status)}")
               Spacer(Modifier.weight(1f))
               Text("${stringResource(R.string.days_left)}: ${daysLeft ?: "-"}")
             }
@@ -79,3 +79,12 @@ fun TasksScreen(
   }
 }
 
+@Composable
+private fun taskStatusLabel(raw: String): String =
+  when (raw.uppercase()) {
+    "PENDING" -> stringResource(R.string.task_status_pending)
+    "SUBMITTED" -> stringResource(R.string.task_status_submitted)
+    "APPROVED" -> stringResource(R.string.task_status_approved)
+    "REJECTED" -> stringResource(R.string.task_status_rejected)
+    else -> raw
+  }

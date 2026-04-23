@@ -14,8 +14,8 @@
   <string name="days_left">Qoldi (kun)</string>
   <string name="home_title">Driver</string>
   <string name="nav_home">Home</string>
-  <string name="nav_fuel">Zapravka yuborish</string>
-  <string name="nav_daily_km">Kun boshi / tugashi (KM)</string>
+  <string name="nav_fuel">Zapravka</string>
+  <string name="nav_daily_km">Kun KM</string>
   <string name="nav_tasks">Vazifalar</string>
   <string name="fuel_title">Zapravka</string>
   <string name="fuel_history_title">Oxirgi zapravkalar</string>
@@ -36,6 +36,10 @@
   <string name="daily_km_history_status_open">Yakunlanmagan</string>
   <string name="daily_km_history_status_done">Yopilgan</string>
   <string name="tasks_title">Vazifalar</string>
+  <string name="task_status_pending">Kutilmoqda</string>
+  <string name="task_status_submitted">Yuborilgan</string>
+  <string name="task_status_approved">Tasdiqlangan</string>
+  <string name="task_status_rejected">Rad etilgan</string>
   <string name="task_submit_title">Vazifa topshirish</string>
   <string name="comment_optional">Izoh (ixtiyoriy)</string>
   <string name="add_photo">Rasm qo‘shish</string>
@@ -75,6 +79,27 @@
   <string name="msg_daily_km_end_below_floor">Yakuniy KM kamida %1$.0f bo‘lishi kerak (boshlash va avvalgi yozuvlar bo‘yicha)</string>
   <string name="msg_daily_km_end_below_start">Yakuniy KM boshlash KM dan kam bo‘lmasligi kerak</string>
   <string name="msg_sent">Muvaffaqiyatli yuborildi</string>
+
+  <string name="err_daily_km_no_driver">Haydovchi profili topilmadi</string>
+  <string name="err_daily_km_report_date_required">Hisobot sanasi kerak</string>
+  <string name="err_daily_km_invalid_start_km_number">Boshlash KM noto‘g‘ri</string>
+  <string name="err_daily_km_invalid_end_km_number">Yakuniy KM noto‘g‘ri</string>
+  <string name="err_daily_km_no_vehicle">Mashina biriktirilmagan</string>
+  <string name="err_daily_km_invalid_vehicle_baseline">Mashina odometr bazasi noto‘g‘ri</string>
+  <string name="err_daily_km_start_below_initial">Boshlash KM kamida %1$.0f bo‘lishi kerak (mashina boshlang‘ich KM)</string>
+  <string name="err_daily_km_start_odo_required">Boshlash odometr rasmi kerak</string>
+  <string name="err_daily_km_invalid_report_date">Hisobot sanasi noto‘g‘ri</string>
+  <string name="err_daily_km_invalid_recorded_at_start">Boshlash vaqti noto‘g‘ri</string>
+  <string name="err_daily_km_start_below_max">Boshlash KM kamida %1$.0f bo‘lishi kerak (avvalgi yozuvlar bo‘yicha)</string>
+  <string name="err_daily_km_report_day_closed">Bu kun uchun hisobot yopilgan (yakuniy KM yuborilgan). Yangi boshlash uchun ertangi kunni kuting yoki admin bilan bog‘laning.</string>
+  <string name="err_daily_km_not_found">Hisobot topilmadi</string>
+  <string name="err_daily_km_forbidden_not_owner">Bu hisobot sizniki emas</string>
+  <string name="err_daily_km_end_already_submitted">Bu kun uchun yakuniy KM allaqachon yuborilgan</string>
+  <string name="err_daily_km_end_below_min">Yakuniy KM kamida %1$.0f bo‘lishi kerak (boshlash va avvalgi yozuvlar bo‘yicha)</string>
+  <string name="err_daily_km_end_odo_required">Tugash odometr rasmi kerak</string>
+  <string name="err_daily_km_invalid_recorded_at_end">Tugash vaqti noto‘g‘ri</string>
+  <string name="err_daily_km_start_below_max_legacy">Boshlash KM avvalgi yozuvlardagi eng yuqori KM dan kam bo‘lmasligi kerak</string>
+  <string name="err_daily_km_end_below_min_legacy">Yakuniy KM boshlash va avvalgi yozuvlar bo‘yicha minimal qiymatdan kam bo‘lmasligi kerak</string>
 
   <string name="home_vehicle_card_title">Mashina</string>
   <string name="home_oil_card_title">Moy almashtirish</string>

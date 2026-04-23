@@ -119,79 +119,81 @@ export function VehiclesPage() {
         </div>
       )}
 
-      <form
-        onSubmit={onCreate}
-        className="app-card-pad grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-8"
-      >
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('name')}</label>
-          <input
-            className="app-input"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-          />
+      <form onSubmit={onCreate} className="app-card-pad min-w-0 space-y-3">
+        <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-4">
+          <div className="min-w-0">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('name')}</label>
+            <input
+              className="app-input"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
+          </div>
+          <div className="min-w-0">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('model')}</label>
+            <input
+              className="app-input"
+              value={form.model}
+              onChange={(e) => setForm({ ...form, model: e.target.value })}
+            />
+          </div>
+          <div className="min-w-0">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('plate')}</label>
+            <input
+              className="app-input"
+              value={form.plateNumber}
+              onChange={(e) => setForm({ ...form, plateNumber: e.target.value })}
+              required
+            />
+          </div>
+          <div className="min-w-0">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('initialKm')}</label>
+            <input
+              className="app-input"
+              value={form.initialKm}
+              onChange={(e) => setForm({ ...form, initialKm: e.target.value })}
+              required
+            />
+          </div>
+          <div className="min-w-0 sm:col-span-2 xl:col-span-2">
+            <label className="mb-1 block text-xs font-medium leading-snug text-slate-500 dark:text-slate-400">
+              {t('oilChangeIntervalKm')}
+            </label>
+            <input
+              type="number"
+              min={1}
+              className="app-input"
+              value={form.oilChangeIntervalKm}
+              onChange={(e) => setForm({ ...form, oilChangeIntervalKm: e.target.value })}
+              placeholder="—"
+            />
+          </div>
+          <div className="min-w-0">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('insuranceStartDate')}</label>
+            <DateField
+              value={form.insuranceStartDate}
+              onChange={(v) => setForm({ ...form, insuranceStartDate: v })}
+              onClear={() => setForm({ ...form, insuranceStartDate: '' })}
+            />
+          </div>
+          <div className="min-w-0">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('insuranceEndDate')}</label>
+            <DateField
+              value={form.insuranceEndDate}
+              onChange={(v) => setForm({ ...form, insuranceEndDate: v })}
+              onClear={() => setForm({ ...form, insuranceEndDate: '' })}
+            />
+          </div>
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('model')}</label>
-          <input
-            className="app-input"
-            value={form.model}
-            onChange={(e) => setForm({ ...form, model: e.target.value })}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('plate')}</label>
-          <input
-            className="app-input"
-            value={form.plateNumber}
-            onChange={(e) => setForm({ ...form, plateNumber: e.target.value })}
-            required
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('initialKm')}</label>
-          <input
-            className="app-input"
-            value={form.initialKm}
-            onChange={(e) => setForm({ ...form, initialKm: e.target.value })}
-            required
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('oilChangeIntervalKm')}</label>
-          <input
-            type="number"
-            min={1}
-            className="app-input"
-            value={form.oilChangeIntervalKm}
-            onChange={(e) => setForm({ ...form, oilChangeIntervalKm: e.target.value })}
-            placeholder="—"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('insuranceStartDate')}</label>
-          <DateField
-            value={form.insuranceStartDate}
-            onChange={(v) => setForm({ ...form, insuranceStartDate: v })}
-            onClear={() => setForm({ ...form, insuranceStartDate: '' })}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('insuranceEndDate')}</label>
-          <DateField
-            value={form.insuranceEndDate}
-            onChange={(v) => setForm({ ...form, insuranceEndDate: v })}
-            onClear={() => setForm({ ...form, insuranceEndDate: '' })}
-          />
-        </div>
-        <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center md:justify-end">
+
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           {editingId && (
-            <button type="button" className="app-btn-ghost w-full md:w-auto" onClick={onCancelEdit}>
+            <button type="button" className="app-btn-ghost w-full sm:w-auto" onClick={onCancelEdit}>
               {t('cancel')}
             </button>
           )}
-          <button type="submit" className="app-btn-primary w-full md:w-auto">
+          <button type="submit" className="app-btn-primary w-full sm:w-auto">
             {editingId ? t('save') : t('add')}
           </button>
         </div>

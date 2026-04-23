@@ -105,22 +105,20 @@ export class DailyKmService {
       where: { id: params.driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId || !driver.vehicle) throw new BadRequestException('No vehicle assigned');
+    if (!driver?.vehicleId || !driver.vehicle) throw new BadRequestException('daily_km.no_vehicle');
     const minKm = Number(driver.vehicle.initialKm);
-    if (!Number.isFinite(minKm)) throw new BadRequestException('Invalid vehicle odometer baseline');
+    if (!Number.isFinite(minKm)) throw new BadRequestException('daily_km.invalid_vehicle_baseline');
     if (params.startKm < minKm) {
-      throw new BadRequestException(
-        `Boshlash KM kamida mashina boshlang‘ich KM (${minKm}) bo‘lishi kerak.`,
-      );
+      throw new BadRequestException(`daily_km.start_below_initial|${minKm}`);
     }
-    if (!params.startOdometerUrl) throw new BadRequestException('startOdometer required');
+    if (!params.startOdometerUrl) throw new BadRequestException('daily_km.start_odo_required');
 
     const reportDate = new Date(params.reportDate);
     reportDate.setUTCHours(0, 0, 0, 0);
-    if (Number.isNaN(reportDate.getTime())) throw new BadRequestException('Invalid reportDate');
+    if (Number.isNaN(reportDate.getTime())) throw new BadRequestException('daily_km.invalid_report_date');
 
     const startRecordedAt = params.recordedAtIso ? new Date(params.recordedAtIso) : new Date();
-    if (Number.isNaN(startRecordedAt.getTime())) throw new BadRequestException('Invalid recordedAt');
+    if (Number.isNaN(startRecordedAt.getTime())) throw new BadRequestException('daily_km.invalid_recorded_at_start');
 
     const existing = await this.prisma.dailyKmReport.findUnique({
       where: { vehicleId_reportDate: { vehicleId: driver.vehicleId, reportDate } },
@@ -133,16 +131,11 @@ export class DailyKmService {
       minKm,
     );
     if (params.startKm < maxRecorded) {
-      throw new BadRequestException(
-        `Boshlash KM avvalgi yozuvlardagi eng yuqori KM (${maxRecorded}) dan kam bo‘lmasligi kerak.`,
-      );
+      throw new BadRequestException(`daily_km.start_below_max|${maxRecorded}`);
     }
 
     if (existing?.endKm != null) {
-      throw new ConflictException(
-        'Bu kun uchun hisobot allaqachon yopilgan (yakuniy KM yuborilgan). ' +
-          'Yangi boshlash uchun ertangi kunni kuting yoki admin bilan bog‘laning.',
-      );
+      throw new ConflictException('daily_km.report_day_closed');
     }
 
     const updateStart = async (id: string) =>
@@ -191,10 +184,7 @@ export class DailyKmService {
         where: { vehicleId_reportDate: { vehicleId: driver.vehicleId, reportDate } },
       });
       if (again?.endKm != null) {
-        throw new ConflictException(
-          'Bu kun uchun hisobot allaqachon yopilgan (yakuniy KM yuborilgan). ' +
-            'Yangi boshlash uchun ertangi kunni kuting yoki admin bilan bog‘laning.',
-        );
+        throw new ConflictException('daily_km.report_day_closed');
       }
       if (!again) throw e;
       row = await updateStart(again.id);
@@ -223,22 +213,20 @@ export class DailyKmService {
       where: { id: params.reportId },
       include: { vehicle: true },
     });
-    if (!row) throw new NotFoundException('Report not found');
-    if (row.driverId !== params.driverId) throw new ForbiddenException('Not your report');
-    if (row.endKm != null) throw new ConflictException('End already submitted for this report');
+    if (!row) throw new NotFoundException('daily_km.not_found');
+    if (row.driverId !== params.driverId) throw new ForbiddenException('daily_km.forbidden_not_owner');
+    if (row.endKm != null) throw new ConflictException('daily_km.end_already_submitted');
     const minKm = Number(row.vehicle.initialKm);
-    if (!Number.isFinite(minKm)) throw new BadRequestException('Invalid vehicle odometer baseline');
+    if (!Number.isFinite(minKm)) throw new BadRequestException('daily_km.invalid_vehicle_baseline');
     const maxOthers = await maxRecordedOdometerKm(this.prisma, row.vehicleId, row.id, minKm);
     const minEndAllowed = Math.max(maxOthers, Number(row.startKm));
     if (params.endKm < minEndAllowed) {
-      throw new BadRequestException(
-        `Yakuniy KM kamida ${minEndAllowed} bo‘lishi kerak (boshlash KM va avvalgi yozuvlar bo‘yicha).`,
-      );
+      throw new BadRequestException(`daily_km.end_below_min|${minEndAllowed}`);
     }
-    if (!params.endOdometerUrl) throw new BadRequestException('endOdometer required');
+    if (!params.endOdometerUrl) throw new BadRequestException('daily_km.end_odo_required');
 
     const endRecordedAt = params.recordedAtIso ? new Date(params.recordedAtIso) : new Date();
-    if (Number.isNaN(endRecordedAt.getTime())) throw new BadRequestException('Invalid recordedAt');
+    if (Number.isNaN(endRecordedAt.getTime())) throw new BadRequestException('daily_km.invalid_recorded_at_end');
 
     const updated = await this.prisma.dailyKmReport.update({
       where: { id: params.reportId },

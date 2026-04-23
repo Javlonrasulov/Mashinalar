@@ -14,8 +14,8 @@
   <string name="days_left">Осталось (дней)</string>
   <string name="home_title">Водитель</string>
   <string name="nav_home">Главная</string>
-  <string name="nav_fuel">Отправить заправку</string>
-  <string name="nav_daily_km">Начало / конец дня (км)</string>
+  <string name="nav_fuel">Заправка</string>
+  <string name="nav_daily_km">КМ дня</string>
   <string name="nav_tasks">Задачи</string>
   <string name="fuel_title">Заправка</string>
   <string name="fuel_history_title">Последние заправки</string>
@@ -36,6 +36,10 @@
   <string name="daily_km_history_status_open">Не завершено</string>
   <string name="daily_km_history_status_done">Завершено</string>
   <string name="tasks_title">Задачи</string>
+  <string name="task_status_pending">К выполнению</string>
+  <string name="task_status_submitted">Отправлена</string>
+  <string name="task_status_approved">Одобрена</string>
+  <string name="task_status_rejected">Отклонена</string>
   <string name="task_submit_title">Сдать задачу</string>
   <string name="comment_optional">Комментарий (необязательно)</string>
   <string name="add_photo">Добавить фото</string>
@@ -75,6 +79,27 @@
   <string name="msg_daily_km_end_below_floor">Конечный км не меньше %1$.0f (по началу дня и предыдущим записям)</string>
   <string name="msg_daily_km_end_below_start">Конечный км не может быть меньше начального</string>
   <string name="msg_sent">Успешно отправлено</string>
+
+  <string name="err_daily_km_no_driver">Профиль водителя не найден</string>
+  <string name="err_daily_km_report_date_required">Нужна дата отчёта</string>
+  <string name="err_daily_km_invalid_start_km_number">Неверный начальный км</string>
+  <string name="err_daily_km_invalid_end_km_number">Неверный конечный км</string>
+  <string name="err_daily_km_no_vehicle">Машина не назначена</string>
+  <string name="err_daily_km_invalid_vehicle_baseline">Неверная база одометра машины</string>
+  <string name="err_daily_km_start_below_initial">Начальный км не меньше %1$.0f (базовый одометр машины)</string>
+  <string name="err_daily_km_start_odo_required">Нужно фото одометра на старте</string>
+  <string name="err_daily_km_invalid_report_date">Неверная дата отчёта</string>
+  <string name="err_daily_km_invalid_recorded_at_start">Неверное время старта</string>
+  <string name="err_daily_km_start_below_max">Начальный км не меньше %1$.0f (по предыдущим записям)</string>
+  <string name="err_daily_km_report_day_closed">Отчёт за этот день уже закрыт (конечный км отправлен). Для нового начала подождите завтра или свяжитесь с администратором.</string>
+  <string name="err_daily_km_not_found">Отчёт не найден</string>
+  <string name="err_daily_km_forbidden_not_owner">Это не ваш отчёт</string>
+  <string name="err_daily_km_end_already_submitted">Конечный км за этот день уже отправлен</string>
+  <string name="err_daily_km_end_below_min">Конечный км не меньше %1$.0f (по старту дня и предыдущим записям)</string>
+  <string name="err_daily_km_end_odo_required">Нужно фото одометра на финише</string>
+  <string name="err_daily_km_invalid_recorded_at_end">Неверное время окончания</string>
+  <string name="err_daily_km_start_below_max_legacy">Начальный км не может быть меньше максимального по предыдущим записям</string>
+  <string name="err_daily_km_end_below_min_legacy">Конечный км не может быть ниже минимального по старту и предыдущим записям</string>
 
   <string name="home_vehicle_card_title">Машина</string>
   <string name="home_oil_card_title">Замена масла</string>

@@ -47,7 +47,7 @@ export class DailyKmController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.DRIVER)
   findMine(@CurrentUser() user: JwtUser, @Query('limit') limit?: string) {
-    if (!user.driverId) throw new BadRequestException('No driver');
+    if (!user.driverId) throw new BadRequestException('daily_km.no_driver');
     return this.dailyKm.findMine(user.driverId, limit);
   }
 
@@ -89,10 +89,10 @@ export class DailyKmController {
     },
     @CurrentUser() user: JwtUser,
   ) {
-    if (!user.driverId) throw new BadRequestException('No driver');
-    if (!body.reportDate) throw new BadRequestException('reportDate required');
+    if (!user.driverId) throw new BadRequestException('daily_km.no_driver');
+    if (!body.reportDate) throw new BadRequestException('daily_km.report_date_required');
     const startKm = body.startKm ? Number(body.startKm) : NaN;
-    if (!Number.isFinite(startKm)) throw new BadRequestException('Invalid startKm');
+    if (!Number.isFinite(startKm)) throw new BadRequestException('daily_km.invalid_start_km_number');
 
     const base = '/uploads';
     const startOdometerUrl = files?.startOdometer?.[0] ? `${base}/${files.startOdometer[0].filename}` : undefined;
@@ -140,9 +140,9 @@ export class DailyKmController {
     },
     @CurrentUser() user: JwtUser,
   ) {
-    if (!user.driverId) throw new BadRequestException('No driver');
+    if (!user.driverId) throw new BadRequestException('daily_km.no_driver');
     const endKm = body.endKm ? Number(body.endKm) : NaN;
-    if (!Number.isFinite(endKm)) throw new BadRequestException('Invalid endKm');
+    if (!Number.isFinite(endKm)) throw new BadRequestException('daily_km.invalid_end_km_number');
 
     const base = '/uploads';
     const endOdometerUrl = files?.endOdometer?.[0] ? `${base}/${files.endOdometer[0].filename}` : undefined;
