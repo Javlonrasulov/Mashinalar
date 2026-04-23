@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ExpenseType } from '@prisma/client';
+import { ExpenseType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -47,5 +47,39 @@ export class ExpensesService {
       by: ['type'],
       _sum: { amount: true },
     });
+  }
+
+  /**
+   * Total expense amount per vehicle (admin “who spends most” = which plate / car).
+   */
+  async totalsByVehicle(filters?: { type?: ExpenseType }) {
+    const grouped = await this.prisma.expense.groupBy({
+      by: ['vehicleId'],
+      where: filters?.type ? { type: filters.type } : {},
+      _sum: { amount: true },
+      _count: { id: true },
+    });
+
+    if (grouped.length === 0) return [];
+
+    const vehicleIds = grouped.map((g) => g.vehicleId);
+    const vehicles = await this.prisma.vehicle.findMany({
+      where: { id: { in: vehicleIds } },
+      select: { id: true, plateNumber: true },
+    });
+    const plateById = new Map(vehicles.map((v) => [v.id, v.plateNumber]));
+
+    const rows = grouped.map((g) => ({
+      vehicleId: g.vehicleId,
+      plateNumber: plateById.get(g.vehicleId) ?? g.vehicleId,
+      totalAmount: (g._sum.amount ?? new Prisma.Decimal(0)).toString(),
+      expenseCount: g._count.id,
+    }));
+
+    rows.sort((a, b) =>
+      new Prisma.Decimal(b.totalAmount).comparedTo(new Prisma.Decimal(a.totalAmount)),
+    );
+
+    return rows;
   }
 }

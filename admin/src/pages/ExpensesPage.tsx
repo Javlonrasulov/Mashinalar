@@ -22,6 +22,23 @@ function formatSpentAt(iso: string, lang: Lang): string {
   }).format(d);
 }
 
+function formatMoneyUz(amountStr: string, lang: Lang): string {
+  const n = Number(amountStr);
+  if (!Number.isFinite(n)) return amountStr;
+  return new Intl.NumberFormat(intlLocaleFor(lang), {
+    style: 'currency',
+    currency: 'UZS',
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+type VehicleExpenseStat = {
+  vehicleId: string;
+  plateNumber: string;
+  totalAmount: string;
+  expenseCount: number;
+};
+
 type Row = {
   id: string;
   type: string;
@@ -53,6 +70,7 @@ function formatExpenseNote(note: string | null, t: (key: string) => string): str
 export function ExpensesPage() {
   const { t, lang } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
+  const [vehicleStats, setVehicleStats] = useState<VehicleExpenseStat[]>([]);
   const [filter, setFilter] = useState<string>('');
   const [vehicles, setVehicles] = useState<{ id: string; plateNumber: string }[]>([]);
   const [form, setForm] = useState({
@@ -64,12 +82,14 @@ export function ExpensesPage() {
 
   const load = async () => {
     const q = filter ? `?type=${encodeURIComponent(filter)}` : '';
-    const [e, v] = await Promise.all([
+    const [e, v, s] = await Promise.all([
       api<Row[]>(`/expenses${q}`),
       api<{ id: string; plateNumber: string }[]>('/vehicles'),
+      api<VehicleExpenseStat[]>(`/expenses/stats/by-vehicle${q}`),
     ]);
     setRows(e);
     setVehicles(v);
+    setVehicleStats(s);
   };
 
   useEffect(() => {
@@ -112,6 +132,8 @@ export function ExpensesPage() {
     return TYPES.includes(normalized) ? t(TYPE_LABEL_KEY[normalized]) : raw;
   }
 
+  const maxStatAmount = vehicleStats[0] ? Number(vehicleStats[0].totalAmount) : 0;
+
   return (
     <div className="app-page">
       <h1 className="app-page-title">{t('navExpenses')}</h1>
@@ -121,6 +143,55 @@ export function ExpensesPage() {
         <div className="w-auto min-w-[10rem]">
           <SelectField value={filter} onChange={setFilter} options={filterOptions} />
         </div>
+      </div>
+
+      <div className="app-card-pad space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">{t('statsExpensesTitle')}</h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{t('expenseStatsExplainer')}</p>
+          {filter ? (
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('expenseStatsFilteredNote')}</p>
+          ) : null}
+        </div>
+        {vehicleStats.length === 0 ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t('expenseStatsEmpty')}</p>
+        ) : (
+          <ol className="space-y-4">
+            {vehicleStats.slice(0, 12).map((s, idx) => {
+              const amt = Number(s.totalAmount);
+              const barPct =
+                maxStatAmount > 0 && Number.isFinite(amt) ? Math.min(100, Math.max(4, (amt / maxStatAmount) * 100)) : 4;
+              return (
+                <li key={s.vehicleId} className="min-w-0">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <span className="w-6 shrink-0 text-xs font-semibold tabular-nums text-slate-400 dark:text-slate-500">
+                        {idx + 1}.
+                      </span>
+                      <span className="truncate font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {s.plateNumber}
+                      </span>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {formatMoneyUz(s.totalAmount, lang)}
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        {t('expenseStatsCount')}: {s.expenseCount}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200/90 dark:bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-blue-600 dark:bg-blue-400"
+                      style={{ width: `${barPct}%` }}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </div>
 
       <form

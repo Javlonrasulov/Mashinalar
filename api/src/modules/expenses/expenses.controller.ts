@@ -26,6 +26,11 @@ export class ExpensesController {
     return this.expenses.totalsByType();
   }
 
+  @Get('stats/by-vehicle')
+  statsByVehicle(@Query('type') type?: ExpenseType) {
+    return this.expenses.totalsByVehicle({ type: type || undefined });
+  }
+
   @Post()
   create(@Body() dto: CreateExpenseDto, @CurrentUser() user: JwtUser) {
     return this.expenses.create(dto, user.userId);

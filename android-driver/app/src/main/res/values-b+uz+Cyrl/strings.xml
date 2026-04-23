@@ -52,6 +52,17 @@
   <string name="alert_net_off_title">Интернет йўқ</string>
   <string name="alert_net_off_body">Ма’лумотлар навбатда сақланади ва интернет келганда юборилади.</string>
 
+  <string name="profile_title">Профил</string>
+  <string name="profile_change_password">Паролни алмаштириш</string>
+  <string name="profile_password_dialog_title">Янги парол</string>
+  <string name="password_current">Жорий парол</string>
+  <string name="password_new">Янги парол</string>
+  <string name="password_confirm">Тасдиқлаш</string>
+  <string name="profile_password_changed">Парол янгиланди</string>
+  <string name="profile_password_mismatch">Янги пароллар мос эмас</string>
+  <string name="profile_password_too_short">Янги парол камида 6 белги</string>
+  <string name="save">Сақлаш</string>
+
   <string name="language_title">Тил</string>
   <string name="lang_uz_latin">O‘zbek (lotin)</string>
   <string name="lang_uz_cyrl">Ўзбек (кирил)</string>

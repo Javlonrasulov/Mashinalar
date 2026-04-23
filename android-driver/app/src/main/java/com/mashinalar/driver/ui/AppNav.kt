@@ -24,12 +24,14 @@ import com.mashinalar.driver.ui.screens.DailyKmScreen
 import com.mashinalar.driver.ui.screens.FuelScreen
 import com.mashinalar.driver.ui.screens.HomeScreen
 import com.mashinalar.driver.ui.screens.LoginScreen
+import com.mashinalar.driver.ui.screens.ProfileScreen
 import com.mashinalar.driver.ui.screens.TaskSubmitScreen
 import com.mashinalar.driver.ui.screens.TasksScreen
 
 private object Routes {
   const val Login = "login"
   const val TaskSubmit = "task_submit"
+  const val Profile = "profile"
 }
 
 @Composable
@@ -56,6 +58,7 @@ fun AppNav(
     NavItem.Fuel.route -> stringResource(R.string.fuel_title)
     NavItem.DailyKm.route -> stringResource(R.string.daily_km_title)
     NavItem.Tasks.route -> stringResource(R.string.tasks_title)
+    Routes.Profile -> stringResource(R.string.profile_title)
     else -> stringResource(R.string.app_name)
   }
   val mainTabRoutes = setOf(
@@ -74,7 +77,18 @@ fun AppNav(
     title = title,
     showBottomBar = showBottom,
     onLanguageClick = { langOpen = true },
-    onProfileClick = onLogout,
+    onProfileClick = {
+      navController.navigate(Routes.Profile) {
+        launchSingleTop = true
+      }
+    },
+    onBackClick =
+      if (route == Routes.Profile) {
+        { navController.popBackStack() }
+      } else {
+        null
+      },
+    showProfileAction = route != Routes.Profile,
   ) { pv, snackbar ->
     Box(
       modifier = Modifier
@@ -102,6 +116,9 @@ fun AppNav(
         composable("${Routes.TaskSubmit}/{id}") { entry ->
           val id = entry.arguments?.getString("id").orEmpty()
           TaskSubmitScreen(taskId = id, onDone = { navController.popBackStack() }, snackbarHost = snackbar)
+        }
+        composable(Routes.Profile) {
+          ProfileScreen(snackbarHost = snackbar, onLogout = onLogout)
         }
       }
 

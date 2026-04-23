@@ -52,6 +52,17 @@
   <string name="alert_net_off_title">Internet yo‘q</string>
   <string name="alert_net_off_body">Ma’lumotlar queue’da saqlanadi va internet kelganda yuboriladi.</string>
 
+  <string name="profile_title">Profil</string>
+  <string name="profile_change_password">Parolni almashtirish</string>
+  <string name="profile_password_dialog_title">Yangi parol</string>
+  <string name="password_current">Joriy parol</string>
+  <string name="password_new">Yangi parol</string>
+  <string name="password_confirm">Tasdiqlash</string>
+  <string name="profile_password_changed">Parol yangilandi</string>
+  <string name="profile_password_mismatch">Yangi parollar mos emas</string>
+  <string name="profile_password_too_short">Yangi parol kamida 6 belgi</string>
+  <string name="save">Saqlash</string>
+
   <string name="language_title">Til</string>
   <string name="lang_uz_latin">O‘zbek (lotin)</string>
   <string name="lang_uz_cyrl">O‘zbek (kiril)</string>

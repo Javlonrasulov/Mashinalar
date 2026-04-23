@@ -86,7 +86,8 @@ export class AuthService {
     if (!user) throw new UnauthorizedException();
 
     const ok = await bcrypt.compare(dto.currentPassword, user.passwordHash);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
+    // 401 bu yerda emas: klient interceptor har qanday 401’da tokenni tozalaydi.
+    if (!ok) throw new BadRequestException('Invalid credentials');
 
     const data: { login?: string; passwordHash?: string } = {};
 

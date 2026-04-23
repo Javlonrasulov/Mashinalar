@@ -52,6 +52,17 @@
   <string name="alert_net_off_title">Нет интернета</string>
   <string name="alert_net_off_body">Данные сохраняются в очереди и отправятся при появлении интернета.</string>
 
+  <string name="profile_title">Профиль</string>
+  <string name="profile_change_password">Сменить пароль</string>
+  <string name="profile_password_dialog_title">Новый пароль</string>
+  <string name="password_current">Текущий пароль</string>
+  <string name="password_new">Новый пароль</string>
+  <string name="password_confirm">Подтверждение</string>
+  <string name="profile_password_changed">Пароль обновлён</string>
+  <string name="profile_password_mismatch">Пароли не совпадают</string>
+  <string name="profile_password_too_short">Новый пароль — не менее 6 символов</string>
+  <string name="save">Сохранить</string>
+
   <string name="language_title">Язык</string>
   <string name="lang_uz_latin">O‘zbek (lotin)</string>
   <string name="lang_uz_cyrl">Ўзбек (кирил)</string>

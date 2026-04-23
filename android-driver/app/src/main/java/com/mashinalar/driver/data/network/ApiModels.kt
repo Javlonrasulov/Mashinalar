@@ -31,6 +31,12 @@ data class DriverDto(
 )
 
 @JsonClass(generateAdapter = true)
+data class UpdateCredentialsRequest(
+  val currentPassword: String,
+  val newPassword: String,
+)
+
+@JsonClass(generateAdapter = true)
 data class BatchLocationRequest(
   val points: List<LocationPointDto>,
 )

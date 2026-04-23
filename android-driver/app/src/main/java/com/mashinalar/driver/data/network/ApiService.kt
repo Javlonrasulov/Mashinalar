@@ -18,6 +18,9 @@ interface ApiService {
   @GET("/auth/me")
   suspend fun me(): UserDto
 
+  @PATCH("/auth/credentials")
+  suspend fun updateCredentials(@Body body: UpdateCredentialsRequest): UserDto
+
   @POST("/tracking/locations/batch")
   suspend fun sendLocations(@Body body: BatchLocationRequest): BatchLocationResponse
 
