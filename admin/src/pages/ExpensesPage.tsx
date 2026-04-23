@@ -1,7 +1,26 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { useI18n } from '@/i18n/I18nContext';
+import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { SelectField, type SelectOption } from '@/components/SelectField';
+
+function intlLocaleFor(lang: Lang): string {
+  if (lang === 'ru') return 'ru-RU';
+  if (lang === 'uzCyrl') return 'ru-RU';
+  return 'uz-Latn-UZ';
+}
+
+function formatSpentAt(iso: string, lang: Lang): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return iso;
+  return new Intl.DateTimeFormat(intlLocaleFor(lang), {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(d);
+}
 
 type Row = {
   id: string;
@@ -23,8 +42,16 @@ const TYPE_LABEL_KEY: Record<ExpenseType, TKey> = {
   OTHER: 'expenseType_OTHER',
 };
 
+const FUEL_REPORT_NOTE = /^Fuel report(\s|$)/i;
+
+function formatExpenseNote(note: string | null, t: (key: string) => string): string {
+  if (note == null || note === '') return '';
+  if (FUEL_REPORT_NOTE.test(note.trim())) return t('expenseNoteFuelReport');
+  return note;
+}
+
 export function ExpensesPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState<string>('');
   const [vehicles, setVehicles] = useState<{ id: string; plateNumber: string }[]>([]);
@@ -76,9 +103,14 @@ export function ExpensesPage() {
   ];
 
   const vehicleOptions: SelectOption<string>[] = [
-    { value: '', label: '—' },
+    { value: '', label: '' },
     ...vehicles.map((v) => ({ value: v.id, label: v.plateNumber })),
   ];
+
+  function typeLabel(raw: string) {
+    const normalized = raw.toUpperCase() as ExpenseType;
+    return TYPES.includes(normalized) ? t(TYPE_LABEL_KEY[normalized]) : raw;
+  }
 
   return (
     <div className="app-page">
@@ -101,6 +133,7 @@ export function ExpensesPage() {
             value={form.vehicleId}
             onChange={(v) => setForm({ ...form, vehicleId: v })}
             options={vehicleOptions}
+            placeholder={t('mapVehicleSelectPlaceholder')}
           />
         </div>
         <div>
@@ -149,12 +182,10 @@ export function ExpensesPage() {
             {rows.map((r) => (
               <tr key={r.id} className="app-table-row">
                 <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
-                <td className="p-3">
-                  {TYPES.includes(r.type as ExpenseType) ? t(TYPE_LABEL_KEY[r.type as ExpenseType]) : r.type}
-                </td>
+                <td className="p-3">{typeLabel(r.type)}</td>
                 <td className="p-3">{r.amount}</td>
-                <td className="p-3">{new Date(r.spentAt).toLocaleString()}</td>
-                <td className="p-3">{r.note}</td>
+                <td className="p-3">{formatSpentAt(r.spentAt, lang)}</td>
+                <td className="p-3">{formatExpenseNote(r.note, t)}</td>
               </tr>
             ))}
           </tbody>

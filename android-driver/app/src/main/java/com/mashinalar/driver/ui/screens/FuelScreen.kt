@@ -7,7 +7,6 @@ import android.net.Uri
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,7 +32,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -163,19 +161,17 @@ fun FuelScreen(
     snackbarHost.showSnackbar(msg)
   }
 
-  Box(
-    modifier = modifier
-      .fillMaxSize()
-      .padding(16.dp)
-      .imePadding(),
+  // Bitta scroll: weight+scroll o‘rniga — klaviatura/hisoblashda «Машина расми» yo‘qolmaydi; «Юбориш» ham ustma-ust emas.
+  val scroll = rememberScrollState()
+  Column(
+    modifier =
+      modifier
+        .fillMaxSize()
+        .padding(16.dp)
+        .imePadding()
+        .verticalScroll(scroll),
   ) {
-    Column(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .verticalScroll(rememberScrollState()),
-    ) {
-      OutlinedTextField(
+    OutlinedTextField(
         modifier = Modifier.fillMaxWidth(),
         value = state.amount,
         onValueChange = vm::setAmount,
@@ -243,14 +239,9 @@ fun FuelScreen(
         )
       }
 
-      Spacer(Modifier.height(72.dp))
-    }
-
+    Spacer(Modifier.height(24.dp))
     Button(
-      modifier = Modifier
-        .fillMaxWidth()
-        .align(Alignment.BottomCenter)
-        .padding(bottom = 12.dp),
+      modifier = Modifier.fillMaxWidth(),
       enabled = canSubmit,
       onClick = vm::submit,
     ) {
@@ -259,5 +250,6 @@ fun FuelScreen(
       }
       Text(if (state.loading) stringResource(R.string.sending) else stringResource(R.string.send))
     }
+    Spacer(Modifier.height(32.dp))
   }
 }

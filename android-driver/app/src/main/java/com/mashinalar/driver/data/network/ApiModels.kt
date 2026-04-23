@@ -123,4 +123,14 @@ data class DailyKmReportRefDto(
   val id: String,
 )
 
+@JsonClass(generateAdapter = true)
+data class DailyKmHistoryDto(
+  val id: String,
+  val reportDate: String,
+  val startKm: String,
+  val endKm: String? = null,
+  val startRecordedAt: String? = null,
+  val endRecordedAt: String? = null,
+)
+
 

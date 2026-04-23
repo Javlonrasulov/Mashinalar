@@ -43,6 +43,14 @@ function parseNum(v: string | undefined): number | undefined {
 export class DailyKmController {
   constructor(private readonly dailyKm: DailyKmService) {}
 
+  @Get('mine')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.DRIVER)
+  findMine(@CurrentUser() user: JwtUser, @Query('limit') limit?: string) {
+    if (!user.driverId) throw new BadRequestException('No driver');
+    return this.dailyKm.findMine(user.driverId, limit);
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

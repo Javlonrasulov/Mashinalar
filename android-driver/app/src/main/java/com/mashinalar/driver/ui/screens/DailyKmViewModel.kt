@@ -3,6 +3,7 @@ package com.mashinalar.driver.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mashinalar.driver.core.ApiResult
+import com.mashinalar.driver.data.network.DailyKmHistoryDto
 import com.mashinalar.driver.data.reports.ReportsRepository
 import com.mashinalar.driver.ui.util.LocationHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,6 +28,9 @@ data class DailyKmUiState(
   val reportId: String? = null,
   val loading: Boolean = false,
   val message: String? = null,
+  val historyItems: List<DailyKmHistoryDto> = emptyList(),
+  val historyLoading: Boolean = false,
+  val historyError: String? = null,
 )
 
 @HiltViewModel
@@ -36,6 +40,23 @@ class DailyKmViewModel @Inject constructor(
 ) : ViewModel() {
   private val _state = MutableStateFlow(DailyKmUiState())
   val state: StateFlow<DailyKmUiState> = _state
+
+  init {
+    loadHistory()
+  }
+
+  fun loadHistory() {
+    viewModelScope.launch {
+      val cur = _state.value
+      _state.value = cur.copy(historyLoading = true, historyError = null)
+      when (val r = repo.myDailyKmReports(40)) {
+        is ApiResult.Ok ->
+          _state.value = _state.value.copy(historyLoading = false, historyItems = r.value, historyError = null)
+        is ApiResult.Err ->
+          _state.value = _state.value.copy(historyLoading = false, historyError = r.message)
+      }
+    }
+  }
 
   fun setStartKm(v: String) { _state.value = _state.value.copy(startKm = v, message = null) }
 
@@ -78,25 +99,25 @@ class DailyKmViewModel @Inject constructor(
         _state.value = s.copy(loading = true, message = null)
         val loc = runCatching { LocationHelper.getOnce(context) }.getOrNull()
         val photo = s.startPhoto!!
-        val r = repo.submitDailyKmStart(
+        when (val r = repo.submitDailyKmStart(
           reportDateIso = s.reportDate.toString(),
           startKm = s.startKm.trim(),
           startOdometer = photo,
           latitude = loc?.first?.toString(),
           longitude = loc?.second?.toString(),
-        )
-        _state.value = when (r) {
+        )) {
           is ApiResult.Ok -> {
             runCatching { photo.delete() }
-            s.copy(
+            _state.value = s.copy(
               loading = false,
               endSectionVisible = true,
               reportId = r.value,
               startPhoto = null,
               message = context.getString(R.string.msg_daily_km_start_submitted),
             )
+            loadHistory()
           }
-          is ApiResult.Err -> s.copy(loading = false, message = r.message)
+          is ApiResult.Err -> _state.value = s.copy(loading = false, message = r.message)
         }
       }
     }
@@ -122,19 +143,19 @@ class DailyKmViewModel @Inject constructor(
       _state.value = s.copy(loading = true, message = null)
       val loc = runCatching { LocationHelper.getOnce(context) }.getOrNull()
       val photo = s.endPhoto!!
-      val r = repo.submitDailyKmEnd(
+      when (val r = repo.submitDailyKmEnd(
         reportId = s.reportId,
         endKm = s.endKm.trim(),
         endOdometer = photo,
         latitude = loc?.first?.toString(),
         longitude = loc?.second?.toString(),
-      )
-      _state.value = when (r) {
+      )) {
         is ApiResult.Ok -> {
           runCatching { photo.delete() }
-          DailyKmUiState(message = context.getString(R.string.msg_sent))
+          _state.value = DailyKmUiState(message = context.getString(R.string.msg_sent))
+          loadHistory()
         }
-        is ApiResult.Err -> s.copy(loading = false, message = r.message)
+        is ApiResult.Err -> _state.value = s.copy(loading = false, message = r.message)
       }
     }
   }

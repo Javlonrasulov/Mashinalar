@@ -31,6 +31,9 @@ interface ApiService {
     @Part receiptPhoto: MultipartBody.Part?,
   ): Any
 
+  @GET("/daily-km-reports/mine")
+  suspend fun myDailyKmReports(@Query("limit") limit: Int = 31): List<DailyKmHistoryDto>
+
   @Multipart
   @POST("/daily-km-reports/start")
   suspend fun submitDailyKmStart(

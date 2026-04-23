@@ -26,12 +26,28 @@ type OverpassElement = {
   tags?: Record<string, string>;
 };
 
-const DEFAULT_BBOX: FuelStationBbox = {
-  south: 40.02,
-  west: 65.12,
-  north: 40.22,
-  east: 65.52,
+/**
+ * Default: butun Navoiy viloyati (OSM relation 196246 «Navoiy Viloyati» chegarasi, `out bb`).
+ * Override: `FUEL_STATIONS_DEFAULT_BBOX=south,west,north,east` (comma-separated decimals).
+ */
+const DEFAULT_BBOX_NAVOIY_VILOYAT: FuelStationBbox = {
+  south: 39.4634,
+  west: 61.6802,
+  north: 43.7354,
+  east: 66.7778,
 };
+
+function defaultBboxFromEnv(): FuelStationBbox | null {
+  const raw = process.env.FUEL_STATIONS_DEFAULT_BBOX?.trim();
+  if (!raw) return null;
+  const parts = raw.split(/[\s,]+/).map((s) => Number(s.trim()));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [south, west, north, east] = parts;
+  if (south >= north || west >= east) return null;
+  return { south, west, north, east };
+}
+
+const DEFAULT_BBOX: FuelStationBbox = defaultBboxFromEnv() ?? DEFAULT_BBOX_NAVOIY_VILOYAT;
 
 const FUEL_LABEL: Record<string, string> = {
   diesel: 'Diesel',
@@ -82,7 +98,11 @@ export class OsmFuelService {
       return this.cache.data;
     }
 
-    const query = `[out:json][timeout:55];
+    const timeoutSec = Math.min(
+      180,
+      Math.max(55, Number(process.env.OVERPASS_TIMEOUT_SEC ?? '120') || 120),
+    );
+    const query = `[out:json][timeout:${timeoutSec}];
 (
   node["amenity"="fuel"](${south},${west},${north},${east});
   way["amenity"="fuel"](${south},${west},${north},${east});

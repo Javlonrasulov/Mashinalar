@@ -1,8 +1,10 @@
 package com.mashinalar.driver.data.reports
 
 import com.mashinalar.driver.core.ApiResult
+import com.mashinalar.driver.core.HttpErrors
 import com.mashinalar.driver.core.NetworkErrors
 import com.mashinalar.driver.data.network.ApiService
+import com.mashinalar.driver.data.network.DailyKmHistoryDto
 import com.mashinalar.driver.data.network.filePart
 import com.mashinalar.driver.data.network.textPart
 import java.io.File
@@ -12,6 +14,15 @@ import javax.inject.Inject
 class ReportsRepository @Inject constructor(
   private val api: ApiService,
 ) {
+  suspend fun myDailyKmReports(limit: Int = 31): ApiResult<List<DailyKmHistoryDto>> =
+    try {
+      ApiResult.Ok(api.myDailyKmReports(limit))
+    } catch (e: retrofit2.HttpException) {
+      ApiResult.Err(HttpErrors.userMessage(e), e.code())
+    } catch (t: Throwable) {
+      ApiResult.Err(NetworkErrors.toUserMessage(t))
+    }
+
   suspend fun createFuel(
     amount: String,
     latitude: String?,
@@ -29,7 +40,7 @@ class ReportsRepository @Inject constructor(
       )
       ApiResult.Ok(Unit)
     } catch (e: retrofit2.HttpException) {
-      ApiResult.Err(e.message(), e.code())
+      ApiResult.Err(HttpErrors.userMessage(e), e.code())
     } catch (t: Throwable) {
       ApiResult.Err(NetworkErrors.toUserMessage(t))
     }
@@ -52,7 +63,7 @@ class ReportsRepository @Inject constructor(
       )
       ApiResult.Ok(ref.id)
     } catch (e: retrofit2.HttpException) {
-      ApiResult.Err(e.message(), e.code())
+      ApiResult.Err(HttpErrors.userMessage(e), e.code())
     } catch (t: Throwable) {
       ApiResult.Err(NetworkErrors.toUserMessage(t))
     }
@@ -75,7 +86,7 @@ class ReportsRepository @Inject constructor(
       )
       ApiResult.Ok(Unit)
     } catch (e: retrofit2.HttpException) {
-      ApiResult.Err(e.message(), e.code())
+      ApiResult.Err(HttpErrors.userMessage(e), e.code())
     } catch (t: Throwable) {
       ApiResult.Err(NetworkErrors.toUserMessage(t))
     }

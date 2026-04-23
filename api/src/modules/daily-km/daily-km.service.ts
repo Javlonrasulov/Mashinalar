@@ -8,12 +8,43 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
+function isPrismaUniqueViolation(e: unknown): boolean {
+  return Boolean(e && typeof e === 'object' && 'code' in e && (e as { code: string }).code === 'P2002');
+}
+
 @Injectable()
 export class DailyKmService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
+
+  /** Haydovchi o‘zining so‘nggi kunlik KM yozuvlari */
+  async findMine(driverId: string, limitRaw?: string) {
+    const n = limitRaw != null && limitRaw !== '' ? Number(limitRaw) : 31;
+    const take = Number.isFinite(n) && n > 0 && n <= 90 ? Math.floor(n) : 31;
+    const rows = await this.prisma.dailyKmReport.findMany({
+      where: { driverId },
+      orderBy: { reportDate: 'desc' },
+      take,
+      select: {
+        id: true,
+        reportDate: true,
+        startKm: true,
+        endKm: true,
+        startRecordedAt: true,
+        endRecordedAt: true,
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      reportDate: r.reportDate.toISOString(),
+      startKm: String(r.startKm),
+      endKm: r.endKm == null ? null : String(r.endKm),
+      startRecordedAt: r.startRecordedAt?.toISOString() ?? null,
+      endRecordedAt: r.endRecordedAt?.toISOString() ?? null,
+    }));
+  }
 
   findAll(params?: { date?: string }) {
     const where =
@@ -60,21 +91,27 @@ export class DailyKmService {
     });
 
     if (existing?.endKm != null) {
-      throw new ConflictException('Report for this date is already completed');
+      throw new ConflictException(
+        'Bu kun uchun hisobot allaqachon yopilgan (yakuniy KM yuborilgan). ' +
+          'Yangi boshlash uchun ertangi kunni kuting yoki admin bilan bog‘laning.',
+      );
     }
 
-    if (existing) {
-      const row = await this.prisma.dailyKmReport.update({
-        where: { id: existing.id },
+    const updateStart = async (id: string) =>
+      this.prisma.dailyKmReport.update({
+        where: { id },
         data: {
           startKm: params.startKm,
-          startOdometerUrl: params.startOdometerUrl ?? existing.startOdometerUrl,
+          startOdometerUrl: params.startOdometerUrl ?? undefined,
           startLatitude: params.startLatitude ?? null,
           startLongitude: params.startLongitude ?? null,
           startRecordedAt,
         },
         include: { vehicle: true, driver: true },
       });
+
+    if (existing) {
+      const row = await updateStart(existing.id);
       await this.audit.log({
         actorUserId: params.actorUserId,
         action: 'dailyKm.start',
@@ -84,20 +121,37 @@ export class DailyKmService {
       return row;
     }
 
-    const row = await this.prisma.dailyKmReport.create({
-      data: {
-        vehicleId: driver.vehicleId,
-        driverId: params.driverId,
-        reportDate,
-        startKm: params.startKm,
-        endKm: null,
-        startOdometerUrl: params.startOdometerUrl,
-        startLatitude: params.startLatitude ?? null,
-        startLongitude: params.startLongitude ?? null,
-        startRecordedAt,
-      },
-      include: { vehicle: true, driver: true },
-    });
+    let row;
+    try {
+      row = await this.prisma.dailyKmReport.create({
+        data: {
+          vehicleId: driver.vehicleId,
+          driverId: params.driverId,
+          reportDate,
+          startKm: params.startKm,
+          endKm: null,
+          startOdometerUrl: params.startOdometerUrl,
+          startLatitude: params.startLatitude ?? null,
+          startLongitude: params.startLongitude ?? null,
+          startRecordedAt,
+        },
+        include: { vehicle: true, driver: true },
+      });
+    } catch (e: unknown) {
+      if (!isPrismaUniqueViolation(e)) throw e;
+      const again = await this.prisma.dailyKmReport.findUnique({
+        where: { vehicleId_reportDate: { vehicleId: driver.vehicleId, reportDate } },
+      });
+      if (again?.endKm != null) {
+        throw new ConflictException(
+          'Bu kun uchun hisobot allaqachon yopilgan (yakuniy KM yuborilgan). ' +
+            'Yangi boshlash uchun ertangi kunni kuting yoki admin bilan bog‘laning.',
+        );
+      }
+      if (!again) throw e;
+      row = await updateStart(again.id);
+    }
+
     await this.audit.log({
       actorUserId: params.actorUserId,
       action: 'dailyKm.start',

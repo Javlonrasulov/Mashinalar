@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Car, Fuel, Maximize2, Receipt, X } from 'lucide-react';
 import clsx from 'clsx';
 import { api, apiUrl } from '@/lib/api';
-import { fuelPumpLeafletIcon, fuelStationsBboxQuery, type FuelStationMapItem } from '@/lib/fuelStationsMap';
+import { fuelPumpLeafletIcon, fuelStationsApiPathForPoint, type FuelStationMapItem } from '@/lib/fuelStationsMap';
 import { useI18n } from '@/i18n/I18nContext';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
@@ -251,8 +251,7 @@ export function FuelPage() {
                   setFuelLayerVisible((v) => {
                     const next = !v;
                     if (next) {
-                      const q = fuelStationsBboxQuery(mapPoint.lat, mapPoint.lon);
-                      void api<FuelStationMapItem[]>(`/map/fuel-stations?${q}`)
+                      void api<FuelStationMapItem[]>(fuelStationsApiPathForPoint(mapPoint.lat, mapPoint.lon))
                         .then(setFuelStations)
                         .catch(() => setFuelStations([]));
                     }

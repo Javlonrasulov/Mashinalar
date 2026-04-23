@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { api, apiUrl } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import { MapContainer, Marker, TileLayer } from 'react-leaflet';
@@ -24,7 +24,8 @@ type DailyKmRow = {
   id: string;
   reportDate: string;
   startKm: string;
-  endKm: string | null;
+  /** API: null until driver submits end; avoid treating "" as submitted */
+  endKm: string | null | undefined;
   startOdometerUrl: string | null;
   endOdometerUrl: string | null;
   startRecordedAt: string | null;
@@ -50,6 +51,13 @@ function formatDateTimeNoSeconds(iso: string | null | undefined) {
   const date = d.toLocaleDateString();
   const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   return `${date}, ${time}`;
+}
+
+function isDailyKmEndMissing(r: DailyKmRow): boolean {
+  const k = r.endKm;
+  if (k == null) return true;
+  if (typeof k === 'string' && k.trim() === '') return true;
+  return false;
 }
 
 function LocBtn({
@@ -124,74 +132,163 @@ export function DailyKmPage() {
         </div>
       </div>
 
+      <p className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-2 text-xs leading-relaxed text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 sm:text-sm">
+        {t('dailyKmLayoutExplain')}
+      </p>
+
       <div className="app-card min-w-0 overflow-hidden">
         <div className="app-table-wrap overflow-x-auto">
           <table className="app-table-inner min-w-[960px] text-sm">
             <thead className="app-table-head">
               <tr>
-                <th className="p-3">{t('plate')}</th>
-                <th className="p-3">{t('fullName')}</th>
-                <th className="p-3">{t('dailyKmColStartKm')}</th>
+                <th rowSpan={2} className="p-3 align-bottom">
+                  {t('plate')}
+                </th>
+                <th rowSpan={2} className="p-3 align-bottom">
+                  {t('fullName')}
+                </th>
+                <th colSpan={4} className="border-s border-slate-200 p-3 text-center dark:border-slate-700">
+                  {t('dailyKmGroupStart')}
+                </th>
+                <th colSpan={4} className="border-s border-slate-200 p-3 text-center dark:border-slate-700">
+                  {t('dailyKmGroupEnd')}
+                </th>
+              </tr>
+              <tr>
+                <th className="border-s border-slate-200 p-3 dark:border-slate-700">{t('dailyKmColStartKm')}</th>
                 <th className="p-3">{t('dailyKmColStartTime')}</th>
                 <th className="p-3">{t('dailyKmColStartLoc')}</th>
                 <th className="p-3">{t('dailyKmColStartPhoto')}</th>
-                <th className="p-3">{t('dailyKmColEndKm')}</th>
+                <th className="border-s border-slate-200 p-3 dark:border-slate-700">{t('dailyKmColEndKm')}</th>
                 <th className="p-3">{t('dailyKmColEndTime')}</th>
                 <th className="p-3">{t('dailyKmColEndLoc')}</th>
                 <th className="p-3">{t('dailyKmColEndPhoto')}</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="app-table-row">
-                  <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
-                  <td className="p-3">{r.driver.fullName}</td>
-                  <td className="p-3">{r.startKm}</td>
-                  <td className="p-3 whitespace-nowrap">{formatDateTimeNoSeconds(r.startRecordedAt)}</td>
-                  <td className="p-3">
-                    <LocBtn
-                      lat={r.startLatitude}
-                      lng={r.startLongitude}
-                      title={`${r.vehicle.plateNumber} — ${t('dailyKmStartShort')}`}
-                      onOpen={(lat, lon, title) => {
-                        setMapPoint({ lat, lon, title });
-                        setMapOpen(true);
-                      }}
-                    />
-                  </td>
-                  <td className="p-3">
-                    {r.startOdometerUrl ? (
-                      <a className="text-blue-600 hover:underline dark:text-blue-400" href={apiUrl(r.startOdometerUrl)} target="_blank" rel="noreferrer">
-                        {t('linkOpen')}
-                      </a>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td className="p-3">{r.endKm ?? '—'}</td>
-                  <td className="p-3 whitespace-nowrap">{formatDateTimeNoSeconds(r.endRecordedAt)}</td>
-                  <td className="p-3">
-                    <LocBtn
-                      lat={r.endLatitude}
-                      lng={r.endLongitude}
-                      title={`${r.vehicle.plateNumber} — ${t('dailyKmEndShort')}`}
-                      onOpen={(lat, lon, title) => {
-                        setMapPoint({ lat, lon, title });
-                        setMapOpen(true);
-                      }}
-                    />
-                  </td>
-                  <td className="p-3">
-                    {r.endOdometerUrl ? (
-                      <a className="text-blue-600 hover:underline dark:text-blue-400" href={apiUrl(r.endOdometerUrl)} target="_blank" rel="noreferrer">
-                        {t('linkOpen')}
-                      </a>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r) => {
+                const endPending = isDailyKmEndMissing(r);
+                /** Jadval 10 ustun: 2+4 бошланиш + 4 тугаш. Иккинчи `tr`да фақат 4 та `td` булса, улар 3–6-устунларга тушади — тугаш сарлавҳалари остига эмас. */
+                const pendingEndCell =
+                  'border-t border-red-100 bg-red-50 dark:border-red-900/55 dark:bg-red-950/50';
+                const row2FillerWhenPending =
+                  'border-t border-red-100 bg-red-50/80 dark:border-red-900/55 dark:bg-red-950/45';
+                return (
+                  <Fragment key={r.id}>
+                    <tr className="app-table-row">
+                      <td rowSpan={2} className="p-3 align-top font-mono">
+                        {r.vehicle.plateNumber}
+                      </td>
+                      <td rowSpan={2} className="p-3 align-top">
+                        {r.driver.fullName}
+                      </td>
+                      <td className="border-s border-slate-100 p-3 dark:border-slate-800">{r.startKm}</td>
+                      <td className="p-3 whitespace-nowrap">{formatDateTimeNoSeconds(r.startRecordedAt)}</td>
+                      <td className="p-3">
+                        <LocBtn
+                          lat={r.startLatitude}
+                          lng={r.startLongitude}
+                          title={`${r.vehicle.plateNumber} — ${t('dailyKmStartShort')}`}
+                          onOpen={(lat, lon, title) => {
+                            setMapPoint({ lat, lon, title });
+                            setMapOpen(true);
+                          }}
+                        />
+                      </td>
+                      <td className="p-3">
+                        {r.startOdometerUrl ? (
+                          <a
+                            className="text-blue-600 hover:underline dark:text-blue-400"
+                            href={apiUrl(r.startOdometerUrl)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {t('linkOpen')}
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td
+                        colSpan={4}
+                        className="border-s border-slate-100 p-2 align-middle text-center text-xs dark:border-slate-800"
+                      >
+                        {endPending ? (
+                          <span className="font-medium leading-snug text-red-800 dark:text-red-200">{t('dailyKmEndPendingShort')}</span>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center gap-1 py-0.5">
+                            <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                              {String(r.endKm)} · {formatDateTimeNoSeconds(r.endRecordedAt)}
+                            </span>
+                            <span className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">{t('dailyKmFullEndBelow')}</span>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                    <tr className={endPending ? '' : 'app-table-row'} title={endPending ? t('dailyKmEndPending') : undefined}>
+                      <td
+                        colSpan={4}
+                        className={
+                          endPending
+                            ? `border-s border-slate-100 p-2 text-center align-middle text-xs leading-snug dark:border-slate-800 ${row2FillerWhenPending}`
+                            : 'border-s border-slate-100 border-t border-slate-100 p-2 text-center align-middle text-xs leading-snug text-slate-500 dark:border-slate-800 dark:text-slate-400'
+                        }
+                      >
+                        <span className={endPending ? 'text-red-900/80 dark:text-red-100/90' : ''}>{t('dailyKmRow2Bridge')}</span>
+                      </td>
+                      <td
+                        className={
+                          endPending
+                            ? `border-s border-red-200 p-3 pl-2 ${pendingEndCell} shadow-[inset_4px_0_0_0_rgb(220_38_38)] dark:border-red-800/60`
+                            : 'border-s border-slate-100 border-t border-slate-100 p-3 dark:border-slate-800'
+                        }
+                      >
+                        {endPending ? (
+                          <span className="text-xs font-medium leading-snug text-red-800 dark:text-red-100">{t('dailyKmEndPending')}</span>
+                        ) : (
+                          String(r.endKm)
+                        )}
+                      </td>
+                      <td
+                        className={`p-3 whitespace-nowrap ${endPending ? `${pendingEndCell} text-red-700 dark:text-red-200` : 'border-t border-slate-100 dark:border-slate-800'}`}
+                      >
+                        {endPending ? '—' : formatDateTimeNoSeconds(r.endRecordedAt)}
+                      </td>
+                      <td className={`p-3 ${endPending ? pendingEndCell : 'border-t border-slate-100 dark:border-slate-800'}`}>
+                        {endPending ? (
+                          <span className="text-red-600 dark:text-red-300">—</span>
+                        ) : (
+                          <LocBtn
+                            lat={r.endLatitude}
+                            lng={r.endLongitude}
+                            title={`${r.vehicle.plateNumber} — ${t('dailyKmEndShort')}`}
+                            onOpen={(lat, lon, title) => {
+                              setMapPoint({ lat, lon, title });
+                              setMapOpen(true);
+                            }}
+                          />
+                        )}
+                      </td>
+                      <td className={`p-3 ${endPending ? pendingEndCell : 'border-t border-slate-100 dark:border-slate-800'}`}>
+                        {endPending ? (
+                          <span className="text-red-600 dark:text-red-300">—</span>
+                        ) : r.endOdometerUrl ? (
+                          <a
+                            className="text-blue-600 hover:underline dark:text-blue-400"
+                            href={apiUrl(r.endOdometerUrl)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {t('linkOpen')}
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

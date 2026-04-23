@@ -26,6 +26,11 @@
   <string name="end_km_field">Якуний КМ</string>
   <string name="start_odometer_photo">Иш бошланиши расми</string>
   <string name="end_odometer_photo">Иш тугаши расми</string>
+  <string name="daily_km_history_title">Тарих</string>
+  <string name="daily_km_history_refresh">Янгилаш</string>
+  <string name="daily_km_history_empty">Ҳозирча ёзув йўқ</string>
+  <string name="daily_km_history_status_open">Якунланмаган</string>
+  <string name="daily_km_history_status_done">Ёпилган</string>
   <string name="tasks_title">Вазифалар</string>
   <string name="task_submit_title">Вазифа топшириш</string>
   <string name="comment_optional">Изоҳ (ихтиёрий)</string>

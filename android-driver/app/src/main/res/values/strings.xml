@@ -36,6 +36,11 @@
   <string name="end_km_field">Yakuniy KM</string>
   <string name="start_odometer_photo">Ish boshlanishi rasmi</string>
   <string name="end_odometer_photo">Ish tugashi rasmi</string>
+  <string name="daily_km_history_title">Tarix</string>
+  <string name="daily_km_history_refresh">Yangilash</string>
+  <string name="daily_km_history_empty">Hozircha yozuv yo‘q</string>
+  <string name="daily_km_history_status_open">Yakunlanmagan</string>
+  <string name="daily_km_history_status_done">Yopilgan</string>
 
   <!-- Tasks -->
   <string name="tasks_title">Vazifalar</string>
