@@ -102,4 +102,133 @@ export class DashboardService {
       upcomingDeadlines,
     };
   }
+
+  async statistics(fromRaw?: string, toRaw?: string) {
+    const now = new Date();
+    const to = parseDayEndUtc(toRaw, now);
+    const defaultFrom = new Date(to);
+    defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 30);
+    defaultFrom.setUTCHours(0, 0, 0, 0);
+    const from = parseDayStartUtc(fromRaw, defaultFrom);
+    if (from.getTime() > to.getTime()) {
+      throw new BadRequestException('Invalid date range');
+    }
+
+    const [dailyRows, expenseGroups, fuelGroups, openByDriver, overdueOpenByDriver] = await Promise.all([
+      this.prisma.dailyKmReport.findMany({
+        where: {
+          reportDate: { gte: from, lte: to },
+          endKm: { not: null },
+        },
+        select: {
+          vehicleId: true,
+          startKm: true,
+          endKm: true,
+        },
+      }),
+      this.prisma.expense.groupBy({
+        by: ['vehicleId'],
+        where: { spentAt: { gte: from, lte: to } },
+        _sum: { amount: true },
+      }),
+      this.prisma.fuelReport.groupBy({
+        by: ['vehicleId'],
+        where: { createdAt: { gte: from, lte: to } },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      this.prisma.task.groupBy({
+        by: ['driverId'],
+        where: { status: { in: [TaskStatus.PENDING, TaskStatus.SUBMITTED] } },
+        _count: { _all: true },
+      }),
+      this.prisma.task.groupBy({
+        by: ['driverId'],
+        where: {
+          status: { in: [TaskStatus.PENDING, TaskStatus.SUBMITTED] },
+          deadlineAt: { lt: now },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const kmMap = new Map<string, number>();
+    for (const r of dailyRows) {
+      if (r.endKm == null) continue;
+      const delta = Math.max(0, Number(r.endKm) - Number(r.startKm));
+      kmMap.set(r.vehicleId, (kmMap.get(r.vehicleId) ?? 0) + delta);
+    }
+
+    const vehicleIds = new Set<string>();
+    for (const id of kmMap.keys()) vehicleIds.add(id);
+    for (const e of expenseGroups) vehicleIds.add(e.vehicleId);
+    for (const f of fuelGroups) vehicleIds.add(f.vehicleId);
+
+    const vehicles = await this.prisma.vehicle.findMany({
+      where: { id: { in: [...vehicleIds] } },
+      select: { id: true, plateNumber: true, name: true },
+    });
+    const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
+
+    const attachVehicle = (vehicleId: string) => {
+      const v = vehicleById.get(vehicleId);
+      return {
+        vehicleId,
+        plateNumber: v?.plateNumber ?? vehicleId,
+        name: v?.name ?? '',
+      };
+    };
+
+    const kmByVehicle = [...kmMap.entries()]
+      .map(([vehicleId, totalKm]) => ({ ...attachVehicle(vehicleId), totalKm }))
+      .sort((a, b) => b.totalKm - a.totalKm);
+
+    const expensesByVehicle = expenseGroups
+      .map((g) => ({
+        ...attachVehicle(g.vehicleId),
+        totalAmount: Number(g._sum.amount ?? 0),
+      }))
+      .sort((a, b) => b.totalAmount - a.totalAmount);
+
+    const fuelByVehicle = fuelGroups
+      .map((g) => ({
+        ...attachVehicle(g.vehicleId),
+        reportCount: g._count._all,
+        totalAmount: Number(g._sum.amount ?? 0),
+      }))
+      .sort((a, b) => b.reportCount - a.reportCount);
+
+    const driverIds = new Set<string>();
+    for (const r of openByDriver) driverIds.add(r.driverId);
+    for (const r of overdueOpenByDriver) driverIds.add(r.driverId);
+
+    const openCount = new Map(openByDriver.map((r) => [r.driverId, r._count._all]));
+    const overdueCount = new Map(overdueOpenByDriver.map((r) => [r.driverId, r._count._all]));
+
+    const drivers = driverIds.size
+      ? await this.prisma.driver.findMany({
+          where: { id: { in: [...driverIds] } },
+          select: { id: true, fullName: true, phone: true },
+        })
+      : [];
+
+    const driversIncomplete = drivers
+      .map((d) => ({
+        driverId: d.id,
+        fullName: d.fullName,
+        phone: d.phone,
+        openTasks: openCount.get(d.id) ?? 0,
+        overdueOpenTasks: overdueCount.get(d.id) ?? 0,
+      }))
+      .filter((d) => d.openTasks > 0)
+      .sort((a, b) => b.openTasks - a.openTasks);
+
+    return {
+      period: { from: from.toISOString(), to: to.toISOString() },
+      kmByVehicle,
+      expensesByVehicle,
+      fuelByVehicle,
+      driversIncomplete,
+    };
+  }
 }

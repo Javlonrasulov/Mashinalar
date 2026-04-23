@@ -13,12 +13,16 @@ import java.time.LocalDate
 import android.content.Context
 import com.mashinalar.driver.R
 import javax.inject.Inject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 data class DailyKmUiState(
   val reportDate: LocalDate = LocalDate.now(),
+  /** Mashina `initialKm` — server va ilovada minimal odometr */
+  val minOdometerKm: Double? = null,
   val startKm: String = "",
   val endKm: String = "",
   val startPhoto: File? = null,
@@ -49,11 +53,26 @@ class DailyKmViewModel @Inject constructor(
     viewModelScope.launch {
       val cur = _state.value
       _state.value = cur.copy(historyLoading = true, historyError = null)
-      when (val r = repo.myDailyKmReports(40)) {
+      val (hr, vr) = coroutineScope {
+        val h = async { repo.myDailyKmReports(40) }
+        val v = async { repo.myVehicle() }
+        Pair(h.await(), v.await())
+      }
+      val minKm = (vr as? ApiResult.Ok)?.value?.vehicle?.initialKm
+      when (hr) {
         is ApiResult.Ok ->
-          _state.value = _state.value.copy(historyLoading = false, historyItems = r.value, historyError = null)
+          _state.value = _state.value.copy(
+            historyLoading = false,
+            historyItems = hr.value,
+            historyError = null,
+            minOdometerKm = minKm,
+          )
         is ApiResult.Err ->
-          _state.value = _state.value.copy(historyLoading = false, historyError = r.message)
+          _state.value = _state.value.copy(
+            historyLoading = false,
+            historyError = hr.message,
+            minOdometerKm = minKm,
+          )
       }
     }
   }
@@ -95,29 +114,44 @@ class DailyKmViewModel @Inject constructor(
         _state.value = s.copy(message = context.getString(R.string.msg_daily_km_start_km_required))
       s.startPhoto == null ->
         _state.value = s.copy(message = context.getString(R.string.msg_daily_km_start_photo_required))
-      else -> viewModelScope.launch {
-        _state.value = s.copy(loading = true, message = null)
-        val loc = runCatching { LocationHelper.getOnce(context) }.getOrNull()
-        val photo = s.startPhoto!!
-        when (val r = repo.submitDailyKmStart(
-          reportDateIso = s.reportDate.toString(),
-          startKm = s.startKm.trim(),
-          startOdometer = photo,
-          latitude = loc?.first?.toString(),
-          longitude = loc?.second?.toString(),
-        )) {
-          is ApiResult.Ok -> {
-            runCatching { photo.delete() }
-            _state.value = s.copy(
-              loading = false,
-              endSectionVisible = true,
-              reportId = r.value,
-              startPhoto = null,
-              message = context.getString(R.string.msg_daily_km_start_submitted),
+      else -> {
+        val startVal = s.startKm.trim().replace(',', '.').toDoubleOrNull()
+        if (startVal == null) {
+          _state.value = s.copy(message = context.getString(R.string.msg_daily_km_invalid_number))
+          return
+        }
+        val floorStart = minAllowedStartKm(s.minOdometerKm, s.historyItems, s.reportDate)
+        if (floorStart != null && startVal < floorStart) {
+          _state.value =
+            s.copy(message = context.getString(R.string.msg_daily_km_start_below_floor, floorStart))
+          return
+        }
+        viewModelScope.launch {
+          _state.value = s.copy(loading = true, message = null)
+          val loc = runCatching { LocationHelper.getOnce(context) }.getOrNull()
+          val photo = s.startPhoto!!
+          when (
+            val r = repo.submitDailyKmStart(
+              reportDateIso = s.reportDate.toString(),
+              startKm = s.startKm.trim(),
+              startOdometer = photo,
+              latitude = loc?.first?.toString(),
+              longitude = loc?.second?.toString(),
             )
-            loadHistory()
+          ) {
+            is ApiResult.Ok -> {
+              runCatching { photo.delete() }
+              _state.value = s.copy(
+                loading = false,
+                endSectionVisible = true,
+                reportId = r.value,
+                startPhoto = null,
+                message = context.getString(R.string.msg_daily_km_start_submitted),
+              )
+              loadHistory()
+            }
+            is ApiResult.Err -> _state.value = s.copy(loading = false, message = r.message)
           }
-          is ApiResult.Err -> _state.value = s.copy(loading = false, message = r.message)
         }
       }
     }
@@ -139,6 +173,23 @@ class DailyKmViewModel @Inject constructor(
       _state.value = s.copy(message = context.getString(R.string.msg_daily_km_end_photo_required))
       return
     }
+    val endVal = s.endKm.trim().replace(',', '.').toDoubleOrNull()
+    if (endVal == null) {
+      _state.value = s.copy(message = context.getString(R.string.msg_daily_km_invalid_number))
+      return
+    }
+    val startVal = s.startKm.trim().replace(',', '.').toDoubleOrNull()
+    val historyFloor = minAllowedStartKm(s.minOdometerKm, s.historyItems, s.reportDate)
+    val minEnd = listOfNotNull(historyFloor, startVal).maxOrNull()
+    if (minEnd != null && endVal < minEnd) {
+      if (startVal != null && endVal < startVal) {
+        _state.value = s.copy(message = context.getString(R.string.msg_daily_km_end_below_start))
+      } else {
+        _state.value =
+          s.copy(message = context.getString(R.string.msg_daily_km_end_below_floor, minEnd))
+      }
+      return
+    }
     viewModelScope.launch {
       _state.value = s.copy(loading = true, message = null)
       val loc = runCatching { LocationHelper.getOnce(context) }.getOrNull()
@@ -158,5 +209,42 @@ class DailyKmViewModel @Inject constructor(
         is ApiResult.Err -> _state.value = s.copy(loading = false, message = r.message)
       }
     }
+  }
+}
+
+/** Bugungi `reportDate` bo‘yicha tarixdan chiqarib, boshqa kunlarning start/end KM laridan maksimum. */
+private fun maxPastReadingExcludingReportDate(
+  history: List<DailyKmHistoryDto>,
+  reportDate: LocalDate,
+): Double? {
+  val day = reportDate.toString()
+  var maxV: Double? = null
+  for (item in history) {
+    if (item.reportDate.trim().take(10) == day) continue
+    val s = item.startKm.trim().replace(',', '.').toDoubleOrNull() ?: continue
+    maxV = if (maxV == null) s else kotlin.math.max(maxV, s)
+    val eRaw = item.endKm?.trim()?.replace(',', '.') ?: ""
+    if (eRaw.isNotEmpty()) {
+      val e = eRaw.toDoubleOrNull()
+      if (e != null) {
+        val prev = maxV
+        maxV = if (prev == null) e else kotlin.math.max(prev, e)
+      }
+    }
+  }
+  return maxV
+}
+
+/** Boshlash (va tugash) KM uchun minimal ruxsat: mashina `initialKm` va boshqa kunlardagi eng yuqori o‘qish. */
+private fun minAllowedStartKm(
+  initial: Double?,
+  history: List<DailyKmHistoryDto>,
+  reportDate: LocalDate,
+): Double? {
+  val fromHistory = maxPastReadingExcludingReportDate(history, reportDate)
+  return when {
+    initial != null && fromHistory != null -> kotlin.math.max(initial, fromHistory)
+    initial != null -> initial
+    else -> fromHistory
   }
 }

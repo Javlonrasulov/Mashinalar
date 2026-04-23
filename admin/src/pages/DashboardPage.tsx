@@ -3,6 +3,7 @@ import { AlertTriangle, Car, Gauge, ShieldAlert } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
+import { DashboardStatistics } from '@/components/DashboardStatistics';
 
 type Summary = {
   todayKm: number;
@@ -159,6 +160,8 @@ export function DashboardPage() {
           </ul>
         </div>
       </div>
+
+      <DashboardStatistics />
     </div>
   );
 }

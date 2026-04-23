@@ -69,6 +69,8 @@ data class VehicleDto(
   val name: String,
   val plateNumber: String,
   val model: String? = null,
+  /** Mashina bazadagi boshlang‘ich (odometr) KM — kunlik KM shu qiymatdan past bo‘lmasligi kerak */
+  val initialKm: Double? = null,
 )
 
 @JsonClass(generateAdapter = true)

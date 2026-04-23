@@ -71,6 +71,9 @@
   <string name="msg_daily_km_start_submitted">Начало дня отправлено на сервер</string>
   <string name="msg_daily_km_end_km_required">Введите конечный км</string>
   <string name="msg_daily_km_end_photo_required">Загрузите фото окончания работы</string>
+  <string name="msg_daily_km_start_below_floor">Начальный км не меньше %1$.0f (по базовому или предыдущим дневным записям)</string>
+  <string name="msg_daily_km_end_below_floor">Конечный км не меньше %1$.0f (по началу дня и предыдущим записям)</string>
+  <string name="msg_daily_km_end_below_start">Конечный км не может быть меньше начального</string>
   <string name="msg_sent">Успешно отправлено</string>
 
   <string name="home_vehicle_card_title">Машина</string>

@@ -92,6 +92,12 @@
   <string name="msg_daily_km_start_submitted">Kun boshlanishi serverga yuborildi</string>
   <string name="msg_daily_km_end_km_required">Yakuniy KM kiriting</string>
   <string name="msg_daily_km_end_photo_required">Ish tugashi rasmini yuklang</string>
+  <string name="msg_daily_km_invalid_number">KM uchun to‘g‘ri son kiriting</string>
+  <string name="msg_daily_km_start_below_min">Boshlash KM kamida mashina boshlang‘ich KM (%1$.0f) bo‘lishi kerak</string>
+  <string name="msg_daily_km_start_below_floor">Boshlash KM kamida %1$.0f bo‘lishi kerak (boshlang‘ich yoki avvalgi kunlik yozuvlar bo‘yicha)</string>
+  <string name="msg_daily_km_end_below_min">Tugash KM kamida mashina boshlang‘ich KM (%1$.0f) bo‘lishi kerak</string>
+  <string name="msg_daily_km_end_below_floor">Yakuniy KM kamida %1$.0f bo‘lishi kerak (boshlash va avvalgi yozuvlar bo‘yicha)</string>
+  <string name="msg_daily_km_end_below_start">Yakuniy KM boshlash KM dan kam bo‘lmasligi kerak</string>
   <string name="msg_sent">Muvaffaqiyatli yuborildi</string>
 
   <!-- Home dashboard -->

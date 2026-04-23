@@ -56,6 +56,7 @@ export class VehiclesService {
         name: v.name,
         model: v.model,
         plateNumber: v.plateNumber,
+        initialKm: Number(v.initialKm),
       },
       oil: {
         lastOilChangeKm: lastOilKm,

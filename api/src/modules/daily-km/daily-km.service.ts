@@ -12,6 +12,32 @@ function isPrismaUniqueViolation(e: unknown): boolean {
   return Boolean(e && typeof e === 'object' && 'code' in e && (e as { code: string }).code === 'P2002');
 }
 
+/** Mashina bo‘yicha barcha kunlik KM yozuvlaridan eng yuqori o‘qish (bitta hisobotni chiqarib tashlash — kun boshini qayta yozish). */
+async function maxRecordedOdometerKm(
+  prisma: PrismaService,
+  vehicleId: string,
+  excludeReportId: string | null,
+  baselineMin: number,
+): Promise<number> {
+  let maxKm = baselineMin;
+  const rows = await prisma.dailyKmReport.findMany({
+    where: {
+      vehicleId,
+      ...(excludeReportId ? { NOT: { id: excludeReportId } } : {}),
+    },
+    select: { startKm: true, endKm: true },
+  });
+  for (const r of rows) {
+    const s = Number(r.startKm);
+    if (Number.isFinite(s)) maxKm = Math.max(maxKm, s);
+    if (r.endKm != null) {
+      const e = Number(r.endKm);
+      if (Number.isFinite(e)) maxKm = Math.max(maxKm, e);
+    }
+  }
+  return maxKm;
+}
+
 @Injectable()
 export class DailyKmService {
   constructor(
@@ -75,8 +101,18 @@ export class DailyKmService {
     recordedAtIso?: string;
     actorUserId: string;
   }) {
-    const driver = await this.prisma.driver.findUnique({ where: { id: params.driverId } });
-    if (!driver?.vehicleId) throw new BadRequestException('No vehicle assigned');
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: params.driverId },
+      include: { vehicle: true },
+    });
+    if (!driver?.vehicleId || !driver.vehicle) throw new BadRequestException('No vehicle assigned');
+    const minKm = Number(driver.vehicle.initialKm);
+    if (!Number.isFinite(minKm)) throw new BadRequestException('Invalid vehicle odometer baseline');
+    if (params.startKm < minKm) {
+      throw new BadRequestException(
+        `Boshlash KM kamida mashina boshlang‘ich KM (${minKm}) bo‘lishi kerak.`,
+      );
+    }
     if (!params.startOdometerUrl) throw new BadRequestException('startOdometer required');
 
     const reportDate = new Date(params.reportDate);
@@ -89,6 +125,18 @@ export class DailyKmService {
     const existing = await this.prisma.dailyKmReport.findUnique({
       where: { vehicleId_reportDate: { vehicleId: driver.vehicleId, reportDate } },
     });
+
+    const maxRecorded = await maxRecordedOdometerKm(
+      this.prisma,
+      driver.vehicleId,
+      existing?.id ?? null,
+      minKm,
+    );
+    if (params.startKm < maxRecorded) {
+      throw new BadRequestException(
+        `Boshlash KM avvalgi yozuvlardagi eng yuqori KM (${maxRecorded}) dan kam bo‘lmasligi kerak.`,
+      );
+    }
 
     if (existing?.endKm != null) {
       throw new ConflictException(
@@ -171,11 +219,22 @@ export class DailyKmService {
     recordedAtIso?: string;
     actorUserId: string;
   }) {
-    const row = await this.prisma.dailyKmReport.findUnique({ where: { id: params.reportId } });
+    const row = await this.prisma.dailyKmReport.findUnique({
+      where: { id: params.reportId },
+      include: { vehicle: true },
+    });
     if (!row) throw new NotFoundException('Report not found');
     if (row.driverId !== params.driverId) throw new ForbiddenException('Not your report');
     if (row.endKm != null) throw new ConflictException('End already submitted for this report');
-    if (params.endKm < Number(row.startKm)) throw new BadRequestException('endKm must be >= startKm');
+    const minKm = Number(row.vehicle.initialKm);
+    if (!Number.isFinite(minKm)) throw new BadRequestException('Invalid vehicle odometer baseline');
+    const maxOthers = await maxRecordedOdometerKm(this.prisma, row.vehicleId, row.id, minKm);
+    const minEndAllowed = Math.max(maxOthers, Number(row.startKm));
+    if (params.endKm < minEndAllowed) {
+      throw new BadRequestException(
+        `Yakuniy KM kamida ${minEndAllowed} bo‘lishi kerak (boshlash KM va avvalgi yozuvlar bo‘yicha).`,
+      );
+    }
     if (!params.endOdometerUrl) throw new BadRequestException('endOdometer required');
 
     const endRecordedAt = params.recordedAtIso ? new Date(params.recordedAtIso) : new Date();
