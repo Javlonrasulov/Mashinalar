@@ -160,7 +160,7 @@ export function ExpensesPage() {
             {vehicleStats.slice(0, 12).map((s, idx) => {
               const amt = Number(s.totalAmount);
               const barPct =
-                maxStatAmount > 0 && Number.isFinite(amt) ? Math.min(100, Math.max(4, (amt / maxStatAmount) * 100)) : 4;
+                maxStatAmount > 0 && Number.isFinite(amt) ? Math.min(100, (amt / maxStatAmount) * 100) : 0;
               return (
                 <li key={s.vehicleId} className="min-w-0">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">

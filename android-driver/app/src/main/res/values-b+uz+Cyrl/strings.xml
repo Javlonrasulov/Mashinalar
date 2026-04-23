@@ -90,6 +90,7 @@
   <string name="msg_daily_km_end_below_floor">Якуний КМ кам %1$.0f бўлиши керак (бошланғич ва аввалги ёзувлар бўйича)</string>
   <string name="msg_daily_km_end_below_start">Якуний КМ бошланғич КМ дан кам бўлмаслиги керак</string>
   <string name="msg_sent">Муваффақиятли юборилди</string>
+  <string name="msg_task_submit_needs_proof">Камидда бита — изоҳ ёки расм қўшинг</string>
 
   <string name="err_daily_km_no_driver">Ҳайдовчи профили топилмади</string>
   <string name="err_daily_km_report_date_required">Ҳисобот санаси керак</string>

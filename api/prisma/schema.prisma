@@ -50,9 +50,10 @@ model Driver {
   updatedAt DateTime @updatedAt
 
   locationPoints LocationPoint[]
-  fuelReports    FuelReport[]
-  dailyKmReports DailyKmReport[]
-  tasks          Task[]
+  fuelReports       FuelReport[]
+  dailyKmReports    DailyKmReport[]
+  tasks             Task[]
+  oilChangeReports  OilChangeReport[]
 
   @@index([vehicleId])
 }
@@ -76,10 +77,11 @@ model Vehicle {
 
   drivers        Driver[]
   locationPoints LocationPoint[]
-  fuelReports    FuelReport[]
-  dailyKmReports DailyKmReport[]
-  tasks          Task[]
-  expenses       Expense[]
+  fuelReports       FuelReport[]
+  dailyKmReports    DailyKmReport[]
+  tasks             Task[]
+  expenses          Expense[]
+  oilChangeReports  OilChangeReport[]
 }
 
 model LocationPoint {
@@ -112,6 +114,20 @@ model FuelReport {
   latitude    Decimal? @db.Decimal(10, 7)
   longitude   Decimal? @db.Decimal(10, 7)
   createdAt   DateTime @default(now())
+
+  @@index([vehicleId, createdAt])
+  @@index([driverId])
+}
+
+model OilChangeReport {
+  id         String   @id @default(cuid())
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId   String
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  kmAtChange Decimal  @db.Decimal(12, 2)
+  photoUrl   String?
+  createdAt  DateTime @default(now())
 
   @@index([vehicleId, createdAt])
   @@index([driverId])

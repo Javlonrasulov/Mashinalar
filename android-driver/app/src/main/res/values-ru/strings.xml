@@ -90,6 +90,7 @@
   <string name="msg_daily_km_end_below_floor">Конечный км не меньше %1$.0f (по началу дня и предыдущим записям)</string>
   <string name="msg_daily_km_end_below_start">Конечный км не может быть меньше начального</string>
   <string name="msg_sent">Успешно отправлено</string>
+  <string name="msg_task_submit_needs_proof">Нужен комментарий или фото</string>
 
   <string name="err_daily_km_no_driver">Профиль водителя не найден</string>
   <string name="err_daily_km_report_date_required">Нужна дата отчёта</string>

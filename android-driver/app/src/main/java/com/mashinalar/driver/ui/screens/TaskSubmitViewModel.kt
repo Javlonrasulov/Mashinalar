@@ -40,6 +40,10 @@ class TaskSubmitViewModel @Inject constructor(
 
   fun submit(taskId: String) {
     val s = _state.value
+    if (s.proofPhoto == null && s.proofText.isBlank()) {
+      _state.value = s.copy(message = context.getString(R.string.msg_task_submit_needs_proof))
+      return
+    }
     viewModelScope.launch {
       _state.value = s.copy(loading = true, message = null)
       val r = repo.submitTask(
@@ -49,9 +53,21 @@ class TaskSubmitViewModel @Inject constructor(
       )
       _state.value = when (r) {
         is ApiResult.Ok -> TaskSubmitUiState(message = context.getString(R.string.msg_sent))
-        is ApiResult.Err -> s.copy(loading = false, message = r.message)
+        is ApiResult.Err -> s.copy(loading = false, message = localizeTaskSubmitError(r.message))
       }
     }
+  }
+
+  /** OkHttp/Retrofit texnik inglizcha matnlarini foydalanuvchi tilidagi xabarga almashtirish. */
+  private fun localizeTaskSubmitError(raw: String): String {
+    val t = raw.trim()
+    if (
+      t.contains("multipart", ignoreCase = true) &&
+        (t.contains("at least one part", ignoreCase = true) || t.contains("must have", ignoreCase = true))
+    ) {
+      return context.getString(R.string.msg_task_submit_needs_proof)
+    }
+    return t
   }
 }
 

@@ -115,6 +115,7 @@
   <string name="msg_daily_km_end_below_floor">Yakuniy KM kamida %1$.0f bo‘lishi kerak (boshlash va avvalgi yozuvlar bo‘yicha)</string>
   <string name="msg_daily_km_end_below_start">Yakuniy KM boshlash KM dan kam bo‘lmasligi kerak</string>
   <string name="msg_sent">Muvaffaqiyatli yuborildi</string>
+  <string name="msg_task_submit_needs_proof">Kamida bitta — izoh yoki rasm qo‘shing</string>
 
   <!-- Server daily_km.* kalitlari (API xabarlari) -->
   <string name="err_daily_km_no_driver">Haydovchi profili topilmadi</string>

@@ -25,6 +25,14 @@ type TaskRow = {
   vehicle: { plateNumber: string };
 };
 
+const TASK_STATUSES = ['PENDING', 'SUBMITTED', 'APPROVED', 'REJECTED'] as const;
+
+function taskStatusLabelKey(status: string): string {
+  return TASK_STATUSES.includes(status as (typeof TASK_STATUSES)[number])
+    ? `taskStatus_${status}`
+    : status;
+}
+
 export function TasksPage() {
   const { t } = useI18n();
   const [rows, setRows] = useState<TaskRow[]>([]);
@@ -168,7 +176,7 @@ export function TasksPage() {
                 <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
                 <td className="p-3">{r.driver.fullName}</td>
                 <td className="p-3">{new Date(r.deadlineAt).toLocaleString()}</td>
-                <td className="p-3">{r.status}</td>
+                <td className="p-3">{t(taskStatusLabelKey(r.status))}</td>
                 <td className="p-3">
                   <div className="flex flex-wrap gap-2">
                     {r.status === 'SUBMITTED' && (
