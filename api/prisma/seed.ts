@@ -1,9 +1,26 @@
-import { ExpenseType, Prisma, PrismaClient, TaskStatus, UserRole } from '@prisma/client';
+import { Prisma, PrismaClient, TaskStatus, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+async function ensureDefaultExpenseCategories() {
+  const rows = [
+    { id: 'cm_exp_cat_fuel', slug: 'FUEL', name: 'Ёқилғи' },
+    { id: 'cm_exp_cat_repair', slug: 'REPAIR', name: 'Таъмир' },
+    { id: 'cm_exp_cat_oil', slug: 'OIL', name: 'Мой' },
+    { id: 'cm_exp_cat_other', slug: 'OTHER', name: 'Бошқа' },
+  ];
+  for (const r of rows) {
+    await prisma.expenseCategory.upsert({
+      where: { slug: r.slug },
+      update: { name: r.name },
+      create: { id: r.id, slug: r.slug, name: r.name },
+    });
+  }
+}
+
 async function main() {
+  await ensureDefaultExpenseCategories();
   const passwordHash = await bcrypt.hash('Admin123!', 10);
 
   const admin = await prisma.user.upsert({
@@ -171,11 +188,16 @@ async function main() {
     where: { vehicleId: vehicle.id },
   });
   if (expensesCount === 0) {
+    const [cRepair, cOil, cOther] = await Promise.all([
+      prisma.expenseCategory.findUniqueOrThrow({ where: { slug: 'REPAIR' } }),
+      prisma.expenseCategory.findUniqueOrThrow({ where: { slug: 'OIL' } }),
+      prisma.expenseCategory.findUniqueOrThrow({ where: { slug: 'OTHER' } }),
+    ]);
     await prisma.expense.createMany({
       data: [
         {
           vehicleId: vehicle.id,
-          type: ExpenseType.REPAIR,
+          categoryId: cRepair.id,
           amount: new Prisma.Decimal('250000'),
           currency: 'UZS',
           note: 'Mayda ta’mirlash',
@@ -184,7 +206,7 @@ async function main() {
         },
         {
           vehicleId: vehicle.id,
-          type: ExpenseType.OIL,
+          categoryId: cOil.id,
           amount: new Prisma.Decimal('600000'),
           currency: 'UZS',
           note: 'Moy almashtirish',
@@ -193,7 +215,7 @@ async function main() {
         },
         {
           vehicleId: vehicle.id,
-          type: ExpenseType.OTHER,
+          categoryId: cOther.id,
           amount: new Prisma.Decimal('90000'),
           currency: 'UZS',
           note: 'Avtoturargoh',

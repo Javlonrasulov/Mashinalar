@@ -15,6 +15,7 @@ import {
   Menu,
   Moon,
   Receipt,
+  Droplets,
   Sun,
   Users,
   X,
@@ -33,19 +34,22 @@ const nav = [
   { to: '/tasks', icon: ClipboardList, key: 'navTasks' as const },
   { to: '/fuel', icon: Fuel, key: 'navFuel' as const },
   { to: '/daily-km', icon: Gauge, key: 'navDailyKm' as const },
+  { to: '/oil', icon: Droplets, key: 'navOil' as const },
   { to: '/expenses', icon: Receipt, key: 'navExpenses' as const },
 ];
 
 function usePageTitle() {
   const { pathname } = useLocation();
   const { t } = useI18n();
-  const ordered: { path: string; end?: boolean; key: (typeof nav)[number]['key'] }[] = [
+  const ordered: { path: string; end?: boolean; key: string }[] = [
     { path: '/map', key: 'navMap' },
     { path: '/vehicles', key: 'navVehicles' },
     { path: '/drivers', key: 'navDrivers' },
     { path: '/tasks', key: 'navTasks' },
     { path: '/fuel', key: 'navFuel' },
     { path: '/daily-km', key: 'navDailyKm' },
+    { path: '/oil', key: 'navOil' },
+    { path: '/expenses/stats', key: 'navExpensesStats' },
     { path: '/expenses', key: 'navExpenses' },
     { path: '/', end: true, key: 'navDashboard' },
   ];

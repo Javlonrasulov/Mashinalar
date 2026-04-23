@@ -9,6 +9,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.mashinalar.driver.data.local.LanguageStore
+import com.mashinalar.driver.notifications.OilReminderWorker
 import com.mashinalar.driver.util.LocaleManager
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.TimeUnit
@@ -33,6 +34,7 @@ class MashinalarDriverApp : Application() {
       LocaleManager.applyLanguageTag(languageStore.languageTagFlow.first())
     }
     scheduleLocationUploads()
+    scheduleOilReminders()
   }
 
   private fun scheduleLocationUploads() {
@@ -48,6 +50,18 @@ class MashinalarDriverApp : Application() {
 
     WorkManager.getInstance(this).enqueueUniquePeriodicWork(
       "upload_locations",
+      ExistingPeriodicWorkPolicy.UPDATE,
+      req,
+    )
+  }
+
+  private fun scheduleOilReminders() {
+    val req =
+      PeriodicWorkRequestBuilder<OilReminderWorker>(12, TimeUnit.HOURS)
+        .setConstraints(OilReminderWorker.constraints())
+        .build()
+    WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+      "oil_reminders",
       ExistingPeriodicWorkPolicy.UPDATE,
       req,
     )

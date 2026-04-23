@@ -24,6 +24,7 @@ import com.mashinalar.driver.ui.screens.DailyKmScreen
 import com.mashinalar.driver.ui.screens.FuelScreen
 import com.mashinalar.driver.ui.screens.HomeScreen
 import com.mashinalar.driver.ui.screens.LoginScreen
+import com.mashinalar.driver.ui.screens.OilScreen
 import com.mashinalar.driver.ui.screens.ProfileScreen
 import com.mashinalar.driver.ui.screens.TaskSubmitScreen
 import com.mashinalar.driver.ui.screens.TasksScreen
@@ -58,6 +59,7 @@ fun AppNav(
     NavItem.Fuel.route -> stringResource(R.string.fuel_title)
     NavItem.DailyKm.route -> stringResource(R.string.daily_km_title)
     NavItem.Tasks.route -> stringResource(R.string.tasks_title)
+    NavItem.Oil.route -> stringResource(R.string.oil_title)
     Routes.Profile -> stringResource(R.string.profile_title)
     else -> stringResource(R.string.app_name)
   }
@@ -66,6 +68,7 @@ fun AppNav(
     NavItem.Fuel.route,
     NavItem.DailyKm.route,
     NavItem.Tasks.route,
+    NavItem.Oil.route,
   )
   // Birinchi frame'da route hali null bo‘lishi mumkin — bottom bar yo‘qolib qolmasin.
   val showBottom = route == null || route in mainTabRoutes
@@ -112,6 +115,9 @@ fun AppNav(
             onSubmit = { taskId -> navController.navigate("${Routes.TaskSubmit}/$taskId") },
             snackbarHost = snackbar,
           )
+        }
+        composable(NavItem.Oil.route) {
+          OilScreen(snackbarHost = snackbar)
         }
         composable("${Routes.TaskSubmit}/{id}") { entry ->
           val id = entry.arguments?.getString("id").orEmpty()

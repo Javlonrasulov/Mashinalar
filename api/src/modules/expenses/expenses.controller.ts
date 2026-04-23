@@ -1,11 +1,17 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
-import { ExpenseType, UserRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { ExpensesService } from './expenses.service';
+
+function parseOptionalIsoDate(s?: string): Date | undefined {
+  if (!s) return undefined;
+  const d = new Date(s);
+  return Number.isFinite(d.getTime()) ? d : undefined;
+}
 
 @Controller('expenses')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -14,21 +20,36 @@ export class ExpensesController {
   constructor(private readonly expenses: ExpensesService) {}
 
   @Get()
-  findAll(@Query('vehicleId') vehicleId?: string, @Query('type') type?: ExpenseType) {
+  findAll(
+    @Query('vehicleId') vehicleId?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('spentFrom') spentFrom?: string,
+    @Query('spentTo') spentTo?: string,
+  ) {
     return this.expenses.findAll({
       vehicleId: vehicleId || undefined,
-      type: type || undefined,
+      categoryId: categoryId || undefined,
+      spentFrom: parseOptionalIsoDate(spentFrom),
+      spentTo: parseOptionalIsoDate(spentTo),
     });
   }
 
   @Get('totals')
   totals() {
-    return this.expenses.totalsByType();
+    return this.expenses.totalsByCategory();
   }
 
   @Get('stats/by-vehicle')
-  statsByVehicle(@Query('type') type?: ExpenseType) {
-    return this.expenses.totalsByVehicle({ type: type || undefined });
+  statsByVehicle(
+    @Query('categoryId') categoryId?: string,
+    @Query('spentFrom') spentFrom?: string,
+    @Query('spentTo') spentTo?: string,
+  ) {
+    return this.expenses.totalsByVehicle({
+      categoryId: categoryId || undefined,
+      spentFrom: parseOptionalIsoDate(spentFrom),
+      spentTo: parseOptionalIsoDate(spentTo),
+    });
   }
 
   @Post()

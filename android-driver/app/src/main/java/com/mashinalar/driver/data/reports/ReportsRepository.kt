@@ -6,6 +6,7 @@ import com.mashinalar.driver.core.NetworkErrors
 import com.mashinalar.driver.data.network.ApiService
 import com.mashinalar.driver.data.network.DailyKmHistoryDto
 import com.mashinalar.driver.data.network.FuelHistoryDto
+import com.mashinalar.driver.data.network.OilChangeHistoryDto
 import com.mashinalar.driver.data.network.VehicleMyResponse
 import com.mashinalar.driver.data.network.filePart
 import com.mashinalar.driver.data.network.textPart
@@ -28,6 +29,28 @@ class ReportsRepository @Inject constructor(
   suspend fun myVehicle(): ApiResult<VehicleMyResponse> =
     try {
       ApiResult.Ok(api.myVehicle())
+    } catch (e: retrofit2.HttpException) {
+      ApiResult.Err(HttpErrors.userMessage(e), e.code())
+    } catch (t: Throwable) {
+      ApiResult.Err(NetworkErrors.toUserMessage(t))
+    }
+
+  suspend fun myOilChangeReports(limit: Int = 50): ApiResult<List<OilChangeHistoryDto>> =
+    try {
+      ApiResult.Ok(api.myOilChangeReports(limit))
+    } catch (e: retrofit2.HttpException) {
+      ApiResult.Err(HttpErrors.userMessage(e), e.code())
+    } catch (t: Throwable) {
+      ApiResult.Err(NetworkErrors.toUserMessage(t))
+    }
+
+  suspend fun createOilChange(km: String, panelPhoto: File): ApiResult<Unit> =
+    try {
+      api.createOilChangeReport(
+        kmAtChange = textPart(km),
+        panelPhoto = filePart("panelPhoto", panelPhoto),
+      )
+      ApiResult.Ok(Unit)
     } catch (e: retrofit2.HttpException) {
       ApiResult.Err(HttpErrors.userMessage(e), e.code())
     } catch (t: Throwable) {

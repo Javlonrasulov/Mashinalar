@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
@@ -179,15 +179,4 @@ export class OilChangeService {
     }));
   }
 
-  async findOneForAdmin(id: string) {
-    const r = await this.prisma.oilChangeReport.findUnique({
-      where: { id },
-      include: {
-        vehicle: true,
-        driver: { include: { user: { select: { login: true } } } },
-      },
-    });
-    if (!r) throw new NotFoundException('Report not found');
-    return r;
-  }
 }

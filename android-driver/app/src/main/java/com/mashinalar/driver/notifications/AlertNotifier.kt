@@ -11,6 +11,8 @@ object AlertNotifier {
   private const val CHANNEL_ID = "alerts"
   private const val ID_GPS = 2001
   private const val ID_NET = 2002
+  private const val ID_OIL_SOON = 2003
+  private const val ID_OIL_OVERDUE = 2004
 
   fun ensureChannels(context: Context) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -54,6 +56,30 @@ object AlertNotifier {
   fun hideInternetOff(context: Context) {
     val nm = context.getSystemService(NotificationManager::class.java)
     nm.cancel(ID_NET)
+  }
+
+  fun showOilSoon(context: Context) {
+    ensureChannels(context)
+    val nm = context.getSystemService(NotificationManager::class.java)
+    val n = NotificationCompat.Builder(context, CHANNEL_ID)
+      .setSmallIcon(android.R.drawable.stat_sys_warning)
+      .setContentTitle(context.getString(R.string.oil_notif_soon_title))
+      .setContentText(context.getString(R.string.oil_notif_soon_body))
+      .setAutoCancel(true)
+      .build()
+    nm.notify(ID_OIL_SOON, n)
+  }
+
+  fun showOilOverdue(context: Context) {
+    ensureChannels(context)
+    val nm = context.getSystemService(NotificationManager::class.java)
+    val n = NotificationCompat.Builder(context, CHANNEL_ID)
+      .setSmallIcon(android.R.drawable.stat_notify_error)
+      .setContentTitle(context.getString(R.string.oil_notif_overdue_title))
+      .setContentText(context.getString(R.string.oil_notif_overdue_body))
+      .setAutoCancel(true)
+      .build()
+    nm.notify(ID_OIL_OVERDUE, n)
   }
 }
 

@@ -92,6 +92,19 @@ data class OilInfoDto(
   val lastOilChangeAt: String?,
   val oilChangeIntervalKm: Int?,
   val nextOilChangeKm: Double?,
+  val estimatedCurrentKm: Double? = null,
+  val kmRemainingToNext: Double? = null,
+  /** `ok` | `soon` | `overdue` | `unknown` */
+  val oilUrgency: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class OilChangeHistoryDto(
+  val id: String,
+  val kmAtChange: String,
+  val photoUrl: String?,
+  val createdAt: String,
+  val driverLogin: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

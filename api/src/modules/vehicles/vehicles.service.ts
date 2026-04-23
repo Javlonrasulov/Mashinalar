@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { OilChangeService } from '../oil-change/oil-change.service';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 
@@ -10,6 +11,7 @@ export class VehiclesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly oilChange: OilChangeService,
   ) {}
 
   findAll() {
@@ -45,6 +47,10 @@ export class VehiclesService {
     const nextOilKm =
       lastOilKm !== null && interval !== null && interval > 0 ? lastOilKm + interval : null;
 
+    const estimatedCurrentKm = await this.oilChange.estimateOdometerKm(v.id);
+    const kmRemainingToNext = nextOilKm != null ? nextOilKm - estimatedCurrentKm : null;
+    const oilUrgency = OilChangeService.urgency(kmRemainingToNext, interval);
+
     const insuranceEnd = v.insuranceEndDate;
     const daysToInsuranceEnd = insuranceEnd
       ? Math.ceil((insuranceEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -63,6 +69,9 @@ export class VehiclesService {
         lastOilChangeAt: v.lastOilChangeAt ? v.lastOilChangeAt.toISOString() : null,
         oilChangeIntervalKm: interval,
         nextOilChangeKm: nextOilKm,
+        estimatedCurrentKm,
+        kmRemainingToNext,
+        oilUrgency,
       },
       insurance: {
         insuranceStartDate: v.insuranceStartDate ? v.insuranceStartDate.toISOString() : null,

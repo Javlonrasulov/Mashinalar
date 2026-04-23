@@ -11,7 +11,9 @@ import { DriversPage } from '@/pages/DriversPage';
 import { TasksPage } from '@/pages/TasksPage';
 import { FuelPage } from '@/pages/FuelPage';
 import { DailyKmPage } from '@/pages/DailyKmPage';
+import { OilPage } from '@/pages/OilPage';
 import { ExpensesPage } from '@/pages/ExpensesPage';
+import { ExpensesStatsPage } from '@/pages/ExpensesStatsPage';
 
 function Shell() {
   const { token, loading, user } = useAuth();
@@ -38,6 +40,8 @@ function Shell() {
         <Route path="tasks" element={<TasksPage />} />
         <Route path="fuel" element={<FuelPage />} />
         <Route path="daily-km" element={<DailyKmPage />} />
+        <Route path="oil" element={<OilPage />} />
+        <Route path="expenses/stats" element={<ExpensesStatsPage />} />
         <Route path="expenses" element={<ExpensesPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

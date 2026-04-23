@@ -38,6 +38,7 @@ import com.mashinalar.driver.ui.scaffold.NavItem.Home
 import com.mashinalar.driver.ui.scaffold.NavItem.Fuel
 import com.mashinalar.driver.ui.scaffold.NavItem.DailyKm
 import com.mashinalar.driver.ui.scaffold.NavItem.Tasks
+import com.mashinalar.driver.ui.scaffold.NavItem.Oil
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
@@ -46,12 +47,14 @@ import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Task
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.OilBarrel
 
 enum class NavItem(val route: String, val labelRes: Int) {
   Home("home", R.string.nav_home),
   Fuel("fuel", R.string.nav_fuel),
   DailyKm("daily_km", R.string.nav_daily_km),
   Tasks("tasks", R.string.nav_tasks),
+  Oil("oil", R.string.nav_oil),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,7 +95,7 @@ fun AppScaffold(
     },
     bottomBar = {
       if (showBottomBar) {
-        val items = listOf(Home, Fuel, DailyKm, Tasks)
+        val items = listOf(Home, Fuel, DailyKm, Tasks, Oil)
         val entry = navController.currentBackStackEntryAsState().value
         val route = entry?.destination?.route
         // Gorizontal padding — birinchi/oxirgi tab indikatori ekran chetida kesilib qolmasin.
@@ -137,6 +140,7 @@ fun AppScaffold(
                     Fuel -> Icon(Icons.Filled.LocalGasStation, contentDescription = null)
                     DailyKm -> Icon(Icons.Filled.Route, contentDescription = null)
                     Tasks -> Icon(Icons.Filled.Task, contentDescription = null)
+                    Oil -> Icon(Icons.Filled.OilBarrel, contentDescription = null)
                   }
                 }
               },

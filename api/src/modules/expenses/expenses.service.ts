@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ExpenseType, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -11,14 +11,22 @@ export class ExpensesService {
     private readonly audit: AuditService,
   ) {}
 
-  findAll(filters?: { vehicleId?: string; type?: ExpenseType }) {
+  findAll(filters?: { vehicleId?: string; categoryId?: string; spentFrom?: Date; spentTo?: Date }) {
+    const spentAt =
+      filters?.spentFrom || filters?.spentTo
+        ? {
+            ...(filters.spentFrom ? { gte: filters.spentFrom } : {}),
+            ...(filters.spentTo ? { lte: filters.spentTo } : {}),
+          }
+        : undefined;
     return this.prisma.expense.findMany({
       where: {
         vehicleId: filters?.vehicleId,
-        type: filters?.type,
+        categoryId: filters?.categoryId,
+        ...(spentAt ? { spentAt } : {}),
       },
       orderBy: { spentAt: 'desc' },
-      include: { vehicle: true },
+      include: { vehicle: true, category: true },
     });
   }
 
@@ -26,12 +34,12 @@ export class ExpensesService {
     const row = await this.prisma.expense.create({
       data: {
         vehicleId: dto.vehicleId,
-        type: dto.type,
+        categoryId: dto.categoryId,
         amount: dto.amount,
         note: dto.note,
         spentAt: dto.spentAt ? new Date(dto.spentAt) : new Date(),
       },
-      include: { vehicle: true },
+      include: { vehicle: true, category: true },
     });
     await this.audit.log({
       actorUserId,
@@ -42,20 +50,43 @@ export class ExpensesService {
     return row;
   }
 
-  totalsByType() {
-    return this.prisma.expense.groupBy({
-      by: ['type'],
+  async totalsByCategory() {
+    const grouped = await this.prisma.expense.groupBy({
+      by: ['categoryId'],
       _sum: { amount: true },
     });
+    if (grouped.length === 0) return [];
+    const ids = grouped.map((g) => g.categoryId);
+    const cats = await this.prisma.expenseCategory.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, slug: true, name: true },
+    });
+    const byId = new Map(cats.map((c) => [c.id, c]));
+    return grouped.map((g) => ({
+      categoryId: g.categoryId,
+      slug: byId.get(g.categoryId)?.slug ?? '',
+      name: byId.get(g.categoryId)?.name ?? g.categoryId,
+      totalAmount: (g._sum.amount ?? new Prisma.Decimal(0)).toString(),
+    }));
   }
 
   /**
    * Total expense amount per vehicle (admin “who spends most” = which plate / car).
    */
-  async totalsByVehicle(filters?: { type?: ExpenseType }) {
+  async totalsByVehicle(filters?: { categoryId?: string; spentFrom?: Date; spentTo?: Date }) {
+    const spentAt =
+      filters?.spentFrom || filters?.spentTo
+        ? {
+            ...(filters.spentFrom ? { gte: filters.spentFrom } : {}),
+            ...(filters.spentTo ? { lte: filters.spentTo } : {}),
+          }
+        : undefined;
     const grouped = await this.prisma.expense.groupBy({
       by: ['vehicleId'],
-      where: filters?.type ? { type: filters.type } : {},
+      where: {
+        ...(filters?.categoryId ? { categoryId: filters.categoryId } : {}),
+        ...(spentAt ? { spentAt } : {}),
+      },
       _sum: { amount: true },
       _count: { id: true },
     });

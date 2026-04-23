@@ -99,10 +99,12 @@ export class FuelService {
       include: { vehicle: true, driver: true },
     });
 
+    const fuelCategory = await this.prisma.expenseCategory.findUnique({ where: { slug: 'FUEL' } });
+    if (!fuelCategory) throw new BadRequestException('FUEL expense category missing');
     await this.prisma.expense.create({
       data: {
         vehicleId: driver.vehicleId,
-        type: 'FUEL',
+        categoryId: fuelCategory.id,
         amount: params.amount,
         note: `Fuel report ${row.id}`,
         spentAt: row.createdAt,

@@ -71,6 +71,16 @@ interface ApiService {
   @GET("/vehicles/my")
   suspend fun myVehicle(): VehicleMyResponse
 
+  @GET("/oil-change-reports/mine")
+  suspend fun myOilChangeReports(@Query("limit") limit: Int = 50): List<OilChangeHistoryDto>
+
+  @Multipart
+  @POST("/oil-change-reports")
+  suspend fun createOilChangeReport(
+    @Part("kmAtChange") kmAtChange: RequestBody,
+    @Part panelPhoto: MultipartBody.Part?,
+  ): Any
+
   @GET("/stats/last-days")
   suspend fun statsLastDays(@Query("days") days: Int = 3): StatsLastDaysResponse
 

@@ -1,13 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
-import { ExpenseType } from '@prisma/client';
+import { IsDateString, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class CreateExpenseDto {
   @IsString()
   vehicleId!: string;
 
-  @IsEnum(ExpenseType)
-  type!: ExpenseType;
+  @IsString()
+  @MinLength(1)
+  categoryId!: string;
 
   @Type(() => Number)
   @IsNumber()
