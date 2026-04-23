@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -63,6 +65,7 @@ fun TasksScreen(
             .fillMaxWidth()
             .padding(vertical = 6.dp)
             .clickable { onSubmit(t.id) },
+          colors = taskCardColorsForStatus(t.status),
         ) {
           Column(modifier = Modifier.padding(12.dp)) {
             Text(t.title)
@@ -87,4 +90,31 @@ private fun taskStatusLabel(raw: String): String =
     "APPROVED" -> stringResource(R.string.task_status_approved)
     "REJECTED" -> stringResource(R.string.task_status_rejected)
     else -> raw
+  }
+
+/** Vazifa holatiga qarab kartaning fon/matn ranglari (bajarilmagan / jarayonda / tasdiqlangan / rad). */
+@Composable
+private fun taskCardColorsForStatus(status: String) =
+  when (status.uppercase()) {
+    "PENDING" ->
+      CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+      )
+    "SUBMITTED" ->
+      CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+      )
+    "APPROVED" ->
+      CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+      )
+    "REJECTED" ->
+      CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+      )
+    else -> CardDefaults.cardColors()
   }

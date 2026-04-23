@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays } from 'lucide-react';
 import { DayPicker, type DayPickerLocale } from 'react-day-picker';
 import { ru, uz, uzCyrl } from 'react-day-picker/locale';
@@ -37,6 +38,21 @@ function formatDateOnly(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+const POPOVER_MAX_WIDTH_PX = 352; /* ~22rem */
+const VIEW_MARGIN = 12;
+
+function popoverWidthPx(): number {
+  return Math.min(window.innerWidth - VIEW_MARGIN * 2, POPOVER_MAX_WIDTH_PX);
+}
+
+function clampPopoverLeft(left: number, popoverW: number): number {
+  const vw = window.innerWidth;
+  let x = left;
+  if (x + popoverW > vw - VIEW_MARGIN) x = vw - VIEW_MARGIN - popoverW;
+  if (x < VIEW_MARGIN) x = VIEW_MARGIN;
+  return x;
+}
+
 function formatDisplay(d: Date, lang: Lang): string {
   return new Intl.DateTimeFormat(intlLocaleFor(lang), {
     day: '2-digit',
@@ -57,7 +73,10 @@ export function DateField({ value, onChange, id, onClear }: Props) {
   const autoId = useId();
   const fieldId = id ?? autoId;
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
 
   const selected = useMemo(() => parseDateOnly(value), [value]);
   const locale = useMemo(() => dayPickerLocaleFor(lang), [lang]);
@@ -73,11 +92,30 @@ export function DateField({ value, onChange, id, onClear }: Props) {
     setOpen(false);
   };
 
+  useLayoutEffect(() => {
+    if (!open) return;
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const update = () => {
+      const r = btn.getBoundingClientRect();
+      const w = popoverWidthPx();
+      setPopoverPos({ top: r.bottom + 8, left: clampPopoverLeft(r.left, w) });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      const el = rootRef.current;
-      if (!el?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || popoverRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -93,6 +131,7 @@ export function DateField({ value, onChange, id, onClear }: Props) {
   return (
     <div ref={rootRef} className="relative w-full min-w-0">
       <button
+        ref={buttonRef}
         type="button"
         id={fieldId}
         aria-expanded={open}
@@ -104,38 +143,43 @@ export function DateField({ value, onChange, id, onClear }: Props) {
         <CalendarDays className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
       </button>
 
-      {open && (
-        <div
-          role="dialog"
-          aria-labelledby={fieldId}
-          className="app-datetime-popover absolute left-0 top-full z-[5000] mt-2 w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
-        >
-          <div className="max-h-[min(70vh,420px)] overflow-auto p-2 md:p-3">
-            <DayPicker
-              mode="single"
-              selected={selected}
-              onSelect={onSelectDay}
-              locale={locale}
-              captionLayout="label"
-              showOutsideDays
-              className="app-datetime-daypicker w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]"
-            />
-          </div>
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-labelledby={fieldId}
+            style={{ top: popoverPos.top, left: popoverPos.left }}
+            className="app-datetime-popover fixed z-[5000] w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
+          >
+            <div className="max-h-[min(70vh,420px)] overflow-auto p-2 md:p-3">
+              <DayPicker
+                mode="single"
+                selected={selected}
+                onSelect={onSelectDay}
+                locale={locale}
+                captionLayout="label"
+                showOutsideDays
+                className="app-datetime-daypicker w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]"
+              />
+            </div>
 
-          <div className="flex items-center justify-between gap-2 border-t border-slate-200/90 bg-slate-50/80 px-3 py-2 dark:border-slate-700/90 dark:bg-slate-950/40">
-            {onClear ? (
-              <button type="button" className="app-link-muted text-sm" onClick={() => onClear()}>
-                {t('datePickerClear')}
+            <div className="flex items-center justify-between gap-2 border-t border-slate-200/90 bg-slate-50/80 px-3 py-2 dark:border-slate-700/90 dark:bg-slate-950/40">
+              {onClear ? (
+                <button type="button" className="app-link-muted text-sm" onClick={() => onClear()}>
+                  {t('datePickerClear')}
+                </button>
+              ) : (
+                <span />
+              )}
+              <button type="button" className="app-link-muted text-sm" onClick={goToday}>
+                {t('datePickerToday')}
               </button>
-            ) : (
-              <span />
-            )}
-            <button type="button" className="app-link-muted text-sm" onClick={goToday}>
-              {t('datePickerToday')}
-            </button>
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

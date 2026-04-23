@@ -1,6 +1,20 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
+import { DateTimeField } from '@/components/DateTimeField';
+import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
+
+function startOfLocalToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function defaultTaskDeadline(): string {
+  const d = new Date();
+  d.setHours(d.getHours() + 1, 0, 0, 0);
+  return toDatetimeLocalValue(d);
+}
 
 type TaskRow = {
   id: string;
@@ -20,7 +34,7 @@ export function TasksPage() {
     vehicleId: '',
     driverId: '',
     title: '',
-    deadlineAt: '',
+    deadlineAt: defaultTaskDeadline(),
   });
 
   const load = async () => {
@@ -40,6 +54,11 @@ export function TasksPage() {
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
+    const deadline = new Date(form.deadlineAt);
+    if (!Number.isFinite(deadline.getTime()) || deadline.getTime() < Date.now()) {
+      window.alert(t('taskDeadlineMustBeFuture'));
+      return;
+    }
     await api('/tasks', {
       method: 'POST',
       body: JSON.stringify({
@@ -49,7 +68,7 @@ export function TasksPage() {
         deadlineAt: new Date(form.deadlineAt).toISOString(),
       }),
     });
-    setForm({ vehicleId: '', driverId: '', title: '', deadlineAt: '' });
+    setForm({ vehicleId: '', driverId: '', title: '', deadlineAt: defaultTaskDeadline() });
     await load();
   }
 
@@ -118,12 +137,10 @@ export function TasksPage() {
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('deadline')}</label>
-          <input
-            type="datetime-local"
-            className="app-input"
+          <DateTimeField
             value={form.deadlineAt}
-            onChange={(e) => setForm({ ...form, deadlineAt: e.target.value })}
-            required
+            onChange={(deadlineAt) => setForm({ ...form, deadlineAt })}
+            disabled={{ before: startOfLocalToday() }}
           />
         </div>
         <button type="submit" className="app-btn-primary md:col-span-5 md:justify-self-start">

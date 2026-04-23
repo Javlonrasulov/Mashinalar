@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronDown } from 'lucide-react';
 import { DayPicker, type DayPickerLocale, type DayPickerProps } from 'react-day-picker';
 import { ru, uz, uzCyrl } from 'react-day-picker/locale';
@@ -37,6 +38,22 @@ function formatDisplay(d: Date, lang: Lang, mode: 'date' | 'datetime'): string {
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
+/** ~34rem at 16px root — must match max popover width used for horizontal clamping */
+const POPOVER_MAX_WIDTH_PX = 544;
+const VIEW_MARGIN = 12;
+
+function popoverWidthPx(): number {
+  return Math.min(window.innerWidth - VIEW_MARGIN * 2, POPOVER_MAX_WIDTH_PX);
+}
+
+function clampPopoverLeft(left: number, popoverW: number): number {
+  const vw = window.innerWidth;
+  let x = left;
+  if (x + popoverW > vw - VIEW_MARGIN) x = vw - VIEW_MARGIN - popoverW;
+  if (x < VIEW_MARGIN) x = VIEW_MARGIN;
+  return x;
+}
+
 type Props = {
   value: string;
   onChange: (v: string) => void;
@@ -52,7 +69,10 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
   const autoId = useId();
   const fieldId = id ?? autoId;
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
 
   const selected = useMemo(() => parseDatetimeLocalValue(value), [value]);
   const locale = useMemo(() => dayPickerLocaleFor(lang), [lang]);
@@ -99,11 +119,31 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
     setParts(next);
   };
 
+  useLayoutEffect(() => {
+    if (!open) return;
+    const btn = buttonRef.current;
+    if (!btn) return;
+    const update = () => {
+      const r = btn.getBoundingClientRect();
+      const w = popoverWidthPx();
+      const leftBase = align === 'right' ? r.right - w : r.left;
+      setPopoverPos({ top: r.bottom + 8, left: clampPopoverLeft(leftBase, w) });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open, align]);
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      const el = rootRef.current;
-      if (!el?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t) || popoverRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -119,6 +159,7 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
   return (
     <div ref={rootRef} className="relative w-full min-w-0">
       <button
+        ref={buttonRef}
         type="button"
         id={fieldId}
         aria-expanded={open}
@@ -130,17 +171,18 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
         <CalendarDays className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
       </button>
 
-      {open && (
-        <div
-          role="dialog"
-          aria-labelledby={fieldId}
-          className={[
-            'app-datetime-popover absolute top-full z-[5000] mt-2 w-[min(100vw-1.5rem,34rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900',
-            align === 'right' ? 'right-0' : 'left-0',
-          ].join(' ')}
-        >
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-labelledby={fieldId}
+            style={{ top: popoverPos.top, left: popoverPos.left }}
+            className="app-datetime-popover fixed z-[5000] w-[min(100vw-1.5rem,34rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
+          >
           <div className="flex max-h-[min(70vh,420px)] flex-col lg:max-h-none lg:flex-row">
-            <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-2 lg:p-3">
+            <div className="min-w-0 flex-1 overflow-y-auto p-2 lg:p-3">
               <DayPicker
                 mode="single"
                 selected={selected}
@@ -214,8 +256,9 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
               {t('datePickerToday')}
             </button>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </div>
   );
 }
