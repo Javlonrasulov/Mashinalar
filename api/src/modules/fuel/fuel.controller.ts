@@ -35,11 +35,19 @@ function fileName(_req: unknown, file: Express.Multer.File, cb: (e: Error | null
 export class FuelController {
   constructor(private readonly fuel: FuelService) {}
 
+  @Get('mine')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.DRIVER)
+  findMine(@CurrentUser() user: JwtUser, @Query('limit') limit?: string) {
+    if (!user.driverId) throw new BadRequestException('No driver');
+    return this.fuel.findMine(user.driverId, limit);
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  findAll(@Query('date') date?: string) {
-    return this.fuel.findAll({ date });
+  findAll(@Query('date') date?: string, @Query('from') from?: string, @Query('to') to?: string) {
+    return this.fuel.findAll({ date, from, to });
   }
 
   @Post()

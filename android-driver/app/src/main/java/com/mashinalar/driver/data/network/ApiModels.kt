@@ -133,4 +133,13 @@ data class DailyKmHistoryDto(
   val endRecordedAt: String? = null,
 )
 
+@JsonClass(generateAdapter = true)
+data class FuelHistoryDto(
+  val id: String,
+  val amount: String,
+  val createdAt: String,
+  val vehiclePhotoUrl: String? = null,
+  val receiptPhotoUrl: String? = null,
+)
+
 

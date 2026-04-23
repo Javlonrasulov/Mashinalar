@@ -21,6 +21,9 @@ interface ApiService {
   @POST("/tracking/locations/batch")
   suspend fun sendLocations(@Body body: BatchLocationRequest): BatchLocationResponse
 
+  @GET("/fuel-reports/mine")
+  suspend fun myFuelReports(@Query("limit") limit: Int = 50): List<FuelHistoryDto>
+
   @Multipart
   @POST("/fuel-reports")
   suspend fun createFuelReport(

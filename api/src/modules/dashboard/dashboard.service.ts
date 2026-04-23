@@ -1,6 +1,28 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { TaskStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseDayStartUtc(s: string | undefined, fallback: Date): Date {
+  if (s && YMD.test(s)) {
+    const d = new Date(`${s}T00:00:00.000Z`);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const d = new Date(fallback);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+function parseDayEndUtc(s: string | undefined, fallback: Date): Date {
+  if (s && YMD.test(s)) {
+    const d = new Date(`${s}T23:59:59.999Z`);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const d = new Date(fallback);
+  d.setUTCHours(23, 59, 59, 999);
+  return d;
+}
 
 @Injectable()
 export class DashboardService {

@@ -26,6 +26,10 @@
 
   <!-- Fuel -->
   <string name="fuel_title">Zapravka</string>
+  <string name="fuel_history_title">Oxirgi zapravkalar</string>
+  <string name="fuel_history_empty">Hali yozuv yo‘q</string>
+  <string name="fuel_history_show_more">Yana ko‘rsatish (+%1$d)</string>
+  <string name="fuel_history_show_less">Yopish</string>
   <string name="amount_field">Summa</string>
   <string name="vehicle_photo">Mashina rasmi</string>
   <string name="receipt_photo">Chek rasmi</string>

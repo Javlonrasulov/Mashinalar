@@ -7,7 +7,9 @@ import android.net.Uri
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,7 +22,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -28,10 +34,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -44,10 +52,16 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mashinalar.driver.R
+import com.mashinalar.driver.data.network.FuelHistoryDto
 import com.mashinalar.driver.ui.components.PhotoAttachmentRow
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val FuelHistoryPreviewCount = 4
 
 @Composable
 fun FuelScreen(
@@ -58,6 +72,7 @@ fun FuelScreen(
   val state by vm.state.collectAsState()
   /** UI: kamera jarayoni boshlangan (tugma o‘rnida matn) */
   var captureTarget by remember { mutableStateOf<String?>(null) }
+  var fuelHistoryExpanded by remember { mutableStateOf(false) }
   val amountHasDigits = state.amount.any { it.isDigit() }
   val canSubmit =
     amountHasDigits && state.vehiclePhoto != null && state.receiptPhoto != null && !state.loading
@@ -239,6 +254,77 @@ fun FuelScreen(
         )
       }
 
+    Spacer(Modifier.height(20.dp))
+    HorizontalDivider()
+    Spacer(Modifier.height(12.dp))
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(stringResource(R.string.fuel_history_title), style = MaterialTheme.typography.titleMedium)
+      OutlinedButton(
+        onClick = vm::refreshHistory,
+        enabled = !state.historyLoading,
+      ) {
+        Text(stringResource(R.string.refresh))
+      }
+    }
+    Spacer(Modifier.height(8.dp))
+    when {
+      state.historyLoading ->
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.Center,
+        ) {
+          CircularProgressIndicator(modifier = Modifier.height(28.dp))
+        }
+      state.historyError != null ->
+        Text(
+          state.historyError!!,
+          color = MaterialTheme.colorScheme.error,
+          style = MaterialTheme.typography.bodyMedium,
+        )
+      state.historyItems.isEmpty() ->
+        Text(
+          stringResource(R.string.fuel_history_empty),
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          style = MaterialTheme.typography.bodyMedium,
+        )
+      else -> {
+        val total = state.historyItems.size
+        val hidden = (total - FuelHistoryPreviewCount).coerceAtLeast(0)
+        val visibleItems =
+          if (fuelHistoryExpanded || total <= FuelHistoryPreviewCount) {
+            state.historyItems
+          } else {
+            state.historyItems.take(FuelHistoryPreviewCount)
+          }
+        Column(Modifier.fillMaxWidth()) {
+          visibleItems.forEach { item ->
+            key(item.id) {
+              FuelHistoryCard(item)
+            }
+          }
+          if (hidden > 0) {
+            Spacer(Modifier.height(4.dp))
+            TextButton(
+              onClick = { fuelHistoryExpanded = !fuelHistoryExpanded },
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              Text(
+                if (fuelHistoryExpanded) {
+                  stringResource(R.string.fuel_history_show_less)
+                } else {
+                  stringResource(R.string.fuel_history_show_more, hidden)
+                },
+              )
+            }
+          }
+        }
+      }
+    }
+
     Spacer(Modifier.height(24.dp))
     Button(
       modifier = Modifier.fillMaxWidth(),
@@ -253,3 +339,47 @@ fun FuelScreen(
     Spacer(Modifier.height(32.dp))
   }
 }
+
+@Composable
+private fun FuelHistoryCard(item: FuelHistoryDto) {
+  ElevatedCard(
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .padding(vertical = 4.dp),
+  ) {
+    Row(
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(12.dp),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+        formatHistoryAmountFromApi(item.amount),
+        style = MaterialTheme.typography.titleMedium,
+      )
+      Text(
+        formatFuelHistoryInstant(item.createdAt),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+  }
+}
+
+private fun formatHistoryAmountFromApi(amount: String): String {
+  val intPart = amount.substringBefore('.').filter { it.isDigit() }
+  if (intPart.isEmpty()) return amount
+  val revChunks = intPart.reversed().chunked(3)
+  return revChunks.map { it.reversed() }.reversed().joinToString(" ")
+}
+
+private fun formatFuelHistoryInstant(iso: String): String =
+  runCatching {
+    val i = Instant.parse(iso)
+    val z = ZoneId.systemDefault()
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(z).format(i)
+  }.getOrDefault("—")
+

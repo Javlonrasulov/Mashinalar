@@ -9,19 +9,59 @@ export class FuelService {
     private readonly audit: AuditService,
   ) {}
 
-  findAll(params?: { date?: string }) {
+  /** Haydovchi o‘zining so‘nggi zapravka (fuel) yozuvlari */
+  async findMine(driverId: string, limitRaw?: string) {
+    const n = limitRaw != null && limitRaw !== '' ? Number(limitRaw) : 50;
+    const take = Number.isFinite(n) && n > 0 && n <= 100 ? Math.floor(n) : 50;
+    const rows = await this.prisma.fuelReport.findMany({
+      where: { driverId },
+      orderBy: { createdAt: 'desc' },
+      take,
+      select: {
+        id: true,
+        amount: true,
+        createdAt: true,
+        vehiclePhotoUrl: true,
+        receiptPhotoUrl: true,
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      amount: String(r.amount),
+      createdAt: r.createdAt.toISOString(),
+      vehiclePhotoUrl: r.vehiclePhotoUrl ?? null,
+      receiptPhotoUrl: r.receiptPhotoUrl ?? null,
+    }));
+  }
+
+  findAll(params?: { date?: string; from?: string; to?: string }) {
     const date = params?.date?.trim();
+    const fromRaw = params?.from?.trim();
+    const toRaw = params?.to?.trim();
+
     let createdAt: { gte: Date; lt: Date } | undefined;
-    if (date) {
-      // Expecting YYYY-MM-DD in local timezone (admin UI).
+
+    // Preferred: explicit ISO range computed on the client (matches admin browser local day).
+    if (fromRaw && toRaw) {
+      const gte = new Date(fromRaw);
+      const lt = new Date(toRaw);
+      if (Number.isFinite(gte.getTime()) && Number.isFinite(lt.getTime()) && lt > gte) {
+        createdAt = { gte, lt };
+      }
+    }
+
+    // Fallback: calendar date string (UTC day boundaries; stable regardless of server TZ).
+    if (!createdAt && date) {
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
       if (m) {
         const y = Number(m[1]);
         const mo = Number(m[2]);
         const d = Number(m[3]);
-        const start = new Date(y, mo - 1, d, 0, 0, 0, 0);
-        const end = new Date(y, mo - 1, d + 1, 0, 0, 0, 0);
-        createdAt = { gte: start, lt: end };
+        if (Number.isFinite(y) && Number.isFinite(mo) && Number.isFinite(d)) {
+          const start = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0));
+          const end = new Date(Date.UTC(y, mo - 1, d + 1, 0, 0, 0, 0));
+          createdAt = { gte: start, lt: end };
+        }
       }
     }
     return this.prisma.fuelReport.findMany({

@@ -5,6 +5,7 @@ import com.mashinalar.driver.core.HttpErrors
 import com.mashinalar.driver.core.NetworkErrors
 import com.mashinalar.driver.data.network.ApiService
 import com.mashinalar.driver.data.network.DailyKmHistoryDto
+import com.mashinalar.driver.data.network.FuelHistoryDto
 import com.mashinalar.driver.data.network.filePart
 import com.mashinalar.driver.data.network.textPart
 import java.io.File
@@ -17,6 +18,15 @@ class ReportsRepository @Inject constructor(
   suspend fun myDailyKmReports(limit: Int = 31): ApiResult<List<DailyKmHistoryDto>> =
     try {
       ApiResult.Ok(api.myDailyKmReports(limit))
+    } catch (e: retrofit2.HttpException) {
+      ApiResult.Err(HttpErrors.userMessage(e), e.code())
+    } catch (t: Throwable) {
+      ApiResult.Err(NetworkErrors.toUserMessage(t))
+    }
+
+  suspend fun myFuelReports(limit: Int = 50): ApiResult<List<FuelHistoryDto>> =
+    try {
+      ApiResult.Ok(api.myFuelReports(limit))
     } catch (e: retrofit2.HttpException) {
       ApiResult.Err(HttpErrors.userMessage(e), e.code())
     } catch (t: Throwable) {

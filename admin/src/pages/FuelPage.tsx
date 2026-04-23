@@ -67,8 +67,17 @@ export function FuelPage() {
 
   useEffect(() => {
     const selected = new Date(dateValue);
-    const date = toDateInputValueLocal(selected);
-    api<Row[]>(`/fuel-reports?date=${encodeURIComponent(date)}`).then(setRows).catch(() => {});
+    if (!Number.isFinite(selected.getTime())) return;
+
+    const start = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate(), 0, 0, 0, 0);
+    const end = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate() + 1, 0, 0, 0, 0);
+
+    const qs = new URLSearchParams({
+      from: start.toISOString(),
+      to: end.toISOString(),
+    });
+
+    api<Row[]>(`/fuel-reports?${qs.toString()}`).then(setRows).catch(() => {});
   }, [dateValue]);
 
   useEffect(() => {

@@ -18,6 +18,10 @@
   <string name="nav_daily_km">Кун боши / тугаши (КМ)</string>
   <string name="nav_tasks">Вазифалар</string>
   <string name="fuel_title">Заправка</string>
+  <string name="fuel_history_title">Охирги заправкалар</string>
+  <string name="fuel_history_empty">Ҳали ёзув йўқ</string>
+  <string name="fuel_history_show_more">Яна кўрсатиш (+%1$d)</string>
+  <string name="fuel_history_show_less">Ёпиш</string>
   <string name="amount_field">Сумма</string>
   <string name="vehicle_photo">Машина расми</string>
   <string name="receipt_photo">Чек расми</string>

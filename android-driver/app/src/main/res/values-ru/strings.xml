@@ -18,6 +18,10 @@
   <string name="nav_daily_km">Начало / конец дня (км)</string>
   <string name="nav_tasks">Задачи</string>
   <string name="fuel_title">Заправка</string>
+  <string name="fuel_history_title">Последние заправки</string>
+  <string name="fuel_history_empty">Пока нет записей</string>
+  <string name="fuel_history_show_more">Показать ещё (+%1$d)</string>
+  <string name="fuel_history_show_less">Свернуть</string>
   <string name="amount_field">Сумма</string>
   <string name="vehicle_photo">Фото машины</string>
   <string name="receipt_photo">Фото чека</string>
