@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import { DateTimeField } from '@/components/DateTimeField';
+import { SelectField } from '@/components/SelectField';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 
 function startOfLocalToday(): Date {
@@ -60,8 +61,25 @@ export function TasksPage() {
     load().catch(() => {});
   }, []);
 
+  const vehicleOptions = useMemo(
+    () => [
+      { value: '', label: '—' },
+      ...vehicles.map((v) => ({ value: v.id, label: v.plateNumber })),
+    ],
+    [vehicles],
+  );
+
+  const driverOptions = useMemo(
+    () => [
+      { value: '', label: '—' },
+      ...drivers.map((d) => ({ value: d.id, label: d.fullName })),
+    ],
+    [drivers],
+  );
+
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.vehicleId || !form.driverId) return;
     const deadline = new Date(form.deadlineAt);
     if (!Number.isFinite(deadline.getTime()) || deadline.getTime() < Date.now()) {
       window.alert(t('taskDeadlineMustBeFuture'));
@@ -103,36 +121,32 @@ export function TasksPage() {
         className="app-card-pad grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-5"
       >
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('plate')}</label>
-          <select
-            className="app-select"
-            value={form.vehicleId}
-            onChange={(e) => setForm({ ...form, vehicleId: e.target.value })}
-            required
+          <label
+            className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+            htmlFor="task-form-vehicle"
           >
-            <option value="">—</option>
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.plateNumber}
-              </option>
-            ))}
-          </select>
+            {t('plate')}
+          </label>
+          <SelectField
+            id="task-form-vehicle"
+            value={form.vehicleId}
+            onChange={(vehicleId) => setForm({ ...form, vehicleId })}
+            options={vehicleOptions}
+          />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('fullName')}</label>
-          <select
-            className="app-select"
-            value={form.driverId}
-            onChange={(e) => setForm({ ...form, driverId: e.target.value })}
-            required
+          <label
+            className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+            htmlFor="task-form-driver"
           >
-            <option value="">—</option>
-            {drivers.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.fullName}
-              </option>
-            ))}
-          </select>
+            {t('fullName')}
+          </label>
+          <SelectField
+            id="task-form-driver"
+            value={form.driverId}
+            onChange={(driverId) => setForm({ ...form, driverId })}
+            options={driverOptions}
+          />
         </div>
         <div className="md:col-span-2">
           <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('title')}</label>
