@@ -48,6 +48,10 @@
   <string name="oil_saved">Saqlandi</string>
   <string name="oil_err_km_required">KM kiriting</string>
   <string name="oil_err_photo_required">Tablo rasmi kerak</string>
+  <string name="err_oil_invalid_km_at_change">KM noto‘g‘ri (musbat son kiriting)</string>
+  <string name="err_oil_no_vehicle">Mashina biriktirilmagan</string>
+  <string name="err_oil_km_below_initial">KM mashinaning boshlang‘ich KM dan kam bo‘lmasligi kerak</string>
+  <string name="err_oil_km_not_above_last">Oxirgi moy yozuvidagi KM dan katta bo‘lishi kerak</string>
   <string name="oil_notif_soon_title">Moy almashtirish yaqin</string>
   <string name="oil_notif_soon_body">Keyingi moy KM rejasiga yaqinlashdingiz. Sahifani tekshiring.</string>
   <string name="oil_notif_overdue_title">Moy muddati oshgan</string>

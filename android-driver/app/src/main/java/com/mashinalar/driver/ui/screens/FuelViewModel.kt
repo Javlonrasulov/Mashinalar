@@ -79,6 +79,10 @@ class FuelViewModel @Inject constructor(
     _state.value = s.copy(receiptPhoto = null, message = null)
   }
 
+  fun clearMessage() {
+    _state.value = _state.value.copy(message = null)
+  }
+
   fun submit() {
     val s = _state.value
     if (s.loading) return

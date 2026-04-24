@@ -106,6 +106,10 @@ class DailyKmViewModel @Inject constructor(
     _state.value = s.copy(endPhoto = null, message = null)
   }
 
+  fun clearMessage() {
+    _state.value = _state.value.copy(message = null)
+  }
+
   /** 1-bosqich: boshlang‘ich KM + start rasm → server (lokatsiya + vaqt) */
   fun submitStart() {
     val s = _state.value

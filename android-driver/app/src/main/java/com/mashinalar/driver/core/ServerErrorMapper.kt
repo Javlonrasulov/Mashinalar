@@ -37,8 +37,34 @@ object ServerErrorMapper {
       return context.getString(R.string.err_daily_km_end_already_submitted)
     }
 
+    if (cleaned.startsWith("oil_change.")) {
+      return mapOilChange(context, cleaned)
+    }
+    // Eski server (inglizcha moy xabarlari)
+    if (cleaned.contains("KM must be at least vehicle initial KM", ignoreCase = true)) {
+      return context.getString(R.string.err_oil_km_below_initial)
+    }
+    if (cleaned.contains("KM must be greater than last recorded oil change KM", ignoreCase = true)) {
+      return context.getString(R.string.err_oil_km_not_above_last)
+    }
+    if (cleaned == "No vehicle assigned") {
+      return context.getString(R.string.err_oil_no_vehicle)
+    }
+    if (cleaned == "Invalid kmAtChange") {
+      return context.getString(R.string.err_oil_invalid_km_at_change)
+    }
+
     return raw
   }
+
+  private fun mapOilChange(context: Context, key: String): String =
+    when (key) {
+      "oil_change.invalid_km_at_change" -> context.getString(R.string.err_oil_invalid_km_at_change)
+      "oil_change.no_vehicle" -> context.getString(R.string.err_oil_no_vehicle)
+      "oil_change.km_below_initial" -> context.getString(R.string.err_oil_km_below_initial)
+      "oil_change.km_not_above_last" -> context.getString(R.string.err_oil_km_not_above_last)
+      else -> key
+    }
 
   private fun mapDailyKm(context: Context, key: String, arg: String?): String {
     val num1 = arg?.replace(',', '.')?.toDoubleOrNull()

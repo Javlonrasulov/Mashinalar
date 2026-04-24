@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -31,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,6 +55,7 @@ import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mashinalar.driver.R
 import com.mashinalar.driver.data.network.FuelHistoryDto
+import com.mashinalar.driver.ui.components.ButtonSendProgressContent
 import com.mashinalar.driver.ui.components.PhotoAttachmentRow
 import java.time.Instant
 import java.time.ZoneId
@@ -171,9 +174,14 @@ fun FuelScreen(
     }
   }
 
+  DisposableEffect(Unit) {
+    onDispose { vm.clearMessage() }
+  }
+
   LaunchedEffect(state.message) {
     val msg = state.message ?: return@LaunchedEffect
     snackbarHost.showSnackbar(msg)
+    vm.clearMessage()
   }
 
   // Bitta scroll: weight+scroll o‘rniga — klaviatura/hisoblashda «Машина расми» yo‘qolmaydi; «Юбориш» ham ustma-ust emas.
@@ -276,8 +284,9 @@ fun FuelScreen(
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.Center,
+          verticalAlignment = Alignment.CenterVertically,
         ) {
-          CircularProgressIndicator(modifier = Modifier.height(28.dp))
+          CircularProgressIndicator(modifier = Modifier.size(28.dp))
         }
       state.historyError != null ->
         Text(
@@ -331,10 +340,7 @@ fun FuelScreen(
       enabled = canSubmit,
       onClick = vm::submit,
     ) {
-      if (state.loading) {
-        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.height(18.dp))
-      }
-      Text(if (state.loading) stringResource(R.string.sending) else stringResource(R.string.send))
+      ButtonSendProgressContent(loading = state.loading)
     }
     Spacer(Modifier.height(32.dp))
   }

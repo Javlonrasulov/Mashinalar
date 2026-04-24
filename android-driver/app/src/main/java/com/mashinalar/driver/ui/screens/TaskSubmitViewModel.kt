@@ -38,6 +38,10 @@ class TaskSubmitViewModel @Inject constructor(
     _state.value = s.copy(proofPhoto = null, message = null)
   }
 
+  fun clearMessage() {
+    _state.value = _state.value.copy(message = null)
+  }
+
   fun submit(taskId: String) {
     val s = _state.value
     if (s.proofPhoto == null && s.proofText.isBlank()) {

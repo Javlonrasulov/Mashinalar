@@ -47,7 +47,7 @@ export class OilChangeService {
   }) {
     const { driverId, kmAtChange, photoUrl, actorUserId } = params;
     if (!Number.isFinite(kmAtChange) || kmAtChange <= 0) {
-      throw new BadRequestException('Invalid kmAtChange');
+      throw new BadRequestException('oil_change.invalid_km_at_change');
     }
 
     const driver = await this.prisma.driver.findUnique({
@@ -55,16 +55,16 @@ export class OilChangeService {
       include: { vehicle: true },
     });
     if (!driver?.vehicleId || !driver.vehicle) {
-      throw new BadRequestException('No vehicle assigned');
+      throw new BadRequestException('oil_change.no_vehicle');
     }
     const vehicle = driver.vehicle;
     const initial = Number(vehicle.initialKm);
     if (kmAtChange < initial) {
-      throw new BadRequestException('KM must be at least vehicle initial KM');
+      throw new BadRequestException('oil_change.km_below_initial');
     }
     const prevLast = vehicle.lastOilChangeKm != null ? Number(vehicle.lastOilChangeKm) : null;
     if (prevLast != null && kmAtChange <= prevLast) {
-      throw new BadRequestException('KM must be greater than last recorded oil change KM');
+      throw new BadRequestException('oil_change.km_not_above_last');
     }
 
     const row = await this.prisma.oilChangeReport.create({

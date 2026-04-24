@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -33,6 +34,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,6 +58,7 @@ import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mashinalar.driver.ui.components.PhotoAttachmentRow
 import com.mashinalar.driver.R
+import com.mashinalar.driver.ui.components.ButtonSendProgressContent
 import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -182,9 +185,14 @@ fun DailyKmScreen(
     }
   }
 
+  DisposableEffect(Unit) {
+    onDispose { vm.clearMessage() }
+  }
+
   LaunchedEffect(state.message) {
     val msg = state.message ?: return@LaunchedEffect
     snackbarHost.showSnackbar(ServerErrorMapper.localize(context, msg))
+    vm.clearMessage()
   }
 
   LaunchedEffect(state.endSectionVisible) {
@@ -295,16 +303,7 @@ fun DailyKmScreen(
         if (!state.endSectionVisible) vm.submitStart() else vm.submitEnd()
       },
     ) {
-      if (state.loading) {
-        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.height(18.dp))
-      }
-      Text(
-        if (state.loading) {
-          stringResource(R.string.sending)
-        } else {
-          stringResource(R.string.send)
-        },
-      )
+      ButtonSendProgressContent(loading = state.loading)
     }
 
     HorizontalDivider(Modifier.padding(vertical = 12.dp))
@@ -325,12 +324,15 @@ fun DailyKmScreen(
       }
     }
     if (state.historyLoading) {
-      CircularProgressIndicator(
+      Row(
         modifier = Modifier
-          .padding(vertical = 8.dp)
-          .height(28.dp)
-          .width(28.dp),
-      )
+          .fillMaxWidth()
+          .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        CircularProgressIndicator(modifier = Modifier.size(28.dp))
+      }
     }
     state.historyError?.let { err ->
       Text(

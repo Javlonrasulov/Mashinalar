@@ -11,11 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.imePadding
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mashinalar.driver.ui.camera.CameraCapture
+import com.mashinalar.driver.ui.components.ButtonSendProgressContent
 import com.mashinalar.driver.ui.components.PhotoAttachmentRow
 import com.mashinalar.driver.ui.permissions.PermissionGate
 import com.mashinalar.driver.R
@@ -44,9 +45,14 @@ fun TaskSubmitScreen(
   val state by vm.state.collectAsState()
   var capture by remember { mutableStateOf(false) }
 
+  DisposableEffect(Unit) {
+    onDispose { vm.clearMessage() }
+  }
+
   LaunchedEffect(state.message) {
     val msg = state.message ?: return@LaunchedEffect
     snackbarHost.showSnackbar(msg)
+    vm.clearMessage()
   }
 
   Box(
@@ -110,8 +116,7 @@ fun TaskSubmitScreen(
         vm.submit(taskId)
       },
     ) {
-      if (state.loading) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.height(18.dp))
-      Text(if (state.loading) stringResource(R.string.sending) else stringResource(R.string.send))
+      ButtonSendProgressContent(loading = state.loading)
     }
   }
 }

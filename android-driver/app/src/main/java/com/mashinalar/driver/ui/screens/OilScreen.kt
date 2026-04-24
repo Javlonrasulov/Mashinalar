@@ -21,6 +21,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.mashinalar.driver.R
+import com.mashinalar.driver.ui.components.ButtonSendProgressContent
 import com.mashinalar.driver.ui.camera.CameraCapture
 import com.mashinalar.driver.ui.components.PhotoAttachmentRow
 import com.mashinalar.driver.ui.permissions.PermissionGate
@@ -52,6 +54,10 @@ fun OilScreen(
 ) {
   val state by vm.state.collectAsState()
   var capture by remember { mutableStateOf(false) }
+
+  DisposableEffect(Unit) {
+    onDispose { vm.clearMessage() }
+  }
 
   LaunchedEffect(state.message) {
     val msg = state.message ?: return@LaunchedEffect
@@ -181,14 +187,7 @@ fun OilScreen(
           enabled = canSubmit,
           onClick = { vm.submit() },
         ) {
-          if (state.submitLoading) {
-            CircularProgressIndicator(
-              modifier = Modifier.size(20.dp),
-              strokeWidth = 2.dp,
-            )
-          } else {
-            Text(stringResource(R.string.send))
-          }
+          ButtonSendProgressContent(loading = state.submitLoading)
         }
 
         Spacer(Modifier.height(16.dp))

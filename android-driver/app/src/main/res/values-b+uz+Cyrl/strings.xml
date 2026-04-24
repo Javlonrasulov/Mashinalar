@@ -40,6 +40,10 @@
   <string name="oil_saved">Сақланди</string>
   <string name="oil_err_km_required">КМ киритинг</string>
   <string name="oil_err_photo_required">Табло расми керак</string>
+  <string name="err_oil_invalid_km_at_change">KM нотўғри (мусбат сон киритинг)</string>
+  <string name="err_oil_no_vehicle">Машина бириктирилмаган</string>
+  <string name="err_oil_km_below_initial">KM машинанинг бошланғич KM дан кам бўлмаслиги керак</string>
+  <string name="err_oil_km_not_above_last">Охирги мой ёзувидаги KM дан катта бўлиши керак</string>
   <string name="oil_notif_soon_title">Мой алмаштириш яқин</string>
   <string name="oil_notif_soon_body">Кейинги мой КМ режасига яқинлашдингиз. Саҳифани текширинг.</string>
   <string name="oil_notif_overdue_title">Мой муддати ўшган</string>

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mashinalar.driver.R
 import com.mashinalar.driver.core.ApiResult
+import com.mashinalar.driver.core.ServerErrorMapper
 import com.mashinalar.driver.data.network.OilChangeHistoryDto
 import com.mashinalar.driver.data.network.VehicleMyResponse
 import com.mashinalar.driver.data.reports.ReportsRepository
@@ -50,8 +51,12 @@ class OilViewModel @Inject constructor(
       val vr = v.await()
       val hr = h.await()
       when {
-        vr is ApiResult.Err -> _state.value = OilUiState(loading = false, error = vr.message)
-        hr is ApiResult.Err -> _state.value = OilUiState(loading = false, error = hr.message)
+        vr is ApiResult.Err ->
+          _state.value =
+            OilUiState(loading = false, error = ServerErrorMapper.localize(context, vr.message))
+        hr is ApiResult.Err ->
+          _state.value =
+            OilUiState(loading = false, error = ServerErrorMapper.localize(context, hr.message))
         vr is ApiResult.Ok && hr is ApiResult.Ok ->
           _state.update {
             OilUiState(
@@ -119,7 +124,10 @@ class OilViewModel @Inject constructor(
             _state.update { it.copy(submitLoading = false, message = context.getString(R.string.oil_saved)) }
           }
         }
-        is ApiResult.Err -> _state.update { it.copy(submitLoading = false, message = r.message) }
+        is ApiResult.Err ->
+          _state.update {
+            it.copy(submitLoading = false, message = ServerErrorMapper.localize(context, r.message))
+          }
       }
     }
   }

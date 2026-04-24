@@ -40,6 +40,10 @@
   <string name="oil_saved">Сохранено</string>
   <string name="oil_err_km_required">Введите КМ</string>
   <string name="oil_err_photo_required">Нужно фото панели</string>
+  <string name="err_oil_invalid_km_at_change">Неверный пробег (введите положительное число)</string>
+  <string name="err_oil_no_vehicle">Автомобиль не назначен</string>
+  <string name="err_oil_km_below_initial">Пробег не может быть меньше начального пробега автомобиля</string>
+  <string name="err_oil_km_not_above_last">Пробег должен быть больше, чем при последней замене масла</string>
   <string name="oil_notif_soon_title">Скоро замена масла</string>
   <string name="oil_notif_soon_body">Вы приближаетесь к плановому КМ замены. Откройте раздел.</string>
   <string name="oil_notif_overdue_title">Замена масла просрочена</string>
