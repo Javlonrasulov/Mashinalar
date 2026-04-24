@@ -197,6 +197,8 @@ const DICTS: Record<Lang, Dict> = {
     mapClusterSegments: '{n} та узоқ тўхташ',
     mapVisitedPlaceHint: 'Босинг — харитада тўхташлар ажратилади',
     mapClusterNoSegments: 'Бу кластер учун тўхташ сегментлари топилмади.',
+    mapGeoLoading: 'манзил…',
+    mapGeoAttribution: 'Манзил: © OpenStreetMap — Nominatim',
     statsIntro:
       'Машиналар юриши (км), харажатлар, заправкалар ва очиқ вазифалар. Саналар Kun KM / харажат / заправка вақти билан мос (UTC).',
     statsPeriod: 'Давр',
@@ -408,6 +410,8 @@ const DICTS: Record<Lang, Dict> = {
     mapClusterSegments: '{n} ta uzoq to‘xtash',
     mapVisitedPlaceHint: 'Bosing — xaritada to‘xtashlar ajratiladi',
     mapClusterNoSegments: 'Bu klaster uchun to‘xtash segmentlari topilmadi.',
+    mapGeoLoading: 'manzil…',
+    mapGeoAttribution: 'Manzil: © OpenStreetMap — Nominatim',
     statsIntro:
       'Mashinalar yurishi (km), xarajatlar, zapravkalar va ochiq vazifalar. Sanalar Kun KM / xarajat / zapravka vaqti bilan mos (UTC).',
     statsPeriod: 'Davr',
@@ -619,6 +623,8 @@ const DICTS: Record<Lang, Dict> = {
     mapClusterSegments: 'Длительных остановок: {n}',
     mapVisitedPlaceHint: 'Нажмите — на карте будут выделены остановки',
     mapClusterNoSegments: 'Для этого кластера не найдены сегменты остановок.',
+    mapGeoLoading: 'адрес…',
+    mapGeoAttribution: 'Адрес: © OpenStreetMap — Nominatim',
     statsIntro:
       'Пробег по дневным км, расходы, заправки и открытые задачи. Даты совпадают с датами отчётов (UTC).',
     statsPeriod: 'Период',

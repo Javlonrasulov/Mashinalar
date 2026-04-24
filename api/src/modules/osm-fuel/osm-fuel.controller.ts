@@ -1,8 +1,9 @@
-import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReverseGeocodeBatchDto } from './dto/reverse-geocode-batch.dto';
 import { OsmFuelService } from './osm-fuel.service';
 
 function num(q: string | undefined, fallback: number): number {
@@ -36,5 +37,14 @@ export class OsmFuelController {
       throw new BadRequestException('Invalid bbox');
     }
     return this.osmFuel.listFuelStations(bbox);
+  }
+
+  /** Koordinata → qisqa manzil (OSM Nominatim, kesh). */
+  @Post('reverse-geocode-batch')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async reverseGeocodeBatch(@Body() dto: ReverseGeocodeBatchDto) {
+    if (!dto.points?.length) return { labels: {} as Record<string, string> };
+    return { labels: await this.osmFuel.reverseGeocodeBatch(dto.points) };
   }
 }

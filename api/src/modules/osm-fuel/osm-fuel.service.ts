@@ -1,5 +1,55 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+/** Yaqin nuqtalar uchun bir xil manzil so‘rovi (~11 m). */
+const GEO_LABEL_KEY_PRECISION = 4;
+const NOMINATIM_MIN_INTERVAL_MS = 1100;
+const GEO_CACHE_TTL_MS = 48 * 60 * 60 * 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+export function geoLabelKey(lat: number, lon: number): string {
+  return `${Number(lat).toFixed(GEO_LABEL_KEY_PRECISION)}_${Number(lon).toFixed(GEO_LABEL_KEY_PRECISION)}`;
+}
+
+type NominatimReverseJson = {
+  display_name?: string;
+  address?: Record<string, string | undefined>;
+};
+
+function formatShortAddress(data: NominatimReverseJson): string {
+  const a = data.address;
+  if (a) {
+    const road =
+      a.road ??
+      a.pedestrian ??
+      a.path ??
+      a.footway ??
+      a.residential ??
+      a.neighbourhood ??
+      a.quarter;
+    const parts: string[] = [];
+    if (a.house_number && road) parts.push(`${road}, ${a.house_number}`);
+    else if (road) parts.push(road);
+    else if (a.house_number) parts.push(String(a.house_number));
+    const place = a.suburb ?? a.district ?? a.city_district;
+    if (place && parts.length && !parts[0].includes(place)) parts.push(place);
+    const city = a.city ?? a.town ?? a.village ?? a.municipality;
+    if (city) parts.push(city);
+    if (parts.length) return [...new Set(parts)].join(', ');
+  }
+  if (data.display_name) {
+    return data.display_name
+      .split(',')
+      .slice(0, 4)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(', ');
+  }
+  return '';
+}
+
 export type FuelStationBbox = {
   south: number;
   west: number;
@@ -90,6 +140,61 @@ export class OsmFuelService {
   private readonly logger = new Logger(OsmFuelService.name);
   private cache: { key: string; at: number; data: FuelStationDto[] } | null = null;
   private readonly ttlMs = 60 * 60 * 1000;
+
+  private readonly geoLabelCache = new Map<string, { at: number; label: string }>();
+  private lastNominatimRequestAt = 0;
+
+  private async nominatimThrottle(): Promise<void> {
+    const now = Date.now();
+    const wait = this.lastNominatimRequestAt + NOMINATIM_MIN_INTERVAL_MS - now;
+    if (wait > 0) await sleep(wait);
+    this.lastNominatimRequestAt = Date.now();
+  }
+
+  /**
+   * OSM Nominatim reverse (1 so‘rov/s siyosatiga rioya).
+   * Kalit: `geoLabelKey` — yaqin nuqtalar bitta manzil bilan keshlanadi.
+   */
+  async reverseGeocodeBatch(points: { latitude: number; longitude: number }[]): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    const byKey = new Map<string, { lat: number; lon: number }>();
+    for (const p of points) {
+      const k = geoLabelKey(p.latitude, p.longitude);
+      if (!byKey.has(k)) byKey.set(k, { lat: p.latitude, lon: p.longitude });
+    }
+
+    const ua = process.env.NOMINATIM_USER_AGENT ?? 'MashinalarFleet/1.0 (+https://github.com)';
+    const base = (process.env.NOMINATIM_URL ?? 'https://nominatim.openstreetmap.org').replace(/\/$/, '');
+
+    for (const [key, { lat, lon }] of byKey) {
+      const hit = this.geoLabelCache.get(key);
+      if (hit && Date.now() - hit.at < GEO_CACHE_TTL_MS) {
+        out[key] = hit.label;
+        continue;
+      }
+      await this.nominatimThrottle();
+      const url = `${base}/reverse?format=jsonv2&lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}&zoom=18&addressdetails=1`;
+      let label = '';
+      try {
+        const res = await fetch(url, {
+          headers: { 'User-Agent': ua, Accept: 'application/json' },
+        });
+        if (!res.ok) {
+          this.logger.warn(`Nominatim reverse HTTP ${res.status}`);
+        } else {
+          const json = (await res.json()) as NominatimReverseJson;
+          label = formatShortAddress(json).trim();
+        }
+      } catch (e) {
+        this.logger.warn(`Nominatim reverse failed: ${(e as Error).message}`);
+      }
+      if (label) {
+        this.geoLabelCache.set(key, { at: Date.now(), label });
+        out[key] = label;
+      }
+    }
+    return out;
+  }
 
   async listFuelStations(bbox: FuelStationBbox): Promise<FuelStationDto[]> {
     const { south, west, north, east } = bbox;

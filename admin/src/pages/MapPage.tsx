@@ -88,6 +88,24 @@ function clusterKey(lat: number, lng: number): string {
   return `${lat.toFixed(5)}_${lng.toFixed(5)}`;
 }
 
+/** API `geoLabelKey` bilan bir xil (4 xona). */
+function geoAddressKey(lat: number, lon: number): string {
+  return `${Number(lat).toFixed(4)}_${Number(lon).toFixed(4)}`;
+}
+
+function placeLabel(
+  lat: number,
+  lon: number,
+  geoLabels: Record<string, string>,
+  geoLabelsLoading: boolean,
+  t: (key: string) => string,
+): string {
+  const k = geoAddressKey(lat, lon);
+  if (geoLabels[k]) return geoLabels[k];
+  if (geoLabelsLoading) return `${lat.toFixed(5)}, ${lon.toFixed(5)} · ${t('mapGeoLoading')}`;
+  return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+}
+
 type Live = {
   id: string;
   name: string;
@@ -217,6 +235,8 @@ export function MapPage() {
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   /** «Кўп турган жойлар» dan tanlangan klaster — xaritada tegishli to‘xtashlar ajratiladi. */
   const [focusedCluster, setFocusedCluster] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [geoLabels, setGeoLabels] = useState<Record<string, string>>({});
+  const [geoLabelsLoading, setGeoLabelsLoading] = useState(false);
 
   const loadLive = useCallback(() => {
     api<Live[]>('/tracking/live')
@@ -276,6 +296,55 @@ export function MapPage() {
   useEffect(() => {
     setFocusedCluster(null);
   }, [vehicleId, from, to]);
+
+  const geoBatchKey = useMemo(() => {
+    if (!analytics) return '';
+    const parts: string[] = [];
+    for (const s of analytics.stopSegments) parts.push(geoAddressKey(s.latitude, s.longitude));
+    for (const c of analytics.visitedClusters) parts.push(geoAddressKey(c.latitude, c.longitude));
+    return parts.sort().join('|');
+  }, [analytics]);
+
+  useEffect(() => {
+    if (!vehicleId || !geoBatchKey || !analytics) {
+      setGeoLabels({});
+      setGeoLabelsLoading(false);
+      return;
+    }
+    const seen = new Set<string>();
+    const points: { latitude: number; longitude: number }[] = [];
+    const add = (lat: number, lon: number) => {
+      const k = geoAddressKey(lat, lon);
+      if (seen.has(k)) return;
+      seen.add(k);
+      points.push({ latitude: lat, longitude: lon });
+    };
+    for (const s of analytics.stopSegments) add(s.latitude, s.longitude);
+    for (const c of analytics.visitedClusters) add(c.latitude, c.longitude);
+    if (points.length === 0) {
+      setGeoLabels({});
+      setGeoLabelsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setGeoLabelsLoading(true);
+    void api<{ labels: Record<string, string> }>('/map/reverse-geocode-batch', {
+      method: 'POST',
+      body: JSON.stringify({ points }),
+    })
+      .then((res) => {
+        if (!cancelled) setGeoLabels(res.labels ?? {});
+      })
+      .catch(() => {
+        if (!cancelled) setGeoLabels({});
+      })
+      .finally(() => {
+        if (!cancelled) setGeoLabelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [vehicleId, geoBatchKey, analytics]);
 
   useEffect(() => {
     void loadLive();
@@ -698,6 +767,9 @@ export function MapPage() {
                   <Popup>
                     <div className="text-xs">
                       <div className="font-semibold">{t('mapStopPopup')}</div>
+                      <div className="mt-0.5 text-slate-800">
+                        {placeLabel(s.latitude, s.longitude, geoLabels, geoLabelsLoading, t)}
+                      </div>
                       <div>
                         {formatDurationHms(s.durationSec)} · {s.pointCount} {t('mapPoints')}
                       </div>
@@ -826,6 +898,9 @@ export function MapPage() {
                         {t('mapClearMapFocus')}
                       </button>
                     </div>
+                    <div className="mb-1 text-[11px] font-medium text-teal-950 dark:text-teal-50">
+                      {placeLabel(focusedCluster.latitude, focusedCluster.longitude, geoLabels, geoLabelsLoading, t)}
+                    </div>
                     {clusterFocusStats ? (
                       <div className="space-y-0.5 text-[11px] text-teal-950/90 dark:text-teal-100/90">
                         <div>
@@ -877,8 +952,8 @@ export function MapPage() {
                             });
                           }}
                         >
-                          <span className="truncate font-mono text-[11px] text-slate-600 dark:text-slate-300">
-                            {c.latitude.toFixed(5)}, {c.longitude.toFixed(5)}
+                          <span className="truncate text-[11px] text-slate-800 dark:text-slate-100">
+                            {placeLabel(c.latitude, c.longitude, geoLabels, geoLabelsLoading, t)}
                           </span>
                           <span className="shrink-0 tabular-nums text-slate-800 dark:text-slate-100">
                             {formatDurationHms(c.totalStopSec)} · {c.visitCount}×
@@ -899,16 +974,20 @@ export function MapPage() {
                 <ul className="max-h-48 space-y-1 overflow-y-auto text-xs">
                   {analytics.stopSegments.slice(0, 15).map((s, i) => (
                     <li key={`ss-${i}-${s.startAt}`} className="rounded-lg border border-slate-200/70 px-2 py-1 dark:border-slate-700/70">
-                      <div className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
-                        {s.latitude.toFixed(5)}, {s.longitude.toFixed(5)}
+                      <div className="text-[11px] font-medium leading-snug text-slate-800 dark:text-slate-100">
+                        {placeLabel(s.latitude, s.longitude, geoLabels, geoLabelsLoading, t)}
                       </div>
                       <div className="text-slate-700 dark:text-slate-200">
-                        {formatDurationHms(s.durationSec)} · {new Date(s.startAt).toLocaleString()}
+                        {formatDurationHms(s.durationSec)} · {new Date(s.startAt).toLocaleString()} —{' '}
+                        {new Date(s.endAt).toLocaleString()}
                       </div>
                     </li>
                   ))}
                 </ul>
               </div>
+              {(analytics.stopSegments.length > 0 || analytics.visitedClusters.length > 0) && (
+                <p className="mt-1 text-[10px] leading-snug text-slate-400 dark:text-slate-500">{t('mapGeoAttribution')}</p>
+              )}
             </>
           )}
         </aside>
