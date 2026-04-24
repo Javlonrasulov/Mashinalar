@@ -54,8 +54,8 @@ export class DailyKmController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  findAll(@Query('date') date?: string) {
-    return this.dailyKm.findAll({ date });
+  async findAll(@Query('date') date?: string) {
+    return await this.dailyKm.findAll({ date });
   }
 
   /** Kun boshlanishi: boshlang‘ich KM + start rasm + lokatsiya + vaqt */

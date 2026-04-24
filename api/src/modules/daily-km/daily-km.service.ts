@@ -72,22 +72,88 @@ export class DailyKmService {
     }));
   }
 
-  findAll(params?: { date?: string }) {
-    const where =
+  async findAll(params?: { date?: string }) {
+    const dayStart =
       params?.date != null && params.date !== ''
         ? (() => {
             const d = new Date(params.date!);
-            if (Number.isNaN(d.getTime())) return undefined;
+            if (Number.isNaN(d.getTime())) return null;
             d.setUTCHours(0, 0, 0, 0);
-            const next = new Date(d);
-            next.setUTCDate(next.getUTCDate() + 1);
-            return { reportDate: { gte: d, lt: next } };
+            return d;
           })()
-        : undefined;
-    return this.prisma.dailyKmReport.findMany({
-      where,
+        : null;
+    if (params?.date && dayStart == null) throw new BadRequestException('daily_km.invalid_report_date');
+
+    const dayEnd =
+      dayStart != null
+        ? (() => {
+            const next = new Date(dayStart);
+            next.setUTCDate(next.getUTCDate() + 1);
+            return next;
+          })()
+        : null;
+
+    const rows = await this.prisma.dailyKmReport.findMany({
+      where: dayStart != null ? { reportDate: { gte: dayStart, lt: dayEnd! } } : undefined,
       orderBy: { reportDate: 'desc' },
-      include: { vehicle: true, driver: true },
+      select: {
+        id: true,
+        reportDate: true,
+        startKm: true,
+        endKm: true,
+        startOdometerUrl: true,
+        endOdometerUrl: true,
+        startRecordedAt: true,
+        endRecordedAt: true,
+        startLatitude: true,
+        startLongitude: true,
+        endLatitude: true,
+        endLongitude: true,
+        vehicleId: true,
+        vehicle: { select: { plateNumber: true } },
+        driver: { select: { fullName: true } },
+      },
+    });
+
+    const vehicleIds = Array.from(new Set(rows.map((r) => r.vehicleId)));
+    const prevByVehicleId =
+      dayStart != null && vehicleIds.length > 0
+        ? await this.prisma.dailyKmReport.findMany({
+            where: { vehicleId: { in: vehicleIds }, reportDate: { lt: dayStart }, endKm: { not: null } },
+            orderBy: { reportDate: 'desc' },
+            distinct: ['vehicleId'],
+            select: { vehicleId: true, reportDate: true, endKm: true },
+          })
+        : [];
+
+    const prevMap = new Map(prevByVehicleId.map((p) => [p.vehicleId, p]));
+
+    return rows.map((r) => {
+      const prev = prevMap.get(r.vehicleId);
+      const startKmNum = Number(r.startKm);
+      const prevEndNum = prev?.endKm != null ? Number(prev.endKm) : NaN;
+      const gapNum =
+        prev && Number.isFinite(startKmNum) && Number.isFinite(prevEndNum) ? Math.max(0, startKmNum - prevEndNum) : null;
+      return {
+        id: r.id,
+        reportDate: r.reportDate.toISOString(),
+        startKm: String(r.startKm),
+        endKm: r.endKm == null ? null : String(r.endKm),
+        startOdometerUrl: r.startOdometerUrl ?? null,
+        endOdometerUrl: r.endOdometerUrl ?? null,
+        startRecordedAt: r.startRecordedAt?.toISOString() ?? null,
+        endRecordedAt: r.endRecordedAt?.toISOString() ?? null,
+        startLatitude: r.startLatitude == null ? null : String(r.startLatitude),
+        startLongitude: r.startLongitude == null ? null : String(r.startLongitude),
+        endLatitude: r.endLatitude == null ? null : String(r.endLatitude),
+        endLongitude: r.endLongitude == null ? null : String(r.endLongitude),
+        vehicle: r.vehicle,
+        driver: r.driver,
+        /** Oldingi yopilgan hisobotdan farq (oraliq km). */
+        gapKm: gapNum == null ? null : String(gapNum),
+        gapFromReportDate: prev?.reportDate ? prev.reportDate.toISOString() : null,
+        gapFromEndKm: prev?.endKm == null ? null : String(prev.endKm),
+      };
     });
   }
 

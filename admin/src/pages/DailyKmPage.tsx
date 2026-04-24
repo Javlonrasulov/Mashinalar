@@ -26,6 +26,9 @@ type DailyKmRow = {
   startKm: string;
   /** API: null until driver submits end; avoid treating "" as submitted */
   endKm: string | null | undefined;
+  gapKm?: string | null;
+  gapFromReportDate?: string | null;
+  gapFromEndKm?: string | null;
   startOdometerUrl: string | null;
   endOdometerUrl: string | null;
   startRecordedAt: string | null;
@@ -86,6 +89,7 @@ function LocBtn({
 export function DailyKmPage() {
   const { t } = useI18n();
   const [rows, setRows] = useState<DailyKmRow[]>([]);
+  const [filter, setFilter] = useState<'all' | 'gapsOnly' | 'gapDesc'>('all');
   const [dateValue, setDateValue] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -114,10 +118,31 @@ export function DailyKmPage() {
     return [mapPoint.lat, mapPoint.lon];
   }, [mapPoint]);
 
+  const visibleRows = useMemo(() => {
+    const withGapNum = (r: DailyKmRow) => {
+      const n = r.gapKm == null ? NaN : Number(r.gapKm);
+      return Number.isFinite(n) ? n : 0;
+    };
+    let list = rows;
+    if (filter === 'gapsOnly') list = rows.filter((r) => withGapNum(r) > 0);
+    if (filter === 'gapDesc') list = [...list].sort((a, b) => withGapNum(b) - withGapNum(a));
+    return list;
+  }, [rows, filter]);
+
   return (
     <div className="app-page">
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="app-page-title">{t('navDailyKm')}</h1>
+        <div className="flex min-w-0 items-center gap-3">
+          <h1 className="app-page-title">{t('navDailyKm')}</h1>
+          <div className="hidden items-center gap-2 sm:flex">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmFilterLabel')}</span>
+            <select className="app-select w-[240px]" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
+              <option value="all">{t('dailyKmFilterAll')}</option>
+              <option value="gapsOnly">{t('dailyKmFilterGapsOnly')}</option>
+              <option value="gapDesc">{t('dailyKmFilterGapDesc')}</option>
+            </select>
+          </div>
+        </div>
         <div className="flex min-w-0 items-center justify-between gap-3 sm:justify-end">
           <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
           <div className="w-[190px]">
@@ -166,13 +191,15 @@ export function DailyKmPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {visibleRows.map((r) => {
                 const endPending = isDailyKmEndMissing(r);
                 /** Jadval 10 ustun: 2+4 бошланиш + 4 тугаш. Иккинчи `tr`да фақат 4 та `td` булса, улар 3–6-устунларга тушади — тугаш сарлавҳалари остига эмас. */
                 const pendingEndCell =
                   'border-t border-red-100 bg-red-50 dark:border-red-900/55 dark:bg-red-950/50';
                 const row2FillerWhenPending =
                   'border-t border-red-100 bg-red-50/80 dark:border-red-900/55 dark:bg-red-950/45';
+                const gapNum = r.gapKm == null ? NaN : Number(r.gapKm);
+                const hasGap = Number.isFinite(gapNum) && gapNum > 0;
                 return (
                   <Fragment key={r.id}>
                     <tr className="app-table-row">
@@ -182,7 +209,19 @@ export function DailyKmPage() {
                       <td rowSpan={2} className="p-3 align-top">
                         {r.driver.fullName}
                       </td>
-                      <td className="border-s border-slate-100 p-3 dark:border-slate-800">{r.startKm}</td>
+                      <td className="border-s border-slate-100 p-3 dark:border-slate-800">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium tabular-nums text-slate-900 dark:text-slate-100">{r.startKm}</span>
+                          {hasGap && (
+                            <span
+                              className="inline-flex max-w-[260px] flex-wrap items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-semibold leading-snug text-amber-900 dark:bg-amber-950/35 dark:text-amber-200"
+                              title={`${t('dailyKmGapLabel')}: +${gapNum} км · ${t('dailyKmGapFromLabel')}: ${r.gapFromReportDate ? formatDateTimeNoSeconds(r.gapFromReportDate) : '—'} · ${r.gapFromEndKm ?? '—'} → ${r.startKm}`}
+                            >
+                              {t('dailyKmGapLabel')}: +{gapNum} км
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3 whitespace-nowrap">{formatDateTimeNoSeconds(r.startRecordedAt)}</td>
                       <td className="p-3">
                         <LocBtn
