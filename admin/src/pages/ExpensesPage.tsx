@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { DateRangeField } from '@/components/DateRangeField';
@@ -23,6 +23,16 @@ function formatSpentAt(iso: string, lang: Lang): string {
     minute: '2-digit',
     second: '2-digit',
   }).format(d);
+}
+
+function formatMoneyUz(amountStr: string, lang: Lang): string {
+  const n = Number(amountStr);
+  if (!Number.isFinite(n)) return amountStr;
+  return new Intl.NumberFormat(intlLocaleFor(lang), {
+    style: 'currency',
+    currency: 'UZS',
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
 type CategoryRow = { id: string; slug: string; name: string };
@@ -145,6 +155,15 @@ export function ExpensesPage() {
     ...vehicles.map((v) => ({ value: v.id, label: v.plateNumber })),
   ];
 
+  const listTotalAmountStr = useMemo(() => {
+    let sum = 0;
+    for (const r of rows) {
+      const n = Number(r.amount);
+      if (Number.isFinite(n)) sum += n;
+    }
+    return String(sum);
+  }, [rows]);
+
   return (
     <div className="app-page">
       <ExpensesSubNav />
@@ -164,6 +183,13 @@ export function ExpensesPage() {
           </label>
           <DateRangeField id="expenses-date-range" value={spentDateRange} onChange={setSpentDateRange} />
         </div>
+      </div>
+
+      <div className="app-card-pad flex flex-wrap items-baseline justify-between gap-3 border border-slate-200/90 bg-slate-50/80 dark:border-slate-700/90 dark:bg-slate-900/50">
+        <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{t('expenseListTotal')}</span>
+        <span className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">
+          {formatMoneyUz(listTotalAmountStr, lang)}
+        </span>
       </div>
 
       {addCatOpen && (
@@ -252,7 +278,7 @@ export function ExpensesPage() {
               <tr key={r.id} className="app-table-row">
                 <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
                 <td className="p-3">{r.category?.name ?? '—'}</td>
-                <td className="p-3">{r.amount}</td>
+                <td className="p-3">{formatMoneyUz(r.amount, lang)}</td>
                 <td className="p-3">{formatSpentAt(r.spentAt, lang)}</td>
                 <td className="p-3">{formatExpenseNote(r.note, t)}</td>
               </tr>

@@ -21,6 +21,12 @@ const ONLINE_MS = 60 * 1000;
 /** Backend analytics bilan mos: juda yomon aniqlikdagi nuqtalar tashlanadi. */
 const MAX_ACCURACY_M = 100;
 
+/**
+ * Klaster markazi va `stopSegments` markazini bog‘lash.
+ * Backend 200 m da birlashtiradi; og‘irlik markazi biroz siljishi mumkin — biroz zaxira.
+ */
+const STOP_TO_CLUSTER_MATCH_M = 250;
+
 /** Navoiy shahri (default xarita markazi). */
 const DEFAULT_MAP_CENTER: [number, number] = [40.0844, 65.3792];
 const DEFAULT_MAP_ZOOM = 11;
@@ -62,6 +68,24 @@ function formatDurationHms(totalSec: number): string {
 function km2(n: number): string {
   if (!Number.isFinite(n)) return '—';
   return n.toFixed(2);
+}
+
+function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const lat1 = toRad(aLat);
+  const lat2 = toRad(bLat);
+  const dLat = toRad(bLat - aLat);
+  const dLon = toRad(bLng - aLng);
+  const x =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  return R * c;
+}
+
+function clusterKey(lat: number, lng: number): string {
+  return `${lat.toFixed(5)}_${lng.toFixed(5)}`;
 }
 
 type Live = {
@@ -191,6 +215,8 @@ export function MapPage() {
   const [analytics, setAnalytics] = useState<MapAnalytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  /** «Кўп турган жойлар» dan tanlangan klaster — xaritada tegishli to‘xtashlar ajratiladi. */
+  const [focusedCluster, setFocusedCluster] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const loadLive = useCallback(() => {
     api<Live[]>('/tracking/live')
@@ -246,6 +272,10 @@ export function MapPage() {
   useEffect(() => {
     void loadRouteAnalytics();
   }, [loadRouteAnalytics]);
+
+  useEffect(() => {
+    setFocusedCluster(null);
+  }, [vehicleId, from, to]);
 
   useEffect(() => {
     void loadLive();
@@ -337,6 +367,40 @@ export function MapPage() {
     return `${v.plateNumber} — ${v.name}${v.model ? ` (${v.model})` : ''}${driver ? ` — ${driver}` : ''}`;
   }, [vehicles, vehicleId, driverNameByVehicleId]);
 
+  const focusedStopSegments = useMemo(() => {
+    if (!focusedCluster || !analytics?.stopSegments?.length) return [];
+    return analytics.stopSegments.filter(
+      (s) =>
+        haversineMeters(focusedCluster.latitude, focusedCluster.longitude, s.latitude, s.longitude) <= STOP_TO_CLUSTER_MATCH_M,
+    );
+  }, [focusedCluster, analytics?.stopSegments]);
+
+  const focusedSegmentIdSet = useMemo(
+    () => new Set(focusedStopSegments.map((s) => `${s.startAt}\t${s.latitude}\t${s.longitude}`)),
+    [focusedStopSegments],
+  );
+
+  const clusterFocusStats = useMemo(() => {
+    if (focusedStopSegments.length === 0) return null;
+    const starts = focusedStopSegments.map((s) => new Date(s.startAt).getTime());
+    const ends = focusedStopSegments.map((s) => new Date(s.endAt).getTime());
+    return {
+      rangeStart: new Date(Math.min(...starts)),
+      rangeEnd: new Date(Math.max(...ends)),
+      sumDurationSec: focusedStopSegments.reduce((a, s) => a + s.durationSec, 0),
+      count: focusedStopSegments.length,
+    };
+  }, [focusedStopSegments]);
+
+  useEffect(() => {
+    if (!focusedCluster) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFocusedCluster(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [focusedCluster]);
+
   useEffect(() => {
     if (!vehicleOpen) return;
     const onDoc = (e: MouseEvent) => {
@@ -368,7 +432,17 @@ export function MapPage() {
 
   const fleetFitBoundsPoints = useMemo(() => markers.map((m) => m.pos), [markers]);
 
-  const fitBoundsPoints = routeFitBoundsPoints.length > 0 ? routeFitBoundsPoints : fleetFitBoundsPoints;
+  const clusterFitBoundsPoints = useMemo(() => {
+    if (!focusedCluster || focusedStopSegments.length === 0) return [];
+    return focusedStopSegments.map((s) => [s.latitude, s.longitude] as [number, number]);
+  }, [focusedCluster, focusedStopSegments]);
+
+  const fitBoundsPoints =
+    clusterFitBoundsPoints.length > 0
+      ? clusterFitBoundsPoints
+      : routeFitBoundsPoints.length > 0
+        ? routeFitBoundsPoints
+        : fleetFitBoundsPoints;
 
   const onRefreshAll = async () => {
     clearRefreshTimers();
@@ -579,32 +653,62 @@ export function MapPage() {
             />
             <FitBounds points={fitBoundsPoints} />
             <FlyToSelectedOnVehicleChange pos={selectedPos} vehicleId={vehicleId} />
-            {showRoute && <Polyline positions={history} pathOptions={{ color: '#0f172a', weight: 4 }} />}
-            {analytics?.stopSegments.map((s, idx) => (
-              <Circle
-                key={`stop-${idx}-${s.startAt}`}
-                center={[s.latitude, s.longitude]}
-                radius={95}
+            {showRoute && (
+              <Polyline
+                positions={history}
                 pathOptions={{
-                  color: '#6d28d9',
-                  fillColor: '#a78bfa',
-                  fillOpacity: 0.28,
-                  weight: 2,
+                  color: '#0f172a',
+                  weight: 4,
+                  opacity: focusedCluster ? 0.22 : 1,
                 }}
-              >
-                <Popup>
-                  <div className="text-xs">
-                    <div className="font-semibold">{t('mapStopPopup')}</div>
-                    <div>
-                      {formatDurationHms(s.durationSec)} · {s.pointCount} {t('mapPoints')}
+              />
+            )}
+            {analytics?.stopSegments.map((s, idx) => {
+              const segKey = `${s.startAt}\t${s.latitude}\t${s.longitude}`;
+              const inFocusSet = focusedSegmentIdSet.has(segKey);
+              const dimOthers = Boolean(focusedCluster) && !inFocusSet;
+              return (
+                <Circle
+                  key={`stop-${idx}-${s.startAt}`}
+                  center={[s.latitude, s.longitude]}
+                  radius={inFocusSet ? 118 : 95}
+                  pathOptions={
+                    inFocusSet
+                      ? {
+                          color: '#0f766e',
+                          fillColor: '#2dd4bf',
+                          fillOpacity: 0.42,
+                          weight: 3,
+                        }
+                      : dimOthers
+                        ? {
+                            color: '#6d28d9',
+                            fillColor: '#a78bfa',
+                            fillOpacity: 0.07,
+                            weight: 1,
+                          }
+                        : {
+                            color: '#6d28d9',
+                            fillColor: '#a78bfa',
+                            fillOpacity: 0.28,
+                            weight: 2,
+                          }
+                  }
+                >
+                  <Popup>
+                    <div className="text-xs">
+                      <div className="font-semibold">{t('mapStopPopup')}</div>
+                      <div>
+                        {formatDurationHms(s.durationSec)} · {s.pointCount} {t('mapPoints')}
+                      </div>
+                      <div className="mt-1 text-slate-600">
+                        {new Date(s.startAt).toLocaleString()} → {new Date(s.endAt).toLocaleString()}
+                      </div>
                     </div>
-                    <div className="mt-1 text-slate-600">
-                      {new Date(s.startAt).toLocaleString()} → {new Date(s.endAt).toLocaleString()}
-                    </div>
-                  </div>
-                </Popup>
-              </Circle>
-            ))}
+                  </Popup>
+                </Circle>
+              );
+            })}
             {fuelLayerVisible &&
               fuelStations.map((s) => (
                 <Marker key={s.id} position={[s.lat, s.lon]} icon={fuelPumpLeafletIcon}>
@@ -710,20 +814,79 @@ export function MapPage() {
                 <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
                   {t('mapVisitedPlaces')}
                 </h3>
+                {focusedCluster && (
+                  <div className="mb-2 rounded-lg border border-teal-200/90 bg-teal-50/90 px-2.5 py-2 text-xs dark:border-teal-800/80 dark:bg-teal-950/40">
+                    <div className="mb-1 flex items-start justify-between gap-2">
+                      <span className="font-semibold text-teal-900 dark:text-teal-100">{t('mapClusterDetailTitle')}</span>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-teal-800 underline-offset-2 hover:underline dark:text-teal-200"
+                        onClick={() => setFocusedCluster(null)}
+                      >
+                        {t('mapClearMapFocus')}
+                      </button>
+                    </div>
+                    {clusterFocusStats ? (
+                      <div className="space-y-0.5 text-[11px] text-teal-950/90 dark:text-teal-100/90">
+                        <div>
+                          <span className="text-teal-800/80 dark:text-teal-300/90">{t('mapClusterTotalDwell')}: </span>
+                          <span className="font-semibold tabular-nums">{formatDurationHms(clusterFocusStats.sumDurationSec)}</span>
+                        </div>
+                        <div>
+                          <span className="text-teal-800/80 dark:text-teal-300/90">{t('mapClusterWindow')}: </span>
+                          <span className="font-medium">
+                            {clusterFocusStats.rangeStart.toLocaleString()} — {clusterFocusStats.rangeEnd.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="text-teal-800/85 dark:text-teal-300/85">
+                          {t('mapClusterSegments', { n: String(clusterFocusStats.count) })}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-teal-900/90 dark:text-teal-200/90">{t('mapClusterNoSegments')}</p>
+                    )}
+                  </div>
+                )}
                 <ul className="space-y-1.5 text-xs">
-                  {analytics.visitedClusters.slice(0, 10).map((c, i) => (
-                    <li
-                      key={`vc-${i}-${c.latitude}`}
-                      className="flex justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1 dark:bg-slate-800/60"
-                    >
-                      <span className="truncate font-mono text-[11px] text-slate-600 dark:text-slate-300">
-                        {c.latitude.toFixed(5)}, {c.longitude.toFixed(5)}
-                      </span>
-                      <span className="shrink-0 tabular-nums text-slate-800 dark:text-slate-100">
-                        {formatDurationHms(c.totalStopSec)} · {c.visitCount}×
-                      </span>
-                    </li>
-                  ))}
+                  {analytics.visitedClusters.slice(0, 10).map((c, i) => {
+                    const active =
+                      focusedCluster &&
+                      clusterKey(focusedCluster.latitude, focusedCluster.longitude) ===
+                        clusterKey(c.latitude, c.longitude);
+                    return (
+                      <li key={`vc-${i}-${c.latitude}`}>
+                        <button
+                          type="button"
+                          className={clsx(
+                            'flex w-full justify-between gap-2 rounded-lg px-2 py-1.5 text-left transition',
+                            active
+                              ? 'bg-teal-100 ring-2 ring-teal-500/35 dark:bg-teal-950/50 dark:ring-teal-400/30'
+                              : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800',
+                          )}
+                          aria-pressed={Boolean(active)}
+                          title={t('mapVisitedPlaceHint')}
+                          onClick={() => {
+                            setFocusedCluster((prev) => {
+                              if (
+                                prev &&
+                                clusterKey(prev.latitude, prev.longitude) === clusterKey(c.latitude, c.longitude)
+                              ) {
+                                return null;
+                              }
+                              return { latitude: c.latitude, longitude: c.longitude };
+                            });
+                          }}
+                        >
+                          <span className="truncate font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                            {c.latitude.toFixed(5)}, {c.longitude.toFixed(5)}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-slate-800 dark:text-slate-100">
+                            {formatDurationHms(c.totalStopSec)} · {c.visitCount}×
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
                 {analytics.visitedClusters.length === 0 && (
                   <p className="text-xs text-slate-500 dark:text-slate-400">{t('mapNoStopsInRange')}</p>

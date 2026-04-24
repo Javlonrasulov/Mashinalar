@@ -71,14 +71,21 @@ function LanguageMenu({
   value,
   onChange,
   menuAlign = 'end',
+  closeWhenSidebarOpen,
 }: {
   value: Lang;
   onChange: (l: Lang) => void;
   /** `end`: o‘ng tomonga (desktop). `start`: chap tomonga (tor ekranda tugma chapda). */
   menuAlign?: 'start' | 'end';
+  /** Mobil drawer ochilganda menyuni yopish (z-index ostida qolmasin) */
+  closeWhenSidebarOpen?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootDomId = useId().replace(/:/g, '');
+
+  useEffect(() => {
+    if (closeWhenSidebarOpen) setOpen(false);
+  }, [closeWhenSidebarOpen]);
 
   useEffect(() => {
     function onDocDown(e: MouseEvent) {
@@ -102,7 +109,7 @@ function LanguageMenu({
   const active = LANG_ITEMS.find((x) => x.id === value) ?? LANG_ITEMS[0];
 
   return (
-    <div id={`lang-menu-root-${rootDomId}`} className="relative z-[70] shrink-0">
+    <div id={`lang-menu-root-${rootDomId}`} className="relative z-10 shrink-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -120,7 +127,7 @@ function LanguageMenu({
         <div
           role="menu"
           className={clsx(
-            'absolute z-[100] mt-2 w-[min(260px,calc(100vw-1rem))] max-w-[calc(100vw-0.75rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_45px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900',
+            'absolute z-20 mt-2 w-[min(260px,calc(100vw-1rem))] max-w-[calc(100vw-0.75rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_45px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900',
             menuAlign === 'end' ? 'right-0' : 'left-0',
           )}
         >
@@ -303,7 +310,13 @@ export function ShellLayout() {
         </div>
       </aside>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div
+        className={clsx(
+          'flex min-h-0 min-w-0 flex-1 flex-col',
+          /* Drawer ochiq: header (til tugmasi) sidebar (z-50) ostida qolsin; backdrop (z-40) ustida emas — dim qismga bosish ishlaydi */
+          sidebarOpen && 'max-lg:relative max-lg:z-30',
+        )}
+      >
         <header className="shrink-0 overflow-visible border-b border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-800 dark:bg-slate-900">
           <div className="w-full min-w-0 overflow-visible px-2 py-2 sm:px-4 md:px-6">
             {/* Desktop/tablet: single-row navbar (like screenshot) */}
@@ -336,7 +349,7 @@ export function ShellLayout() {
                   {resolvedTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                 </button>
 
-                <LanguageMenu value={lang} onChange={setLang} />
+                <LanguageMenu value={lang} onChange={setLang} closeWhenSidebarOpen={sidebarOpen} />
 
                 <div className="flex shrink-0 items-center gap-2">
                   <button
@@ -391,7 +404,7 @@ export function ShellLayout() {
                   >
                     {resolvedTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                   </button>
-                  <LanguageMenu value={lang} onChange={setLang} menuAlign="end" />
+                  <LanguageMenu value={lang} onChange={setLang} menuAlign="end" closeWhenSidebarOpen={sidebarOpen} />
                   <button
                     type="button"
                     onClick={() => setCredOpen(true)}

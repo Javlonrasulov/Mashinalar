@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
@@ -20,6 +20,31 @@ function toDateInputValue(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return '';
   return d.toISOString().slice(0, 10);
+}
+
+function startOfLocalDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function parseYmdLocal(value: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  const dt = new Date(y, mo, day);
+  if (!Number.isFinite(dt.getTime())) return null;
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== day) return null;
+  return startOfLocalDay(dt);
+}
+
+function formatYmdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${day}`;
 }
 
 export function VehiclesPage() {
@@ -47,6 +72,22 @@ export function VehiclesPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const todayStart = useMemo(() => startOfLocalDay(new Date()), []);
+
+  const insuranceEndMin = useMemo(() => {
+    const start = parseYmdLocal(form.insuranceStartDate);
+    if (!start) return todayStart;
+    return start > todayStart ? start : todayStart;
+  }, [form.insuranceStartDate, todayStart]);
+
+  useEffect(() => {
+    const end = parseYmdLocal(form.insuranceEndDate);
+    if (!end) return;
+    if (end < insuranceEndMin) {
+      setForm((f) => ({ ...f, insuranceEndDate: formatYmdLocal(insuranceEndMin) }));
+    }
+  }, [insuranceEndMin, form.insuranceEndDate]);
 
   useEffect(() => {
     if (!pendingDelete) return;
@@ -204,6 +245,7 @@ export function VehiclesPage() {
               value={form.insuranceEndDate}
               onChange={(v) => setForm({ ...form, insuranceEndDate: v })}
               onClear={() => setForm({ ...form, insuranceEndDate: '' })}
+              minDate={insuranceEndMin}
             />
           </div>
         </div>
