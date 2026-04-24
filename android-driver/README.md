@@ -4,17 +4,12 @@ Kotlin (Android Native) driver ilovasi — backend (`api/`) bilan mos ishlaydi.
 
 ## Backend base URL
 
-`BASE_URL` endi BuildConfig orqali boshqariladi (static emas).
+`BASE_URL` flavor orqali boshqariladi:
 
-- **Emulator**: `BuildConfig.EMULATOR_BASE_URL` → `http://10.0.2.2:3000`
-- **Real device**: `BuildConfig.DEVICE_BASE_URL` → default `http://192.168.1.102:3000` (o‘zgartiriladi)
+- `prod` -> `https://mashina.liderplast.uz/`
+- `dev` -> `https://dev.mashina.liderplast.uz/`
 
-### local.properties orqali o‘zgartirish (tavsiya)
-`android-driver/local.properties` ichiga qo‘shing:
-
-- `MASHINALAR_DEVICE_BASE_URL=http://192.168.1.102:3000`
-
-`NetworkModule` runtime’da qurilma emulator ekanini aniqlab (emulator vs real device) mos URL tanlaydi.
+API chaqiriqlari avtomatik `api/...` prefiksi bilan yuboriladi.
 
 ## Auth (auto-login + token expiry)
 
@@ -39,32 +34,33 @@ Android Studio’da `android-driver/` ni ochib, “Gradle sync” qiling — wra
 
 ## Android Studio’da build/run (Windows)
 
-1) Backend’ni ishga tushiring:
-- `api/` ichida `npm run start:dev` (Postgres ishlayotgan bo‘lsin)
-
-2) Android Studio:
+1) Android Studio:
 - **File → Open** → `Mashinalar/android-driver`
 - Gradle Sync tugashini kuting
 - Emulator yarating (Pixel / API 34+)
 
-3) Run:
-- Top-bar’dan **app** konfiguratsiyasini tanlang
+2) Run:
+- Top-bar’dan kerakli variantni tanlang:
+  - `prodDebug`
+  - `devDebug`
 - **Run ▶** bosing
 
-4) Base URL:
-- Emulator: avtomatik `http://10.0.2.2:3000`
-- Real device: `local.properties`dagi `MASHINALAR_DEVICE_BASE_URL` bilan (masalan `http://192.168.1.102:3000`)
+3) APK build:
+```bash
+./gradlew assembleProdDebug
+./gradlew assembleDevDebug
+```
+
+APK fayllar:
+- `app/build/outputs/apk/prod/debug/app-prod-debug.apk`
+- `app/build/outputs/apk/dev/debug/app-dev-debug.apk`
 
 ### Real telefonda “Serverga ulanib bo‘lmadi” / Logcat: `SocketTimeoutException`
 
-Bu **login noto‘g‘ri** emas — ilova **kompyuterdagi API**ga tarmoq orqali yetib olmayapti.
+Bu odatda **internet yoki server javobi** bilan bog‘liq bo‘ladi. Domenlar:
 
-1. **Kompyuter IPv4 manzilini tekshiring** (Windows: `ipconfig` → Wireless LAN adapter → IPv4). Telefon va kompyuter **bir xil Wi‑Fi**da bo‘lishi kerak.
-2. `android-driver/local.properties` ichida URLni shu IPga moslang, keyin **Rebuild**:
-   - `MASHINALAR_DEVICE_BASE_URL=http://<SIZNING_IP>:3000`
-3. `api/` da server ishlayotganini tekshiring: `npm run start:dev` (port **3000**).
-4. **Windows Firewall**: kiruvchi ulanishlarda **3000** (yoki `node.exe`) uchun ruxsat bering.
-5. Telefonda brauzerda `http://<SIZNING_IP>:3000/` ochib ko‘ring — kamida ulanish bor-yo‘qligini tekshiradi.
+- `https://mashina.liderplast.uz`
+- `https://dev.mashina.liderplast.uz`
 
 6) Login (seed):
 - `driver1` / `Driver123!`

@@ -12,23 +12,23 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface ApiService {
-  @POST("/auth/login")
+  @POST("api/auth/login")
   suspend fun login(@Body body: LoginRequest): LoginResponse
 
-  @GET("/auth/me")
+  @GET("api/auth/me")
   suspend fun me(): UserDto
 
-  @PATCH("/auth/credentials")
+  @PATCH("api/auth/credentials")
   suspend fun updateCredentials(@Body body: UpdateCredentialsRequest): UserDto
 
-  @POST("/tracking/locations/batch")
+  @POST("api/tracking/locations/batch")
   suspend fun sendLocations(@Body body: BatchLocationRequest): BatchLocationResponse
 
-  @GET("/fuel-reports/mine")
+  @GET("api/fuel-reports/mine")
   suspend fun myFuelReports(@Query("limit") limit: Int = 50): List<FuelHistoryDto>
 
   @Multipart
-  @POST("/fuel-reports")
+  @POST("api/fuel-reports")
   suspend fun createFuelReport(
     @Part("amount") amount: RequestBody,
     @Part("latitude") latitude: RequestBody?,
@@ -37,11 +37,11 @@ interface ApiService {
     @Part receiptPhoto: MultipartBody.Part?,
   ): Any
 
-  @GET("/daily-km-reports/mine")
+  @GET("api/daily-km-reports/mine")
   suspend fun myDailyKmReports(@Query("limit") limit: Int = 31): List<DailyKmHistoryDto>
 
   @Multipart
-  @POST("/daily-km-reports/start")
+  @POST("api/daily-km-reports/start")
   suspend fun submitDailyKmStart(
     @Part("reportDate") reportDate: RequestBody,
     @Part("startKm") startKm: RequestBody,
@@ -52,7 +52,7 @@ interface ApiService {
   ): DailyKmReportRefDto
 
   @Multipart
-  @PATCH("/daily-km-reports/{id}/end")
+  @PATCH("api/daily-km-reports/{id}/end")
   suspend fun submitDailyKmEnd(
     @Path("id") id: String,
     @Part("endKm") endKm: RequestBody,
@@ -62,30 +62,30 @@ interface ApiService {
     @Part endOdometer: MultipartBody.Part,
   ): DailyKmReportRefDto
 
-  @GET("/tasks/mine")
+  @GET("api/tasks/mine")
   suspend fun myTasks(): List<TaskDto>
 
-  @GET("/tasks/mine/active")
+  @GET("api/tasks/mine/active")
   suspend fun myActiveTasks(): List<TaskDto>
 
-  @GET("/vehicles/my")
+  @GET("api/vehicles/my")
   suspend fun myVehicle(): VehicleMyResponse
 
-  @GET("/oil-change-reports/mine")
+  @GET("api/oil-change-reports/mine")
   suspend fun myOilChangeReports(@Query("limit") limit: Int = 50): List<OilChangeHistoryDto>
 
   @Multipart
-  @POST("/oil-change-reports")
+  @POST("api/oil-change-reports")
   suspend fun createOilChangeReport(
     @Part("kmAtChange") kmAtChange: RequestBody,
     @Part panelPhoto: MultipartBody.Part?,
   ): Any
 
-  @GET("/stats/last-days")
+  @GET("api/stats/last-days")
   suspend fun statsLastDays(@Query("days") days: Int = 3): StatsLastDaysResponse
 
   @Multipart
-  @PATCH("/tasks/{id}/submit")
+  @PATCH("api/tasks/{id}/submit")
   suspend fun submitTask(
     @Path("id") id: String,
     @Part("proofText") proofText: RequestBody?,

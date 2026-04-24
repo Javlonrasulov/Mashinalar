@@ -17,17 +17,24 @@ android {
     versionName = "0.1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+  }
 
-    // BASE_URL config:
-    // - Emulator: http://10.0.2.2:3000
-    // - Real device (your PC IP): http://192.168.1.102:3000
-    //
-    // Override from local.properties (recommended):
-    //   MASHINALAR_DEVICE_BASE_URL=http://192.168.1.102:3000
-    val deviceBaseUrl = (project.findProperty("MASHINALAR_DEVICE_BASE_URL") as String?)
-      ?: "http://192.168.1.102:3000"
-    buildConfigField("String", "EMULATOR_BASE_URL", "\"http://10.0.2.2:3000\"")
-    buildConfigField("String", "DEVICE_BASE_URL", "\"$deviceBaseUrl\"")
+  flavorDimensions += "env"
+  productFlavors {
+    create("prod") {
+      dimension = "env"
+      buildConfigField("String", "EMULATOR_BASE_URL", "\"https://mashina.liderplast.uz/\"")
+      buildConfigField("String", "DEVICE_BASE_URL", "\"https://mashina.liderplast.uz/\"")
+      resValue("string", "app_name", "Mashinalar Driver")
+    }
+    create("dev") {
+      dimension = "env"
+      applicationIdSuffix = ".dev"
+      versionNameSuffix = "-dev"
+      buildConfigField("String", "EMULATOR_BASE_URL", "\"https://dev.mashina.liderplast.uz/\"")
+      buildConfigField("String", "DEVICE_BASE_URL", "\"https://dev.mashina.liderplast.uz/\"")
+      resValue("string", "app_name", "Mashinalar Driver Dev")
+    }
   }
 
   buildFeatures {

@@ -5,10 +5,9 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
 object NetworkErrors {
-  private const val DEFAULT_MSG = "Serverga ulanib bo‘lmadi. Internet yoki BASE_URL ni tekshiring"
+  private const val DEFAULT_MSG = "Serverga ulanib bo‘lmadi. Internet yoki server manzilini tekshiring"
   private const val TIMEOUT_MSG =
-    "Server javob bermadi (timeout). Kompyuter IPsi to‘g‘rimi? (local.properties → MASHINALAR_DEVICE_BASE_URL), " +
-      "api ishlayaptimi (npm run start:dev), Windows firewall 3000-portni oching, telefon bilan bir xil Wi‑Fi."
+    "Server javob bermadi (timeout). Internetni tekshiring yoki server vaqtincha sekin ishlayapti."
 
   fun toUserMessage(t: Throwable): String {
     return when (t) {
