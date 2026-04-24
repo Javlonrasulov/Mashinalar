@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { NavLink, Outlet, matchPath, useLocation } from 'react-router';
 import {
   Car,
@@ -67,13 +67,23 @@ const LANG_ITEMS: { id: Lang; code: string; label: string; sub: string }[] = [
   { id: 'ru', code: 'RU', label: 'Русский', sub: 'RU' },
 ];
 
-function LanguageMenu({ value, onChange }: { value: Lang; onChange: (l: Lang) => void }) {
+function LanguageMenu({
+  value,
+  onChange,
+  menuAlign = 'end',
+}: {
+  value: Lang;
+  onChange: (l: Lang) => void;
+  /** `end`: o‘ng tomonga (desktop). `start`: chap tomonga (tor ekranda tugma chapda). */
+  menuAlign?: 'start' | 'end';
+}) {
   const [open, setOpen] = useState(false);
+  const rootDomId = useId().replace(/:/g, '');
 
   useEffect(() => {
     function onDocDown(e: MouseEvent) {
       if (!(e.target instanceof Node)) return;
-      const root = document.getElementById('lang-menu-root');
+      const root = document.getElementById(`lang-menu-root-${rootDomId}`);
       if (!root) return;
       if (!root.contains(e.target)) setOpen(false);
     }
@@ -87,29 +97,32 @@ function LanguageMenu({ value, onChange }: { value: Lang; onChange: (l: Lang) =>
       document.removeEventListener('mousedown', onDocDown);
       document.removeEventListener('keydown', onEsc);
     };
-  }, [open]);
+  }, [open, rootDomId]);
 
   const active = LANG_ITEMS.find((x) => x.id === value) ?? LANG_ITEMS[0];
 
   return (
-    <div id="lang-menu-root" className="relative z-[70]">
+    <div id={`lang-menu-root-${rootDomId}`} className="relative z-[70] shrink-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={clsx(
-          'inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800',
+          'inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 sm:min-h-0 sm:min-w-0 sm:gap-2 sm:px-3 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800',
         )}
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <span className="font-semibold">{active.sub}</span>
-        <ChevronDown size={16} className={clsx('transition-transform', open && 'rotate-180')} />
+        <span className="font-semibold tabular-nums">{active.sub}</span>
+        <ChevronDown size={16} className={clsx('shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-[80] mt-2 w-[260px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_45px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900"
+          className={clsx(
+            'absolute z-[100] mt-2 w-[min(260px,calc(100vw-1rem))] max-w-[calc(100vw-0.75rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_45px_rgba(15,23,42,0.12)] dark:border-slate-700 dark:bg-slate-900',
+            menuAlign === 'end' ? 'right-0' : 'left-0',
+          )}
         >
           <div className="p-2">
             {LANG_ITEMS.map((x) => {
@@ -291,8 +304,8 @@ export function ShellLayout() {
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="shrink-0 border-b border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-800 dark:bg-slate-900">
-          <div className="w-full min-w-0 px-2 py-2 sm:px-4 md:px-6">
+        <header className="shrink-0 overflow-visible border-b border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-800 dark:bg-slate-900">
+          <div className="w-full min-w-0 overflow-visible px-2 py-2 sm:px-4 md:px-6">
             {/* Desktop/tablet: single-row navbar (like screenshot) */}
             <div className="hidden h-12 min-w-0 items-center justify-between gap-3 sm:flex">
               <div className="flex min-w-0 items-center gap-2">
@@ -353,26 +366,23 @@ export function ShellLayout() {
               </div>
             </div>
 
-            {/* Mobile: compact two-row navbar */}
+            {/* Mobile: bitta qator — til va tema o‘ngda (pastki qator olib tashlangan, burger bilan ustma-ust tushmasin) */}
             <div className="sm:hidden">
-              <div className="flex h-11 min-w-0 items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <button
-                    type="button"
-                    className="app-btn-ghost shrink-0 p-2"
-                    onClick={() => setSidebarOpen(true)}
-                    aria-label="Open menu"
-                    aria-expanded={sidebarOpen}
-                  >
-                    <Menu size={22} />
-                  </button>
-                  <div className="min-w-0">
-                    <h1 className="truncate text-sm font-semibold text-slate-900 dark:text-white">{pageTitle}</h1>
-                    <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">{t('appTitle')}</p>
-                  </div>
+              <div className="flex min-h-11 min-w-0 items-center gap-2 py-0.5">
+                <button
+                  type="button"
+                  className="app-btn-ghost order-1 shrink-0 p-2"
+                  onClick={() => setSidebarOpen(true)}
+                  aria-label="Open menu"
+                  aria-expanded={sidebarOpen}
+                >
+                  <Menu size={22} />
+                </button>
+                <div className="order-2 min-w-0 flex-1">
+                  <h1 className="truncate text-sm font-semibold text-slate-900 dark:text-white">{pageTitle}</h1>
+                  <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">{t('appTitle')}</p>
                 </div>
-
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="order-3 flex shrink-0 items-center gap-1.5 pl-1">
                   <button
                     type="button"
                     className="app-btn-ghost shrink-0 p-2"
@@ -381,13 +391,7 @@ export function ShellLayout() {
                   >
                     {resolvedTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                   </button>
-                </div>
-              </div>
-
-              <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
-                <LanguageMenu value={lang} onChange={setLang} />
-
-                <div className="flex shrink-0 items-center gap-2">
+                  <LanguageMenu value={lang} onChange={setLang} menuAlign="end" />
                   <button
                     type="button"
                     onClick={() => setCredOpen(true)}

@@ -94,6 +94,8 @@ Shablonlar:
 - `deploy/nginx/mashina-prod.conf`
 - `deploy/nginx/mashina-dev.conf`
 
+Shablonlarda `location /socket.io/` bor: brauzer `wss://.../socket.io/` ni to‘g‘ridan-to‘g‘ri API ga (WebSocket `Upgrade`) yo‘naltiradi; bo‘lmasa xarita sahifasida `socket.io` ulanishi yiqiladi.
+
 Serverda:
 ```bash
 cp /opt/mashina-prod/deploy/nginx/mashina-prod.conf /etc/nginx/sites-available/mashina-prod.conf

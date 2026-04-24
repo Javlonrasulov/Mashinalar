@@ -1,3 +1,4 @@
+import { Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/auth/AuthContext';
 import { useI18n } from '@/i18n/I18nContext';
@@ -9,6 +10,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,17 +60,26 @@ export function LoginPage() {
           autoComplete="username"
         />
         <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('password')}</label>
-        <input
-          type="password"
-          className="app-input mb-6"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-        />
+        <div className="relative mb-6">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            className="app-input pr-10"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+          <button
+            type="button"
+            className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? t('passwordHide') : t('passwordShow')}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+          </button>
+        </div>
         <button type="submit" disabled={loading} className="app-btn-primary w-full py-2.5">
           {loading ? '…' : t('login')}
         </button>
-        <p className="mt-4 text-center text-xs text-slate-400">Seed: admin / Admin123!</p>
       </form>
     </div>
   );

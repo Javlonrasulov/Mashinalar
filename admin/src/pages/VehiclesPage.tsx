@@ -27,6 +27,8 @@ export function VehiclesPage() {
   const [rows, setRows] = useState<Vehicle[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Vehicle | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     name: '',
     model: '',
@@ -45,6 +47,15 @@ export function VehiclesPage() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!pendingDelete) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !deleting) setPendingDelete(null);
+    }
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [pendingDelete, deleting]);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -104,10 +115,20 @@ export function VehiclesPage() {
     });
   }
 
-  async function onDelete(id: string) {
-    if (!confirm('Delete?')) return;
-    await api(`/vehicles/${id}`, { method: 'DELETE' });
-    await load();
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setErr(null);
+    setDeleting(true);
+    try {
+      await api(`/vehicles/${pendingDelete.id}`, { method: 'DELETE' });
+      if (editingId === pendingDelete.id) onCancelEdit();
+      setPendingDelete(null);
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -232,7 +253,7 @@ export function VehiclesPage() {
                     <button
                       type="button"
                       className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
-                      onClick={() => onDelete(v.id)}
+                      onClick={() => setPendingDelete(v)}
                       aria-label={t('delete')}
                       title={t('delete')}
                     >
@@ -246,6 +267,54 @@ export function VehiclesPage() {
         </table>
         </div>
       </div>
+
+      {pendingDelete && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[6200] bg-slate-900/60 backdrop-blur-[1px]"
+            aria-label={t('cancel')}
+            onClick={() => {
+              if (!deleting) setPendingDelete(null);
+            }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed left-1/2 top-1/2 z-[6300] w-[min(92vw,520px)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+          >
+            <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800 sm:px-5">
+              <div className="text-sm font-semibold text-slate-900 dark:text-white">{t('deleteVehicleTitle')}</div>
+              <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                <span className="font-mono">{pendingDelete.plateNumber}</span>
+                <span className="px-1">—</span>
+                <span>{pendingDelete.name}</span>
+                {pendingDelete.model ? <span className="text-slate-400"> ({pendingDelete.model})</span> : null}
+              </div>
+            </div>
+
+            <div className="space-y-3 px-4 py-4 sm:px-5">
+              <div className="rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                {t('deleteVehicleBody')}
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40 sm:flex-row sm:justify-end sm:px-5">
+              <button type="button" className="app-btn-ghost w-full sm:w-auto" disabled={deleting} onClick={() => setPendingDelete(null)}>
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                className="inline-flex w-full items-center justify-center rounded-[10px] border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60 sm:w-auto"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+              >
+                {deleting ? '…' : t('delete')}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
