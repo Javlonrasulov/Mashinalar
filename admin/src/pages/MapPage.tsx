@@ -9,7 +9,7 @@ import { DateTimeField } from '@/components/DateTimeField';
 import { fuelPumpLeafletIcon, type FuelStationMapItem } from '@/lib/fuelStationsMap';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 import clsx from 'clsx';
-import { Check, ChevronsUpDown, Fuel, Loader2, RefreshCw, Search } from 'lucide-react';
+import { Check, ChevronsUpDown, Fuel, Loader2, RefreshCw, Search, X } from 'lucide-react';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -122,13 +122,47 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
-function FlyToSelected({ pos }: { pos: [number, number] | null }) {
+/**
+ * Tanlangan mashina uchun xarita bir marta yaqinlashtiriladi;
+ * keyingi live yangilanishlarda qayta flyTo qilinmaydi (pozitsiya kelguncha kutadi).
+ */
+function FlyToSelectedOnVehicleChange({
+  pos,
+  vehicleId,
+}: {
+  pos: [number, number] | null;
+  vehicleId: string;
+}) {
   const map = useMap();
+  const trackedVehicleId = useRef<string | null>(null);
+  const didFlyForTracked = useRef(false);
   useEffect(() => {
+    if (!vehicleId) {
+      trackedVehicleId.current = null;
+      didFlyForTracked.current = false;
+      return;
+    }
+    if (trackedVehicleId.current !== vehicleId) {
+      trackedVehicleId.current = vehicleId;
+      didFlyForTracked.current = false;
+    }
     if (!pos) return;
-    map.flyTo(pos, Math.max(14, map.getZoom()), { duration: 0.6 });
-  }, [map, pos]);
+    if (didFlyForTracked.current) return;
+    didFlyForTracked.current = true;
+    map.flyTo(pos, Math.max(14, map.getZoom()), { duration: 0.55 });
+  }, [map, vehicleId, pos]);
   return null;
+}
+
+function livePayloadEqual(a: Live[], b: Live[]): boolean {
+  if (a.length !== b.length) return false;
+  const sig = (x: Live) =>
+    `${x.id}|${x.lastLatitude ?? ''}|${x.lastLongitude ?? ''}|${x.lastLocationAt ?? ''}|${x.drivers?.[0]?.fullName ?? ''}`;
+  const ma = new Map(a.map((x) => [x.id, sig(x)]));
+  for (const x of b) {
+    if (ma.get(x.id) !== sig(x)) return false;
+  }
+  return true;
 }
 
 type RefreshUi = 'idle' | 'loading' | 'success';
@@ -158,7 +192,13 @@ export function MapPage() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
-  const loadLive = () => api<Live[]>('/tracking/live').then(setLive).catch(() => {});
+  const loadLive = useCallback(() => {
+    api<Live[]>('/tracking/live')
+      .then((next) => {
+        setLive((prev) => (livePayloadEqual(prev, next) ? prev : next));
+      })
+      .catch(() => {});
+  }, []);
 
   const loadVehicles = () => api<Vehicle[]>('/vehicles').then(setVehicles).catch(() => {});
 
@@ -210,9 +250,10 @@ export function MapPage() {
   useEffect(() => {
     void loadLive();
     void loadVehicles();
-    const id = window.setInterval(() => void loadLive(), 4000);
+    const intervalMs = vehicleId ? 10_000 : 5_000;
+    const id = window.setInterval(() => void loadLive(), intervalMs);
     return () => window.clearInterval(id);
-  }, []);
+  }, [loadLive, vehicleId]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNowTick((x) => x + 1), 5000);
@@ -239,7 +280,7 @@ export function MapPage() {
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [loadLive]);
 
   const markers = useMemo(() => {
     return live
@@ -313,21 +354,21 @@ export function MapPage() {
     };
   }, [vehicleOpen]);
 
-  const fitPoints = useMemo(() => {
+  /** Marshrut/analytics: live markerlar bu ro‘yxatga kirmaydi — har poll da fitBounds qayta ishlamaydi. */
+  const routeFitBoundsPoints = useMemo(() => {
     const pts: [number, number][] = [];
-    if (history.length) {
-      for (const p of history) pts.push(p);
-    }
+    if (history.length) for (const p of history) pts.push(p);
     if (analytics?.stopSegments?.length) {
       for (const s of analytics.stopSegments) pts.push([s.latitude, s.longitude]);
     }
     if (analytics?.startPoint) pts.push([analytics.startPoint.latitude, analytics.startPoint.longitude]);
     if (analytics?.endPoint) pts.push([analytics.endPoint.latitude, analytics.endPoint.longitude]);
-    if (pts.length === 0) {
-      for (const m of markers) pts.push(m.pos);
-    }
     return pts;
-  }, [history, analytics, markers]);
+  }, [history, analytics]);
+
+  const fleetFitBoundsPoints = useMemo(() => markers.map((m) => m.pos), [markers]);
+
+  const fitBoundsPoints = routeFitBoundsPoints.length > 0 ? routeFitBoundsPoints : fleetFitBoundsPoints;
 
   const onRefreshAll = async () => {
     clearRefreshTimers();
@@ -382,19 +423,42 @@ export function MapPage() {
       <div className="app-card-pad relative z-20 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
         <div ref={vehicleRef} className="relative min-w-0 sm:col-span-2 lg:col-span-1">
           <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('mapVehicle')}</label>
-          <button
-            type="button"
-            aria-haspopup="listbox"
-            aria-expanded={vehicleOpen}
-            onClick={() => setVehicleOpen((o) => !o)}
-            className={clsx(
-              'app-input flex w-full min-w-0 items-center justify-between gap-2 text-left',
-              !vehicleId && 'text-slate-500 dark:text-slate-400',
-            )}
-          >
-            <span className="truncate">{selectedVehicleLabel || t('mapVehicleSelectPlaceholder')}</span>
-            <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-          </button>
+          <div className="flex min-w-0 gap-1">
+            <button
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded={vehicleOpen}
+              onClick={() =>
+                setVehicleOpen((o) => {
+                  const next = !o;
+                  if (next) setVehicleQuery('');
+                  return next;
+                })
+              }
+              className={clsx(
+                'app-input flex min-w-0 flex-1 items-center justify-between gap-2 text-left',
+                !vehicleId && 'text-slate-500 dark:text-slate-400',
+              )}
+            >
+              <span className="truncate">{selectedVehicleLabel || t('mapVehicleSelectPlaceholder')}</span>
+              <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+            </button>
+            {vehicleId ? (
+              <button
+                type="button"
+                className="app-btn-ghost shrink-0 rounded-lg border border-slate-200/90 px-2 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800/80"
+                aria-label={t('mapClearVehicle')}
+                title={t('mapClearVehicle')}
+                onClick={() => {
+                  setVehicleId('');
+                  setVehicleQuery('');
+                  setVehicleOpen(false);
+                }}
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            ) : null}
+          </div>
 
           {vehicleOpen && (
             <div
@@ -513,15 +577,20 @@ export function MapPage() {
               attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <FitBounds points={fitPoints} />
-            <FlyToSelected pos={selectedPos} />
+            <FitBounds points={fitBoundsPoints} />
+            <FlyToSelectedOnVehicleChange pos={selectedPos} vehicleId={vehicleId} />
             {showRoute && <Polyline positions={history} pathOptions={{ color: '#0f172a', weight: 4 }} />}
             {analytics?.stopSegments.map((s, idx) => (
               <Circle
                 key={`stop-${idx}-${s.startAt}`}
                 center={[s.latitude, s.longitude]}
                 radius={95}
-                pathOptions={{ color: '#d97706', fillColor: '#fbbf24', fillOpacity: 0.22, weight: 2 }}
+                pathOptions={{
+                  color: '#6d28d9',
+                  fillColor: '#a78bfa',
+                  fillOpacity: 0.28,
+                  weight: 2,
+                }}
               >
                 <Popup>
                   <div className="text-xs">

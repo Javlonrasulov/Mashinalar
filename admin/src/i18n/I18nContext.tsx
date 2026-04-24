@@ -181,6 +181,7 @@ const DICTS: Record<Lang, Dict> = {
     mapRouteStart: 'Бошланиш',
     mapRouteEnd: 'Тугаш',
     mapRouteSinglePoint: 'Бошланиш / тугаш',
+    mapClearVehicle: 'Танловни бекор қилиш',
     statsIntro:
       'Машиналар юриши (км), харажатлар, заправкалар ва очиқ вазифалар. Саналар Kun KM / харажат / заправка вақти билан мос (UTC).',
     statsPeriod: 'Давр',
@@ -376,6 +377,7 @@ const DICTS: Record<Lang, Dict> = {
     mapRouteStart: 'Boshlanish',
     mapRouteEnd: 'Tugash',
     mapRouteSinglePoint: 'Boshlanish / tugash',
+    mapClearVehicle: 'Tanlovni bekor qilish',
     statsIntro:
       'Mashinalar yurishi (km), xarajatlar, zapravkalar va ochiq vazifalar. Sanalar Kun KM / xarajat / zapravka vaqti bilan mos (UTC).',
     statsPeriod: 'Davr',
@@ -571,6 +573,7 @@ const DICTS: Record<Lang, Dict> = {
     mapRouteStart: 'Старт',
     mapRouteEnd: 'Финиш',
     mapRouteSinglePoint: 'Старт / финиш',
+    mapClearVehicle: 'Сбросить выбор',
     statsIntro:
       'Пробег по дневным км, расходы, заправки и открытые задачи. Даты совпадают с датами отчётов (UTC).',
     statsPeriod: 'Период',
