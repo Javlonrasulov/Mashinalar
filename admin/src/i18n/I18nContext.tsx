@@ -159,6 +159,28 @@ const DICTS: Record<Lang, Dict> = {
     mapOffline: 'Офлайн',
     mapRefresh: 'Маълумотларни янгилаш',
     mapFuelLayer: 'Заправкаларни харитада кўрсатиш ёки яшириш',
+    mapPanelTitle: 'Трекинг таҳлили',
+    mapPanelSelectVehicle: 'Машинани танланг — маршрут ва статистика чиқади.',
+    mapAnalyticsLoading: 'Юкланмоқда…',
+    mapAnalyticsError: 'Маълумотни юклашда хатолик.',
+    mapRangeInvalid: 'Сана оралиғи нотўғри (дан → гача).',
+    mapGpsKm: 'GPS масофа',
+    mapGpsKmHint: 'Филтрланган нуқталар бўйича ҳаоссин.',
+    mapOdometerKm: 'Одометр (Кун КМ)',
+    mapOdometerDays: '{n} та кун йозуви',
+    mapOdometerKmHint: 'Танланган сана кунлари бўйича (UTC) якун − бошланиш км.',
+    mapMovingTime: 'Ҳаракат вақти',
+    mapStoppedTime: 'Тўхташ вақти',
+    mapPointsFiltered: 'Нуқталар: {filtered} (филтр) / {raw} (жами)',
+    mapNoHistoryInRange: 'Танланган оралиқда GPS нуқталари йўқ.',
+    mapVisitedPlaces: 'Кўп турган жойлар',
+    mapNoStopsInRange: '10 дақ.дан узоқ тўхташ йўқ.',
+    mapLongStops: 'Узоқ тўхташлар',
+    mapStopPopup: 'Тўхташ',
+    mapPoints: 'нуқта',
+    mapRouteStart: 'Бошланиш',
+    mapRouteEnd: 'Тугаш',
+    mapRouteSinglePoint: 'Бошланиш / тугаш',
     statsIntro:
       'Машиналар юриши (км), харажатлар, заправкалар ва очиқ вазифалар. Саналар Kun KM / харажат / заправка вақти билан мос (UTC).',
     statsPeriod: 'Давр',
@@ -332,6 +354,28 @@ const DICTS: Record<Lang, Dict> = {
     mapOffline: 'Oflayn',
     mapRefresh: "Ma'lumotlarni yangilash",
     mapFuelLayer: 'Zapravkalarni xaritada ko‘rsatish yoki yashirish',
+    mapPanelTitle: 'Trekking tahlili',
+    mapPanelSelectVehicle: 'Mashinani tanlang — marshrut va statistika chiqadi.',
+    mapAnalyticsLoading: 'Yuklanmoqda…',
+    mapAnalyticsError: "Ma'lumotni yuklashda xatolik.",
+    mapRangeInvalid: 'Sana oralig‘i noto‘g‘ri (dan → gacha).',
+    mapGpsKm: 'GPS masofa',
+    mapGpsKmHint: 'Filtrlangan nuqtalar bo‘yicha haversin.',
+    mapOdometerKm: 'Odometr (Kun KM)',
+    mapOdometerDays: '{n} ta kun yozuvi',
+    mapOdometerKmHint: 'Tanlangan sana kunlari bo‘yicha (UTC) yakun − boshlanish km.',
+    mapMovingTime: 'Harakat vaqti',
+    mapStoppedTime: 'To‘xtash vaqti',
+    mapPointsFiltered: 'Nuqtalar: {filtered} (filtr) / {raw} (jami)',
+    mapNoHistoryInRange: 'Tanlangan oralig‘da GPS nuqtalari yo‘q.',
+    mapVisitedPlaces: 'Ko‘p turgan joylar',
+    mapNoStopsInRange: '10 daq.dan uzoq to‘xtash yo‘q.',
+    mapLongStops: 'Uzoq to‘xtashlar',
+    mapStopPopup: 'To‘xtash',
+    mapPoints: 'nuqta',
+    mapRouteStart: 'Boshlanish',
+    mapRouteEnd: 'Tugash',
+    mapRouteSinglePoint: 'Boshlanish / tugash',
     statsIntro:
       'Mashinalar yurishi (km), xarajatlar, zapravkalar va ochiq vazifalar. Sanalar Kun KM / xarajat / zapravka vaqti bilan mos (UTC).',
     statsPeriod: 'Davr',
@@ -505,6 +549,28 @@ const DICTS: Record<Lang, Dict> = {
     mapOffline: 'Оффлайн',
     mapRefresh: 'Обновить данные',
     mapFuelLayer: 'Показать или скрыть заправки на карте',
+    mapPanelTitle: 'Аналитика трека',
+    mapPanelSelectVehicle: 'Выберите машину — появятся маршрут и статистика.',
+    mapAnalyticsLoading: 'Загрузка…',
+    mapAnalyticsError: 'Ошибка загрузки данных.',
+    mapRangeInvalid: 'Неверный интервал дат (от → до).',
+    mapGpsKm: 'Пробег по GPS',
+    mapGpsKmHint: 'Гаверсин по отфильтрованным точкам.',
+    mapOdometerKm: 'Одометр (км за день)',
+    mapOdometerDays: 'Записей за дни: {n}',
+    mapOdometerKmHint: 'Сумма (финиш − старт) по дням в интервале (UTC).',
+    mapMovingTime: 'Время в движении',
+    mapStoppedTime: 'Время остановок',
+    mapPointsFiltered: 'Точки: {filtered} (фильтр) / {raw} (всего)',
+    mapNoHistoryInRange: 'В выбранном интервале нет GPS-точек.',
+    mapVisitedPlaces: 'Частые остановки',
+    mapNoStopsInRange: 'Нет остановок дольше 10 мин.',
+    mapLongStops: 'Длительные остановки',
+    mapStopPopup: 'Остановка',
+    mapPoints: 'точ.',
+    mapRouteStart: 'Старт',
+    mapRouteEnd: 'Финиш',
+    mapRouteSinglePoint: 'Старт / финиш',
     statsIntro:
       'Пробег по дневным км, расходы, заправки и открытые задачи. Даты совпадают с датами отчётов (UTC).',
     statsPeriod: 'Период',
@@ -529,7 +595,7 @@ const DICTS: Record<Lang, Dict> = {
 type Ctx = {
   lang: Lang;
   setLang: (l: Lang) => void;
-  t: (key: string) => string;
+  t: (key: string, vars?: Record<string, string>) => string;
 };
 
 const I18nContext = createContext<Ctx | null>(null);
@@ -547,10 +613,15 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(STORAGE_KEY, l);
   }, []);
 
-  const t = useCallback(
-    (key: string) => DICTS[lang][key] ?? key,
-    [lang],
-  );
+  const t = useCallback((key: string, vars?: Record<string, string>) => {
+    let s = DICTS[lang][key] ?? key;
+    if (vars) {
+      for (const [k, v] of Object.entries(vars)) {
+        s = s.replaceAll(`{${k}}`, v);
+      }
+    }
+    return s;
+  }, [lang]);
 
   const value = useMemo(() => ({ lang, setLang, t }), [lang, setLang, t]);
 

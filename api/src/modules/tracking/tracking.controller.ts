@@ -53,6 +53,19 @@ export class TrackingController {
     return this.tracking.pathDistanceKm(vehicleId, new Date(from), new Date(to));
   }
 
+  /** GPS marshrut, to‘xtashlar, klasterlar va odometr (Kun KM) bo‘yicha yig‘ma. */
+  @Get('tracking/analytics')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  analytics(
+    @Query('vehicleId') vehicleId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    if (!vehicleId || !from || !to) throw new BadRequestException('vehicleId, from, to required');
+    return this.tracking.mapAnalytics(vehicleId, new Date(from), new Date(to));
+  }
+
   @Get('tracking/live')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

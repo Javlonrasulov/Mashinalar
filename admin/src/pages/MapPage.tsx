@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { io, Socket } from 'socket.io-client';
@@ -17,6 +17,9 @@ import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 
 /** Oxirgi server qabul vaqti shu oralig‘da bo‘lsa «onlayn» (driver ilovadan kelgan batch kechikishi mumkin). */
 const ONLINE_MS = 60 * 1000;
+
+/** Backend analytics bilan mos: juda yomon aniqlikdagi nuqtalar tashlanadi. */
+const MAX_ACCURACY_M = 100;
 
 /** Navoiy shahri (default xarita markazi). */
 const DEFAULT_MAP_CENTER: [number, number] = [40.0844, 65.3792];
@@ -41,9 +44,25 @@ function pin(color: string) {
   });
 }
 
-const OnlineIcon = pin('#22c55e'); // green-500
-const OfflineIcon = pin('#94a3b8'); // slate-400
-const SelectedIcon = pin('#3b82f6'); // blue-500
+const OnlineIcon = pin('#22c55e');
+const OfflineIcon = pin('#94a3b8');
+const SelectedIcon = pin('#3b82f6');
+const StartRouteIcon = pin('#10b981');
+const EndRouteIcon = pin('#f43f5e');
+
+function formatDurationHms(totalSec: number): string {
+  const s = Math.max(0, Math.floor(totalSec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+  return `${m}:${String(r).padStart(2, '0')}`;
+}
+
+function km2(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  return n.toFixed(2);
+}
 
 type Live = {
   id: string;
@@ -60,6 +79,34 @@ type Vehicle = {
   name: string;
   model: string | null;
   plateNumber: string;
+};
+
+type HistoryRow = { latitude: string; longitude: string; accuracyM: number | null };
+
+type MapAnalytics = {
+  gpsKm: number;
+  odometerKm: number;
+  odometerDays: number;
+  pointsCount: number;
+  pointsCountRaw: number;
+  movingDurationSec: number;
+  stoppedDurationSec: number;
+  stopSegments: {
+    startAt: string;
+    endAt: string;
+    durationSec: number;
+    latitude: number;
+    longitude: number;
+    pointCount: number;
+  }[];
+  visitedClusters: {
+    latitude: number;
+    longitude: number;
+    totalStopSec: number;
+    visitCount: number;
+  }[];
+  startPoint: { latitude: number; longitude: number; recordedAt: string } | null;
+  endPoint: { latitude: number; longitude: number; recordedAt: string } | null;
 };
 
 function FitBounds({ points }: { points: [number, number][] }) {
@@ -107,12 +154,58 @@ export function MapPage() {
   });
   const [to, setTo] = useState(() => toDatetimeLocalValue(new Date()));
 
+  const [analytics, setAnalytics] = useState<MapAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+
   const loadLive = () => api<Live[]>('/tracking/live').then(setLive).catch(() => {});
 
   const loadVehicles = () => api<Vehicle[]>('/vehicles').then(setVehicles).catch(() => {});
 
   const loadFuelStations = () =>
     api<FuelStationMapItem[]>('/map/fuel-stations').then(setFuelStations).catch(() => setFuelStations([]));
+
+  const loadRouteAnalytics = useCallback(async () => {
+    if (!vehicleId) {
+      setHistory([]);
+      setAnalytics(null);
+      setAnalyticsError(null);
+      setAnalyticsLoading(false);
+      return;
+    }
+    const startD = new Date(from);
+    const endD = new Date(to);
+    if (Number.isNaN(startD.getTime()) || Number.isNaN(endD.getTime()) || startD > endD) {
+      setAnalyticsError(t('mapRangeInvalid'));
+      setHistory([]);
+      setAnalytics(null);
+      return;
+    }
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+    const qFrom = encodeURIComponent(startD.toISOString());
+    const qTo = encodeURIComponent(endD.toISOString());
+    const qV = encodeURIComponent(vehicleId);
+    try {
+      const [hist, ana] = await Promise.all([
+        api<HistoryRow[]>(`/tracking/history?vehicleId=${qV}&from=${qFrom}&to=${qTo}`),
+        api<MapAnalytics>(`/tracking/analytics?vehicleId=${qV}&from=${qFrom}&to=${qTo}`),
+      ]);
+      const histFiltered = hist.filter((p) => p.accuracyM == null || p.accuracyM <= MAX_ACCURACY_M);
+      setHistory(histFiltered.map((p) => [Number(p.latitude), Number(p.longitude)]));
+      setAnalytics(ana);
+    } catch {
+      setHistory([]);
+      setAnalytics(null);
+      setAnalyticsError(t('mapAnalyticsError'));
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [vehicleId, from, to, t]);
+
+  useEffect(() => {
+    void loadRouteAnalytics();
+  }, [loadRouteAnalytics]);
 
   useEffect(() => {
     void loadLive();
@@ -220,13 +313,21 @@ export function MapPage() {
     };
   }, [vehicleOpen]);
 
-  const loadHistory = async () => {
-    if (!vehicleId) return;
-    const pts = await api<{ latitude: string; longitude: string }[]>(
-      `/tracking/history?vehicleId=${encodeURIComponent(vehicleId)}&from=${encodeURIComponent(new Date(from).toISOString())}&to=${encodeURIComponent(new Date(to).toISOString())}`,
-    );
-    setHistory(pts.map((p) => [Number(p.latitude), Number(p.longitude)]));
-  };
+  const fitPoints = useMemo(() => {
+    const pts: [number, number][] = [];
+    if (history.length) {
+      for (const p of history) pts.push(p);
+    }
+    if (analytics?.stopSegments?.length) {
+      for (const s of analytics.stopSegments) pts.push([s.latitude, s.longitude]);
+    }
+    if (analytics?.startPoint) pts.push([analytics.startPoint.latitude, analytics.startPoint.longitude]);
+    if (analytics?.endPoint) pts.push([analytics.endPoint.latitude, analytics.endPoint.longitude]);
+    if (pts.length === 0) {
+      for (const m of markers) pts.push(m.pos);
+    }
+    return pts;
+  }, [history, analytics, markers]);
 
   const onRefreshAll = async () => {
     clearRefreshTimers();
@@ -236,8 +337,8 @@ export function MapPage() {
         loadLive(),
         loadVehicles(),
         ...(fuelLayerVisible ? [loadFuelStations()] : []),
+        loadRouteAnalytics(),
       ]);
-      if (vehicleId) await loadHistory();
       const t1 = window.setTimeout(() => {
         setRefreshUi('success');
         const t2 = window.setTimeout(() => setRefreshUi('idle'), 2000);
@@ -248,6 +349,14 @@ export function MapPage() {
       setRefreshUi('idle');
     }
   };
+
+  const showRoute = history.length > 1;
+  const dupStartEnd = Boolean(
+    analytics?.startPoint &&
+      analytics?.endPoint &&
+      analytics.startPoint.latitude === analytics.endPoint.latitude &&
+      analytics.startPoint.longitude === analytics.endPoint.longitude,
+  );
 
   return (
     <div className="app-page">
@@ -377,62 +486,200 @@ export function MapPage() {
         </div>
       </div>
 
-      <div className="app-card relative z-0 h-[min(52vh,520px)] min-h-[260px] w-full min-w-0 overflow-hidden p-0 sm:min-h-[320px] lg:h-[560px]">
-        <button
-          type="button"
-          className={clsx(
-            'absolute right-2 top-2 z-[410] flex h-10 w-10 items-center justify-center rounded-[10px] border-2 border-slate-900 bg-white shadow-md transition hover:bg-slate-50 dark:border-slate-200 dark:bg-white dark:hover:bg-slate-100',
-            fuelLayerVisible &&
-              'border-amber-600 bg-amber-50 ring-2 ring-amber-400/90 ring-offset-2 ring-offset-white dark:ring-offset-slate-900',
-          )}
-          aria-pressed={fuelLayerVisible}
-          aria-label={t('mapFuelLayer')}
-          title={t('mapFuelLayer')}
-          onClick={() => {
-            setFuelLayerVisible((v) => {
-              const next = !v;
-              if (next) void loadFuelStations();
-              return next;
-            });
-          }}
-        >
-          <Fuel className="h-5 w-5 text-slate-900" strokeWidth={2.25} aria-hidden />
-        </button>
-        <MapContainer center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM} className="h-full w-full" scrollWheelZoom>
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <FitBounds points={history.length ? history : markers.map((m) => m.pos)} />
-          <FlyToSelected pos={selectedPos} />
-          {history.length > 1 && <Polyline positions={history} pathOptions={{ color: '#0f172a', weight: 4 }} />}
-          {fuelLayerVisible &&
-            fuelStations.map((s) => (
-              <Marker key={s.id} position={[s.lat, s.lon]} icon={fuelPumpLeafletIcon}>
-                <Popup className="map-fuel-popup">
-                  <div className="map-fuel-popup-body">{s.label}</div>
+      <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1fr_min(22rem,100%)] lg:items-stretch">
+        <div className="app-card relative z-0 h-[min(52vh,520px)] min-h-[260px] w-full min-w-0 overflow-hidden p-0 sm:min-h-[320px] lg:h-[min(70vh,640px)] lg:min-h-[400px]">
+          <button
+            type="button"
+            className={clsx(
+              'absolute right-2 top-2 z-[410] flex h-10 w-10 items-center justify-center rounded-[10px] border-2 border-slate-900 bg-white shadow-md transition hover:bg-slate-50 dark:border-slate-200 dark:bg-white dark:hover:bg-slate-100',
+              fuelLayerVisible &&
+                'border-amber-600 bg-amber-50 ring-2 ring-amber-400/90 ring-offset-2 ring-offset-white dark:ring-offset-slate-900',
+            )}
+            aria-pressed={fuelLayerVisible}
+            aria-label={t('mapFuelLayer')}
+            title={t('mapFuelLayer')}
+            onClick={() => {
+              setFuelLayerVisible((v) => {
+                const next = !v;
+                if (next) void loadFuelStations();
+                return next;
+              });
+            }}
+          >
+            <Fuel className="h-5 w-5 text-slate-900" strokeWidth={2.25} aria-hidden />
+          </button>
+          <MapContainer center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM} className="h-full w-full" scrollWheelZoom>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <FitBounds points={fitPoints} />
+            <FlyToSelected pos={selectedPos} />
+            {showRoute && <Polyline positions={history} pathOptions={{ color: '#0f172a', weight: 4 }} />}
+            {analytics?.stopSegments.map((s, idx) => (
+              <Circle
+                key={`stop-${idx}-${s.startAt}`}
+                center={[s.latitude, s.longitude]}
+                radius={95}
+                pathOptions={{ color: '#d97706', fillColor: '#fbbf24', fillOpacity: 0.22, weight: 2 }}
+              >
+                <Popup>
+                  <div className="text-xs">
+                    <div className="font-semibold">{t('mapStopPopup')}</div>
+                    <div>
+                      {formatDurationHms(s.durationSec)} · {s.pointCount} {t('mapPoints')}
+                    </div>
+                    <div className="mt-1 text-slate-600">
+                      {new Date(s.startAt).toLocaleString()} → {new Date(s.endAt).toLocaleString()}
+                    </div>
+                  </div>
                 </Popup>
+              </Circle>
+            ))}
+            {fuelLayerVisible &&
+              fuelStations.map((s) => (
+                <Marker key={s.id} position={[s.lat, s.lon]} icon={fuelPumpLeafletIcon}>
+                  <Popup className="map-fuel-popup">
+                    <div className="map-fuel-popup-body">{s.label}</div>
+                  </Popup>
+                </Marker>
+              ))}
+            {analytics?.startPoint && !dupStartEnd && (
+              <Marker position={[analytics.startPoint.latitude, analytics.startPoint.longitude]} icon={StartRouteIcon}>
+                <Tooltip direction="top" offset={[0, -10]} opacity={1} className="map-marker-tooltip">
+                  {t('mapRouteStart')}
+                </Tooltip>
+              </Marker>
+            )}
+            {analytics?.endPoint && (
+              <Marker position={[analytics.endPoint.latitude, analytics.endPoint.longitude]} icon={EndRouteIcon}>
+                <Tooltip direction="top" offset={[0, -10]} opacity={1} className="map-marker-tooltip">
+                  {dupStartEnd ? t('mapRouteSinglePoint') : t('mapRouteEnd')}
+                </Tooltip>
+              </Marker>
+            )}
+            {markers.map((m) => (
+              <Marker
+                key={m.id}
+                position={m.pos}
+                icon={m.id === vehicleId ? SelectedIcon : onlineIds.has(m.id) ? OnlineIcon : OfflineIcon}
+              >
+                <Tooltip
+                  permanent
+                  direction="top"
+                  offset={[0, -10]}
+                  opacity={1}
+                  interactive={false}
+                  className="map-marker-tooltip"
+                >
+                  {m.title}
+                </Tooltip>
               </Marker>
             ))}
-          {markers.map((m) => (
-            <Marker
-              key={m.id}
-              position={m.pos}
-              icon={m.id === vehicleId ? SelectedIcon : onlineIds.has(m.id) ? OnlineIcon : OfflineIcon}
-            >
-              <Tooltip
-                permanent
-                direction="top"
-                offset={[0, -10]}
-                opacity={1}
-                interactive={false}
-                className="map-marker-tooltip"
-              >
-                {m.title}
-              </Tooltip>
-            </Marker>
-          ))}
-        </MapContainer>
+          </MapContainer>
+        </div>
+
+        <aside className="app-card app-card-pad flex max-h-[min(70vh,640px)] min-h-[200px] flex-col gap-3 overflow-y-auto lg:max-h-none">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">{t('mapPanelTitle')}</h2>
+          {!vehicleId && <p className="text-sm text-slate-500 dark:text-slate-400">{t('mapPanelSelectVehicle')}</p>}
+          {vehicleId && analyticsLoading && (
+            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+              {t('mapAnalyticsLoading')}
+            </div>
+          )}
+          {vehicleId && analyticsError && (
+            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+              {analyticsError}
+            </p>
+          )}
+          {vehicleId && !analyticsLoading && !analyticsError && analytics && (
+            <>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-2 dark:border-slate-700/90 dark:bg-slate-800/50">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {t('mapGpsKm')}
+                  </div>
+                  <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">{km2(analytics.gpsKm)}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">{t('mapGpsKmHint')}</div>
+                </div>
+                <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-2 dark:border-slate-700/90 dark:bg-slate-800/50">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {t('mapOdometerKm')}
+                  </div>
+                  <div className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">{km2(analytics.odometerKm)}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {t('mapOdometerDays', { n: String(analytics.odometerDays) })}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">{t('mapOdometerKmHint')}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-lg border border-slate-200/80 px-2 py-1.5 dark:border-slate-700/80">
+                  <span className="text-slate-500 dark:text-slate-400">{t('mapMovingTime')}</span>
+                  <div className="font-semibold tabular-nums text-slate-900 dark:text-white">
+                    {formatDurationHms(analytics.movingDurationSec)}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-200/80 px-2 py-1.5 dark:border-slate-700/80">
+                  <span className="text-slate-500 dark:text-slate-400">{t('mapStoppedTime')}</span>
+                  <div className="font-semibold tabular-nums text-slate-900 dark:text-white">
+                    {formatDurationHms(analytics.stoppedDurationSec)}
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t('mapPointsFiltered', {
+                  filtered: String(analytics.pointsCount),
+                  raw: String(analytics.pointsCountRaw),
+                })}
+              </p>
+              {history.length === 0 && (
+                <p className="text-sm text-amber-700 dark:text-amber-300/90">{t('mapNoHistoryInRange')}</p>
+              )}
+              <div>
+                <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  {t('mapVisitedPlaces')}
+                </h3>
+                <ul className="space-y-1.5 text-xs">
+                  {analytics.visitedClusters.slice(0, 10).map((c, i) => (
+                    <li
+                      key={`vc-${i}-${c.latitude}`}
+                      className="flex justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1 dark:bg-slate-800/60"
+                    >
+                      <span className="truncate font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                        {c.latitude.toFixed(5)}, {c.longitude.toFixed(5)}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-slate-800 dark:text-slate-100">
+                        {formatDurationHms(c.totalStopSec)} · {c.visitCount}×
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {analytics.visitedClusters.length === 0 && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{t('mapNoStopsInRange')}</p>
+                )}
+              </div>
+              <div>
+                <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  {t('mapLongStops')}
+                </h3>
+                <ul className="max-h-48 space-y-1 overflow-y-auto text-xs">
+                  {analytics.stopSegments.slice(0, 15).map((s, i) => (
+                    <li key={`ss-${i}-${s.startAt}`} className="rounded-lg border border-slate-200/70 px-2 py-1 dark:border-slate-700/70">
+                      <div className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                        {s.latitude.toFixed(5)}, {s.longitude.toFixed(5)}
+                      </div>
+                      <div className="text-slate-700 dark:text-slate-200">
+                        {formatDurationHms(s.durationSec)} · {new Date(s.startAt).toLocaleString()}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
+        </aside>
       </div>
     </div>
   );
