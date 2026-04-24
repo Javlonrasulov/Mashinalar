@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/.vite
+**/.cache
+**/.turbo
+**/coverage
+**/.DS_Store
+**/*.log
+**/.env
+**/.env.*
+**/.idea
+**/.vscode
+**/uploads
+api/prisma/dev.db
