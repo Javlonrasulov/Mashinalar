@@ -124,8 +124,8 @@ export function DailyKmPage() {
       return Number.isFinite(n) ? n : 0;
     };
     let list = rows;
-    if (filter === 'gapsOnly') list = rows.filter((r) => withGapNum(r) > 0);
-    if (filter === 'gapDesc') list = [...list].sort((a, b) => withGapNum(b) - withGapNum(a));
+    if (filter === 'gapsOnly') list = rows.filter((r) => Math.abs(withGapNum(r)) > 0);
+    if (filter === 'gapDesc') list = [...list].sort((a, b) => Math.abs(withGapNum(b)) - Math.abs(withGapNum(a)));
     return list;
   }, [rows, filter]);
 
@@ -199,7 +199,9 @@ export function DailyKmPage() {
                 const row2FillerWhenPending =
                   'border-t border-red-100 bg-red-50/80 dark:border-red-900/55 dark:bg-red-950/45';
                 const gapNum = r.gapKm == null ? NaN : Number(r.gapKm);
-                const hasGap = Number.isFinite(gapNum) && gapNum > 0;
+                const hasGap = Number.isFinite(gapNum) && gapNum !== 0;
+                const gapSigned =
+                  Number.isFinite(gapNum) ? (gapNum > 0 ? `+${gapNum}` : `${gapNum}`) : '';
                 return (
                   <Fragment key={r.id}>
                     <tr className="app-table-row">
@@ -214,10 +216,14 @@ export function DailyKmPage() {
                           <span className="font-medium tabular-nums text-slate-900 dark:text-slate-100">{r.startKm}</span>
                           {hasGap && (
                             <span
-                              className="inline-flex max-w-[260px] flex-wrap items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-semibold leading-snug text-amber-900 dark:bg-amber-950/35 dark:text-amber-200"
-                              title={`${t('dailyKmGapLabel')}: +${gapNum} км · ${t('dailyKmGapFromLabel')}: ${r.gapFromReportDate ? formatDateTimeNoSeconds(r.gapFromReportDate) : '—'} · ${r.gapFromEndKm ?? '—'} → ${r.startKm}`}
+                              className={
+                                gapNum > 0
+                                  ? 'inline-flex max-w-[260px] flex-wrap items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-semibold leading-snug text-amber-900 dark:bg-amber-950/35 dark:text-amber-200'
+                                  : 'inline-flex max-w-[260px] flex-wrap items-center gap-1 rounded-md bg-rose-50 px-2 py-1 text-[11px] font-semibold leading-snug text-rose-900 dark:bg-rose-950/35 dark:text-rose-200'
+                              }
+                              title={`${t('dailyKmGapLabel')}: ${gapSigned} км · ${t('dailyKmGapFromLabel')}: ${r.gapFromReportDate ? formatDateTimeNoSeconds(r.gapFromReportDate) : '—'} · ${r.gapFromEndKm ?? '—'} → ${r.startKm}`}
                             >
-                              {t('dailyKmGapLabel')}: +{gapNum} км
+                              {t('dailyKmGapLabel')}: {gapSigned} км
                             </span>
                           )}
                         </div>

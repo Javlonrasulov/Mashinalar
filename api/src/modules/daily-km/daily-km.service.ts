@@ -12,30 +12,28 @@ function isPrismaUniqueViolation(e: unknown): boolean {
   return Boolean(e && typeof e === 'object' && 'code' in e && (e as { code: string }).code === 'P2002');
 }
 
-/** Mashina bo‘yicha barcha kunlik KM yozuvlaridan eng yuqori o‘qish (bitta hisobotni chiqarib tashlash — kun boshini qayta yozish). */
-async function maxRecordedOdometerKm(
+/**
+ * Shu kun (`reportDate`) dan oldingi eng so‘nggi kunlik yozuv bo‘yicha minimal boshlash KM:
+ * `max(initialKm, oldingi yozuvning yakuniy KM yoki yakuni yo‘q bo‘lsa boshlanish KM)`.
+ * Global tarixdagi eski/noto‘g‘ri yuqori qiymatlar bugungi 200 kabi qonuniy o‘sishni bloklamasligi uchun.
+ */
+async function minStartKmFromChain(
   prisma: PrismaService,
   vehicleId: string,
-  excludeReportId: string | null,
-  baselineMin: number,
+  dayStart: Date,
+  initialKm: number,
 ): Promise<number> {
-  let maxKm = baselineMin;
-  const rows = await prisma.dailyKmReport.findMany({
-    where: {
-      vehicleId,
-      ...(excludeReportId ? { NOT: { id: excludeReportId } } : {}),
-    },
+  const prev = await prisma.dailyKmReport.findFirst({
+    where: { vehicleId, reportDate: { lt: dayStart } },
+    orderBy: { reportDate: 'desc' },
     select: { startKm: true, endKm: true },
   });
-  for (const r of rows) {
-    const s = Number(r.startKm);
-    if (Number.isFinite(s)) maxKm = Math.max(maxKm, s);
-    if (r.endKm != null) {
-      const e = Number(r.endKm);
-      if (Number.isFinite(e)) maxKm = Math.max(maxKm, e);
-    }
-  }
-  return maxKm;
+  if (!prev) return initialKm;
+  const end = prev.endKm != null ? Number(prev.endKm) : NaN;
+  const st = Number(prev.startKm);
+  const reading = Number.isFinite(end) ? end : st;
+  if (!Number.isFinite(reading)) return initialKm;
+  return Math.max(initialKm, reading);
 }
 
 @Injectable()
@@ -133,7 +131,7 @@ export class DailyKmService {
       const startKmNum = Number(r.startKm);
       const prevEndNum = prev?.endKm != null ? Number(prev.endKm) : NaN;
       const gapNum =
-        prev && Number.isFinite(startKmNum) && Number.isFinite(prevEndNum) ? Math.max(0, startKmNum - prevEndNum) : null;
+        prev && Number.isFinite(startKmNum) && Number.isFinite(prevEndNum) ? startKmNum - prevEndNum : null;
       return {
         id: r.id,
         reportDate: r.reportDate.toISOString(),
@@ -190,14 +188,9 @@ export class DailyKmService {
       where: { vehicleId_reportDate: { vehicleId: driver.vehicleId, reportDate } },
     });
 
-    const maxRecorded = await maxRecordedOdometerKm(
-      this.prisma,
-      driver.vehicleId,
-      existing?.id ?? null,
-      minKm,
-    );
-    if (params.startKm < maxRecorded) {
-      throw new BadRequestException(`daily_km.start_below_max|${maxRecorded}`);
+    const minFromChain = await minStartKmFromChain(this.prisma, driver.vehicleId, reportDate, minKm);
+    if (params.startKm < minFromChain) {
+      throw new BadRequestException(`daily_km.start_below_max|${minFromChain}`);
     }
 
     if (existing?.endKm != null) {
@@ -284,8 +277,7 @@ export class DailyKmService {
     if (row.endKm != null) throw new ConflictException('daily_km.end_already_submitted');
     const minKm = Number(row.vehicle.initialKm);
     if (!Number.isFinite(minKm)) throw new BadRequestException('daily_km.invalid_vehicle_baseline');
-    const maxOthers = await maxRecordedOdometerKm(this.prisma, row.vehicleId, row.id, minKm);
-    const minEndAllowed = Math.max(maxOthers, Number(row.startKm));
+    const minEndAllowed = Math.max(minKm, Number(row.startKm));
     if (params.endKm < minEndAllowed) {
       throw new BadRequestException(`daily_km.end_below_min|${minEndAllowed}`);
     }

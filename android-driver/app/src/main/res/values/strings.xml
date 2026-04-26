@@ -76,6 +76,7 @@
   <string name="daily_km_history_title">Tarix</string>
   <string name="daily_km_history_refresh">Yangilash</string>
   <string name="daily_km_history_empty">Hozircha yozuv yo‘q</string>
+  <string name="daily_km_history_delta">Oldingi yopilgan kundan: %1$s km</string>
   <string name="daily_km_history_status_open">Yakunlanmagan</string>
   <string name="daily_km_history_status_done">Yopilgan</string>
 

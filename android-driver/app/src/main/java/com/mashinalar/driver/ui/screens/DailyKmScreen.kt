@@ -53,6 +53,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.mashinalar.driver.core.ServerErrorMapper
 import com.mashinalar.driver.data.network.DailyKmHistoryDto
+import java.util.Locale
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -349,8 +350,11 @@ fun DailyKmScreen(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
-    state.historyItems.forEach { item ->
-      DailyKmHistoryCard(item = item)
+    state.historyItems.forEachIndexed { index, item ->
+      DailyKmHistoryCard(
+        item = item,
+        deltaFromPrevKm = dailyKmDeltaLabelFromPrev(state.historyItems, index),
+      )
     }
 
     Spacer(Modifier.height(24.dp))
@@ -358,7 +362,10 @@ fun DailyKmScreen(
 }
 
 @Composable
-private fun DailyKmHistoryCard(item: DailyKmHistoryDto) {
+private fun DailyKmHistoryCard(
+  item: DailyKmHistoryDto,
+  deltaFromPrevKm: String? = null,
+) {
   val done = !item.endKm.isNullOrBlank()
   Card(
     modifier = Modifier
@@ -382,6 +389,14 @@ private fun DailyKmHistoryCard(item: DailyKmHistoryDto) {
         stringResource(R.string.end_km_field) + ": " + if (item.endKm.isNullOrBlank()) "—" else dailyKmKmDisplay(item.endKm),
         style = MaterialTheme.typography.bodyMedium,
       )
+      if (!deltaFromPrevKm.isNullOrBlank()) {
+        Spacer(Modifier.height(4.dp))
+        Text(
+          stringResource(R.string.daily_km_history_delta, deltaFromPrevKm),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.tertiary,
+        )
+      }
       Spacer(Modifier.height(4.dp))
       Text(
         stringResource(
@@ -392,6 +407,27 @@ private fun DailyKmHistoryCard(item: DailyKmHistoryDto) {
       )
     }
   }
+}
+
+/** API `mine` tartibi: `reportDate` kamayish — keyingi qator “oldingi” kun. */
+private fun dailyKmDeltaLabelFromPrev(items: List<DailyKmHistoryDto>, index: Int): String? {
+  if (index >= items.size - 1) return null
+  val prev = items[index + 1]
+  val cur = items[index]
+  val prevReading =
+    prev.endKm?.trim()?.takeIf { it.isNotEmpty() }?.let { dailyKmParseKm(it) }
+      ?: dailyKmParseKm(prev.startKm)
+  val curStart = dailyKmParseKm(cur.startKm) ?: return null
+  if (prevReading == null) return null
+  val d = curStart - prevReading
+  if (kotlin.math.abs(d) < 1e-6) return null
+  return String.format(Locale.US, "%+.0f", d)
+}
+
+private fun dailyKmParseKm(raw: String?): Double? {
+  val s = raw?.trim()?.replace(',', '.') ?: return null
+  if (s.isEmpty()) return null
+  return s.toDoubleOrNull()
 }
 
 private fun dailyKmHistoryDateLabel(iso: String): String {

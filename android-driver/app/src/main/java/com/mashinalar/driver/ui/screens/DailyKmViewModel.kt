@@ -186,8 +186,7 @@ class DailyKmViewModel @Inject constructor(
       return
     }
     val startVal = s.startKm.trim().replace(',', '.').toDoubleOrNull()
-    val historyFloor = minAllowedStartKm(s.minOdometerKm, s.historyItems, s.reportDate)
-    val minEnd = listOfNotNull(historyFloor, startVal).maxOrNull()
+    val minEnd = listOfNotNull(s.minOdometerKm, startVal).maxOrNull()
     if (minEnd != null && endVal < minEnd) {
       if (startVal != null && endVal < startVal) {
         _state.value = s.copy(message = context.getString(R.string.msg_daily_km_end_below_start))
@@ -220,39 +219,45 @@ class DailyKmViewModel @Inject constructor(
   }
 }
 
-/** Bugungi `reportDate` bo‘yicha tarixdan chiqarib, boshqa kunlarning start/end KM laridan maksimum. */
-private fun maxPastReadingExcludingReportDate(
+/**
+ * `reportDate` dan oldin bo‘lgan tarix qatorlaridan **eng so‘nggi sana**dagi yozuvning
+ * yakuniy KM (bo‘lmasa boshlanish) — zanjir bo‘yicha minimal boshlash.
+ */
+private fun lastReferenceReadingBeforeDate(
   history: List<DailyKmHistoryDto>,
   reportDate: LocalDate,
 ): Double? {
-  val day = reportDate.toString()
-  var maxV: Double? = null
+  var bestDay: LocalDate? = null
+  var bestReading: Double? = null
   for (item in history) {
-    if (item.reportDate.trim().take(10) == day) continue
-    val s = item.startKm.trim().replace(',', '.').toDoubleOrNull() ?: continue
-    maxV = if (maxV == null) s else kotlin.math.max(maxV, s)
+    val day =
+      runCatching { LocalDate.parse(item.reportDate.trim().take(10)) }.getOrNull() ?: continue
+    if (!day.isBefore(reportDate)) continue
     val eRaw = item.endKm?.trim()?.replace(',', '.') ?: ""
-    if (eRaw.isNotEmpty()) {
-      val e = eRaw.toDoubleOrNull()
-      if (e != null) {
-        val prev = maxV
-        maxV = if (prev == null) e else kotlin.math.max(prev, e)
-      }
+    val reading =
+      if (eRaw.isNotEmpty()) {
+        eRaw.toDoubleOrNull()
+      } else {
+        item.startKm.trim().replace(',', '.').toDoubleOrNull()
+      } ?: continue
+    if (bestDay == null || day.isAfter(bestDay)) {
+      bestDay = day
+      bestReading = reading
     }
   }
-  return maxV
+  return bestReading
 }
 
-/** Boshlash (va tugash) KM uchun minimal ruxsat: mashina `initialKm` va boshqa kunlardagi eng yuqori o‘qish. */
+/** Boshlash KM: mashina `initialKm` va zanjir bo‘yicha oldingi kun yozuvi. */
 private fun minAllowedStartKm(
   initial: Double?,
   history: List<DailyKmHistoryDto>,
   reportDate: LocalDate,
 ): Double? {
-  val fromHistory = maxPastReadingExcludingReportDate(history, reportDate)
+  val chain = lastReferenceReadingBeforeDate(history, reportDate)
   return when {
-    initial != null && fromHistory != null -> kotlin.math.max(initial, fromHistory)
+    initial != null && chain != null -> kotlin.math.max(initial, chain)
     initial != null -> initial
-    else -> fromHistory
+    else -> chain
   }
 }

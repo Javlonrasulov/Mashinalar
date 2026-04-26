@@ -64,6 +64,7 @@
   <string name="daily_km_history_title">Тарих</string>
   <string name="daily_km_history_refresh">Янгилаш</string>
   <string name="daily_km_history_empty">Ҳозирча ёзув йўқ</string>
+  <string name="daily_km_history_delta">Олдинги ёпилган кундан: %1$s км</string>
   <string name="daily_km_history_status_open">Якунланмаган</string>
   <string name="daily_km_history_status_done">Ёпилган</string>
   <string name="tasks_title">Вазифалар</string>

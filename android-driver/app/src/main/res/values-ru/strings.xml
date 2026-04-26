@@ -64,6 +64,7 @@
   <string name="daily_km_history_title">История</string>
   <string name="daily_km_history_refresh">Обновить</string>
   <string name="daily_km_history_empty">Пока нет записей</string>
+  <string name="daily_km_history_delta">От предыдущего закрытого дня: %1$s км</string>
   <string name="daily_km_history_status_open">Не завершено</string>
   <string name="daily_km_history_status_done">Завершено</string>
   <string name="tasks_title">Задачи</string>
