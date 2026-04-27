@@ -62,10 +62,26 @@ export class CreateVehicleDto {
 
   @IsOptional()
   @IsDateString()
+  inspectionLastChangedAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  inspectionNextChangeAt?: string;
+
+  @IsOptional()
+  @IsDateString()
   gasStartDate?: string;
 
   @IsOptional()
   @IsDateString()
   gasEndDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  gasBalloonLastChangedAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  gasBalloonNextChangeAt?: string;
 
 }

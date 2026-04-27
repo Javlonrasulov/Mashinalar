@@ -63,7 +63,9 @@ export class TasksService {
     const task = await this.prisma.task.findUnique({ where: { id } });
     if (!task) throw new NotFoundException('Task not found');
     if (task.driverId !== driverId) throw new ForbiddenException();
-    if (task.status !== TaskStatus.PENDING) throw new BadRequestException('Already submitted or closed');
+    const canSubmit =
+      task.status === TaskStatus.PENDING || task.status === TaskStatus.REJECTED;
+    if (!canSubmit) throw new BadRequestException('Already submitted or closed');
 
     const updated = await this.prisma.task.update({
       where: { id },
@@ -72,6 +74,7 @@ export class TasksService {
         proofText: body.proofText,
         proofPhotoUrl: body.proofPhotoUrl,
         submittedAt: new Date(),
+        ...(task.status === TaskStatus.REJECTED ? { reviewedAt: null } : {}),
       },
       include: { vehicle: true, driver: true },
     });

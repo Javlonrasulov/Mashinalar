@@ -98,8 +98,12 @@ export class VehiclesService {
       insuranceEndDate: dto.insuranceEndDate ? new Date(dto.insuranceEndDate) : undefined,
       inspectionStartDate: dto.inspectionStartDate ? new Date(dto.inspectionStartDate) : undefined,
       inspectionEndDate: dto.inspectionEndDate ? new Date(dto.inspectionEndDate) : undefined,
+      inspectionLastChangedAt: dto.inspectionLastChangedAt ? new Date(dto.inspectionLastChangedAt) : undefined,
+      inspectionNextChangeAt: dto.inspectionNextChangeAt ? new Date(dto.inspectionNextChangeAt) : undefined,
       gasStartDate: dto.gasStartDate ? new Date(dto.gasStartDate) : undefined,
       gasEndDate: dto.gasEndDate ? new Date(dto.gasEndDate) : undefined,
+      gasBalloonLastChangedAt: dto.gasBalloonLastChangedAt ? new Date(dto.gasBalloonLastChangedAt) : undefined,
+      gasBalloonNextChangeAt: dto.gasBalloonNextChangeAt ? new Date(dto.gasBalloonNextChangeAt) : undefined,
     };
     const created = await this.prisma.vehicle.create({ data });
     await this.audit.log({
@@ -123,7 +127,8 @@ export class VehiclesService {
     if (dto.plateNumber !== undefined) data.plateNumber = dto.plateNumber;
     if (dto.initialKm !== undefined) data.initialKm = dto.initialKm;
     if (dto.lastOilChangeKm !== undefined) data.lastOilChangeKm = dto.lastOilChangeKm;
-    if (dto.lastOilChangeAt !== undefined) data.lastOilChangeAt = new Date(dto.lastOilChangeAt);
+    if (dto.lastOilChangeAt !== undefined)
+      data.lastOilChangeAt = dto.lastOilChangeAt ? new Date(dto.lastOilChangeAt) : null;
     if (dto.oilChangeIntervalKm !== undefined) data.oilChangeIntervalKm = dto.oilChangeIntervalKm;
     if (dto.insuranceStartDate !== undefined)
       data.insuranceStartDate = dto.insuranceStartDate ? new Date(dto.insuranceStartDate) : null;
@@ -135,6 +140,18 @@ export class VehiclesService {
       data.inspectionEndDate = dto.inspectionEndDate ? new Date(dto.inspectionEndDate) : null;
     if (dto.gasStartDate !== undefined) data.gasStartDate = dto.gasStartDate ? new Date(dto.gasStartDate) : null;
     if (dto.gasEndDate !== undefined) data.gasEndDate = dto.gasEndDate ? new Date(dto.gasEndDate) : null;
+    if (dto.inspectionLastChangedAt !== undefined)
+      data.inspectionLastChangedAt = dto.inspectionLastChangedAt
+        ? new Date(dto.inspectionLastChangedAt)
+        : null;
+    if (dto.inspectionNextChangeAt !== undefined)
+      data.inspectionNextChangeAt = dto.inspectionNextChangeAt ? new Date(dto.inspectionNextChangeAt) : null;
+    if (dto.gasBalloonLastChangedAt !== undefined)
+      data.gasBalloonLastChangedAt = dto.gasBalloonLastChangedAt
+        ? new Date(dto.gasBalloonLastChangedAt)
+        : null;
+    if (dto.gasBalloonNextChangeAt !== undefined)
+      data.gasBalloonNextChangeAt = dto.gasBalloonNextChangeAt ? new Date(dto.gasBalloonNextChangeAt) : null;
 
     const updated = await this.prisma.vehicle.update({ where: { id }, data });
     await this.audit.log({

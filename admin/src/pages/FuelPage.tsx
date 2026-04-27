@@ -27,7 +27,7 @@ type Row = {
   id: string;
   amount: string;
   createdAt: string;
-  vehicle: { plateNumber: string };
+  vehicle: { id: string; plateNumber: string; gasPricePerM3?: string | null };
   driver: { fullName: string };
   latitude: string | null;
   longitude: string | null;
@@ -51,7 +51,8 @@ function intlLocaleFor(lang: 'uzCyrl' | 'uzLatn' | 'ru'): string {
 export function FuelPage() {
   const { t, lang } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
-  const [gasPricePerM3, setGasPricePerM3] = useState('');
+  const [vehicleGasDraft, setVehicleGasDraft] = useState<Record<string, string>>({});
+  const [vehicleGasSaving, setVehicleGasSaving] = useState<Record<string, boolean>>({});
   const [dateValue, setDateValue] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -64,7 +65,7 @@ export function FuelPage() {
   const [photo, setPhoto] = useState<{ src: string; title: string } | null>(null);
   const [photoFs, setPhotoFs] = useState(false);
   const photoStageRef = useRef<HTMLDivElement>(null);
-  const [stationByKey, setStationByKey] = useState<Record<string, string>>({});
+  const [stationByKey, setStationByKey] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     const selected = new Date(dateValue);
@@ -82,6 +83,19 @@ export function FuelPage() {
   }, [dateValue]);
 
   useEffect(() => {
+    setVehicleGasDraft((prev) => {
+      const next = { ...prev };
+      for (const r of rows) {
+        const id = r.vehicle.id;
+        if (next[id] === undefined) {
+          next[id] = r.vehicle.gasPricePerM3 != null ? String(r.vehicle.gasPricePerM3) : '';
+        }
+      }
+      return next;
+    });
+  }, [rows]);
+
+  useEffect(() => {
     const pts = rows
       .map((r) => {
         const lat = r.latitude ? Number(r.latitude) : NaN;
@@ -91,7 +105,7 @@ export function FuelPage() {
         return { key, lat, lon };
       })
       .filter(Boolean) as { key: string; lat: number; lon: number }[];
-    const unique = Array.from(new Map(pts.map((p) => [p.key, p])).values()).filter((p) => stationByKey[p.key] == null);
+    const unique = Array.from(new Map(pts.map((p) => [p.key, p])).values()).filter((p) => stationByKey[p.key] === undefined);
     if (!unique.length) return;
 
     let cancelled = false;
@@ -102,9 +116,10 @@ export function FuelPage() {
             const res = await api<{ label: string | null }>(
               `/map/fuel-station-nearest?lat=${encodeURIComponent(String(p.lat))}&lon=${encodeURIComponent(String(p.lon))}`,
             );
-            return [p.key, res.label ?? ''] as const;
+            const lbl = res.label?.trim() ? res.label.trim() : null;
+            return [p.key, lbl] as const;
           } catch {
-            return [p.key, ''] as const;
+            return [p.key, null] as const;
           }
         }),
       );
@@ -127,13 +142,37 @@ export function FuelPage() {
     });
   }, [lang]);
 
-  function calcM3(amountRaw: string): string {
+  function calcM3(amountRaw: string, vehicleId: string): string {
     const a = Number(String(amountRaw).replace(/[^\d.]/g, ''));
-    const p = gasPricePerM3 ? Number(gasPricePerM3) : NaN;
+    const raw = vehicleGasDraft[vehicleId] ?? '';
+    const p = raw ? Number(raw) : NaN;
     if (!Number.isFinite(a) || !Number.isFinite(p) || p <= 0) return '—';
     const v = a / p;
     if (!Number.isFinite(v)) return '—';
     return m3Fmt.format(v);
+  }
+
+  async function saveVehicleGasPrice(vehicleId: string) {
+    const raw = (vehicleGasDraft[vehicleId] ?? '').trim();
+    const n = raw === '' ? NaN : Number(raw);
+    if (raw !== '' && (!Number.isFinite(n) || n < 0)) return;
+
+    setVehicleGasSaving((m) => ({ ...m, [vehicleId]: true }));
+    try {
+      await api(`/vehicles/${vehicleId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ gasPricePerM3: raw === '' ? null : n }),
+      });
+      setRows((prev) =>
+        prev.map((r) =>
+          r.vehicle.id === vehicleId
+            ? { ...r, vehicle: { ...r.vehicle, gasPricePerM3: raw === '' ? null : String(n) } }
+            : r,
+        ),
+      );
+    } finally {
+      setVehicleGasSaving((m) => ({ ...m, [vehicleId]: false }));
+    }
   }
 
   useEffect(() => {
@@ -184,29 +223,15 @@ export function FuelPage() {
     <div className="app-page">
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="app-page-title">{t('navFuel')}</h1>
-        <div className="flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
-          <div className="flex min-w-0 items-center justify-between gap-3">
-            <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
-            <div className="w-[190px]">
-              <DateTimeField
-                value={dateValue}
-                onChange={setDateValue}
-                mode="date"
-                disabled={{ after: new Date() }}
-                align="right"
-              />
-            </div>
-          </div>
-          <div className="flex min-w-0 items-center justify-between gap-3 sm:w-[260px]">
-            <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('gasPricePerM3')}</label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              className="app-input w-[160px] text-right tabular-nums"
-              value={gasPricePerM3}
-              onChange={(e) => setGasPricePerM3(e.target.value)}
-              placeholder="—"
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
+          <div className="w-[190px]">
+            <DateTimeField
+              value={dateValue}
+              onChange={setDateValue}
+              mode="date"
+              disabled={{ after: new Date() }}
+              align="right"
             />
           </div>
         </div>
@@ -220,6 +245,7 @@ export function FuelPage() {
               <th className="p-3">{t('plate')}</th>
               <th className="p-3">{t('fullName')}</th>
               <th className="p-3">{t('amount')}</th>
+              <th className="p-3">{t('gasPricePerM3')}</th>
               <th className="p-3">{t('colM3')}</th>
               <th className="p-3">{t('colTime')}</th>
               <th className="p-3">{t('colLocation')}</th>
@@ -234,7 +260,33 @@ export function FuelPage() {
                 <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
                 <td className="p-3">{r.driver.fullName}</td>
                 <td className="p-3">{r.amount}</td>
-                <td className="p-3 tabular-nums">{calcM3(r.amount)}</td>
+                <td className="p-3">
+                  <div className="flex min-w-[220px] items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="app-input w-[120px] text-right tabular-nums"
+                      value={vehicleGasDraft[r.vehicle.id] ?? ''}
+                      onChange={(e) =>
+                        setVehicleGasDraft((m) => ({
+                          ...m,
+                          [r.vehicle.id]: e.target.value,
+                        }))
+                      }
+                      placeholder="—"
+                    />
+                    <button
+                      type="button"
+                      className="app-btn-primary shrink-0 px-3 py-2 text-xs"
+                      disabled={Boolean(vehicleGasSaving[r.vehicle.id])}
+                      onClick={() => void saveVehicleGasPrice(r.vehicle.id)}
+                    >
+                      {vehicleGasSaving[r.vehicle.id] ? '…' : t('save')}
+                    </button>
+                  </div>
+                </td>
+                <td className="p-3 tabular-nums">{calcM3(r.amount, r.vehicle.id)}</td>
                 <td className="p-3 whitespace-nowrap">{formatDateTimeNoSeconds(r.createdAt)}</td>
                 <td className="p-3">
                   {r.latitude && r.longitude ? (
@@ -266,11 +318,13 @@ export function FuelPage() {
                       const lon = Number(r.longitude);
                       const key = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
                       const lbl = stationByKey[key];
-                      return lbl ? (
-                        <span className="text-slate-700 dark:text-slate-200">{lbl}</span>
-                      ) : (
-                        <span className="text-slate-500 dark:text-slate-400">{t('fuelStationUnknown')}</span>
-                      );
+                      if (lbl === undefined) {
+                        return <span className="text-slate-500 dark:text-slate-400">…</span>;
+                      }
+                      if (!lbl) {
+                        return <span className="text-slate-500 dark:text-slate-400">{t('fuelStationUnknown')}</span>;
+                      }
+                      return <span className="text-slate-700 dark:text-slate-200">{lbl}</span>;
                     })()
                   ) : (
                     '—'

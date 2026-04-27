@@ -17,6 +17,7 @@ import {
   Receipt,
   Droplets,
   Sun,
+  Tags,
   Users,
   X,
 } from 'lucide-react';
@@ -30,6 +31,7 @@ const nav = [
   { to: '/', icon: LayoutDashboard, key: 'navDashboard' as const },
   { to: '/map', icon: Map, key: 'navMap' as const },
   { to: '/vehicles', icon: Car, key: 'navVehicles' as const },
+  { to: '/vehicle-categories', icon: Tags, key: 'navVehicleCategories' as const },
   { to: '/drivers', icon: Users, key: 'navDrivers' as const },
   { to: '/tasks', icon: ClipboardList, key: 'navTasks' as const },
   { to: '/fuel', icon: Fuel, key: 'navFuel' as const },
@@ -43,6 +45,8 @@ function usePageTitle() {
   const { t } = useI18n();
   const ordered: { path: string; end?: boolean; key: string }[] = [
     { path: '/map', key: 'navMap' },
+    { path: '/vehicle-categories', key: 'navVehicleCategories' },
+    { path: '/vehicles/:vehicleId/history', key: 'vehicleDriverHistoryTitle' },
     { path: '/vehicles', key: 'navVehicles' },
     { path: '/drivers', key: 'navDrivers' },
     { path: '/tasks', key: 'navTasks' },

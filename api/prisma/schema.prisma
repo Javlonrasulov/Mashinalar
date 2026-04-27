@@ -67,8 +67,12 @@ model Vehicle {
   insuranceEndDate     DateTime?
   inspectionStartDate  DateTime?
   inspectionEndDate    DateTime?
+  inspectionLastChangedAt DateTime?
+  inspectionNextChangeAt  DateTime?
   gasStartDate         DateTime?
   gasEndDate           DateTime?
+  gasBalloonLastChangedAt DateTime?
+  gasBalloonNextChangeAt  DateTime?
   lastLatitude         Decimal?  @db.Decimal(10, 7)
   lastLongitude        Decimal?  @db.Decimal(10, 7)
   lastLocationAt       DateTime?
