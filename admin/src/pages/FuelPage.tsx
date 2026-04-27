@@ -35,6 +35,8 @@ type Row = {
   receiptPhotoUrl: string | null;
 };
 
+type VehicleRow = { id: string; plateNumber: string; gasPricePerM3?: string | null };
+
 function formatDateTimeNoSeconds(iso: string) {
   const d = new Date(iso);
   const date = d.toLocaleDateString();
@@ -51,6 +53,8 @@ function intlLocaleFor(lang: 'uzCyrl' | 'uzLatn' | 'ru'): string {
 export function FuelPage() {
   const { t, lang } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
+  const [allVehicles, setAllVehicles] = useState<VehicleRow[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [vehicleGasDraft, setVehicleGasDraft] = useState<Record<string, string>>({});
   const [vehicleGasSaving, setVehicleGasSaving] = useState<Record<string, boolean>>({});
   const [dateValue, setDateValue] = useState(() => {
@@ -83,6 +87,14 @@ export function FuelPage() {
   }, [dateValue]);
 
   useEffect(() => {
+    api<VehicleRow[]>('/vehicles')
+      .then((vs) => {
+        setAllVehicles(vs.map((v) => ({ id: v.id, plateNumber: v.plateNumber, gasPricePerM3: v.gasPricePerM3 })));
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setVehicleGasDraft((prev) => {
       const next = { ...prev };
       for (const r of rows) {
@@ -91,9 +103,14 @@ export function FuelPage() {
           next[id] = r.vehicle.gasPricePerM3 != null ? String(r.vehicle.gasPricePerM3) : '';
         }
       }
+      for (const v of allVehicles) {
+        if (next[v.id] === undefined) {
+          next[v.id] = v.gasPricePerM3 != null ? String(v.gasPricePerM3) : '';
+        }
+      }
       return next;
     });
-  }, [rows]);
+  }, [rows, allVehicles]);
 
   useEffect(() => {
     const pts = rows
@@ -163,6 +180,9 @@ export function FuelPage() {
         method: 'PATCH',
         body: JSON.stringify({ gasPricePerM3: raw === '' ? null : n }),
       });
+      setAllVehicles((prev) =>
+        prev.map((v) => (v.id === vehicleId ? { ...v, gasPricePerM3: raw === '' ? null : String(n) } : v)),
+      );
       setRows((prev) =>
         prev.map((r) =>
           r.vehicle.id === vehicleId
@@ -234,6 +254,60 @@ export function FuelPage() {
               align="right"
             />
           </div>
+        </div>
+      </div>
+
+      <div className="app-card-pad grid min-w-0 grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
+        <div className="min-w-0 md:col-span-5">
+          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('mapVehicle')}</label>
+          <select
+            className="app-input w-full"
+            value={selectedVehicleId}
+            onChange={(e) => {
+              const id = e.target.value;
+              setSelectedVehicleId(id);
+            }}
+          >
+            <option value="">{t('mapVehicleSelectPlaceholder')}</option>
+            {allVehicles
+              .slice()
+              .sort((a, b) => a.plateNumber.localeCompare(b.plateNumber))
+              .map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.plateNumber}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="min-w-0 md:col-span-4">
+          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('gasPricePerM3')}</label>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="app-input w-full text-right tabular-nums"
+            value={selectedVehicleId ? vehicleGasDraft[selectedVehicleId] ?? '' : ''}
+            onChange={(e) => {
+              const id = selectedVehicleId;
+              if (!id) return;
+              setVehicleGasDraft((m) => ({ ...m, [id]: e.target.value }));
+            }}
+            disabled={!selectedVehicleId}
+            placeholder="—"
+          />
+        </div>
+        <div className="md:col-span-3">
+          <button
+            type="button"
+            className="app-btn-primary w-full"
+            disabled={!selectedVehicleId || Boolean(vehicleGasSaving[selectedVehicleId])}
+            onClick={() => {
+              if (!selectedVehicleId) return;
+              void saveVehicleGasPrice(selectedVehicleId);
+            }}
+          >
+            {selectedVehicleId && vehicleGasSaving[selectedVehicleId] ? '…' : t('save')}
+          </button>
         </div>
       </div>
 

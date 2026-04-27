@@ -7,8 +7,11 @@ import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { MapPage } from '@/pages/MapPage';
 import { VehiclesPage } from '@/pages/VehiclesPage';
+import { VehiclesLayout } from '@/pages/VehiclesLayout';
 import { VehicleCategoriesPage } from '@/pages/VehicleCategoriesPage';
 import { VehicleDriverHistoryPage } from '@/pages/VehicleDriverHistoryPage';
+import { VehicleDeadlinesPage } from '@/pages/VehicleDeadlinesPage';
+import { VehiclesAllDriverHistoryPage } from '@/pages/VehiclesAllDriverHistoryPage';
 import { DriversPage } from '@/pages/DriversPage';
 import { TasksPage } from '@/pages/TasksPage';
 import { FuelPage } from '@/pages/FuelPage';
@@ -37,9 +40,16 @@ function Shell() {
       <Route element={<ShellLayout />}>
         <Route index element={<DashboardPage />} />
         <Route path="map" element={<MapPage />} />
-        <Route path="vehicle-categories" element={<VehicleCategoriesPage />} />
-        <Route path="vehicles/:vehicleId/history" element={<VehicleDriverHistoryPage />} />
-        <Route path="vehicles" element={<VehiclesPage />} />
+        <Route path="vehicle-categories" element={<Navigate to="/vehicles/categories" replace />} />
+        <Route path="vehicles" element={<VehiclesLayout />}>
+          <Route index element={<VehiclesPage />} />
+          <Route path="categories" element={<VehicleCategoriesPage />} />
+          <Route path="inspection" element={<VehicleDeadlinesPage kind="inspection" />} />
+          <Route path="insurance" element={<VehicleDeadlinesPage kind="insurance" />} />
+          <Route path="gas-balloon" element={<VehicleDeadlinesPage kind="gasBalloon" />} />
+          <Route path="history" element={<VehiclesAllDriverHistoryPage />} />
+          <Route path=":vehicleId/history" element={<VehicleDriverHistoryPage />} />
+        </Route>
         <Route path="drivers" element={<DriversPage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="fuel" element={<FuelPage />} />

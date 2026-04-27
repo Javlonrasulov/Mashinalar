@@ -186,6 +186,18 @@ export class VehiclesService {
     });
   }
 
+  /** All driver↔vehicle assignment rows (admin monitoring). */
+  allDriverAssignments() {
+    return this.prisma.driverVehicleAssignment.findMany({
+      orderBy: { startAt: 'desc' },
+      take: 3000,
+      include: {
+        driver: { select: { id: true, fullName: true, phone: true, user: { select: { login: true } } } },
+        vehicle: { select: { id: true, plateNumber: true, name: true, model: true } },
+      },
+    });
+  }
+
   /**
    * Assign (or unassign) driver to a vehicle, keeping history.
    */

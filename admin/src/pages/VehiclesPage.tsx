@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { History, Pencil, Trash2 } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import { DateField } from '@/components/DateField';
@@ -27,12 +27,8 @@ type Vehicle = {
   oilChangeIntervalKm?: number | null;
   insuranceStartDate?: string | null;
   insuranceEndDate?: string | null;
-  inspectionStartDate?: string | null;
-  inspectionEndDate?: string | null;
   inspectionLastChangedAt?: string | null;
   inspectionNextChangeAt?: string | null;
-  gasStartDate?: string | null;
-  gasEndDate?: string | null;
   gasBalloonLastChangedAt?: string | null;
   gasBalloonNextChangeAt?: string | null;
   category?: VehicleCategory | null;
@@ -94,6 +90,8 @@ function currentDriverId(v: Vehicle): string {
 
 export function VehiclesPage() {
   const { t } = useI18n();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [rows, setRows] = useState<Vehicle[]>([]);
   const [categories, setCategories] = useState<VehicleCategory[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -111,12 +109,8 @@ export function VehiclesPage() {
     oilChangeIntervalKm: '',
     insuranceStartDate: '',
     insuranceEndDate: '',
-    inspectionStartDate: '',
-    inspectionEndDate: '',
     inspectionLastChangedAt: '',
     inspectionNextChangeAt: '',
-    gasStartDate: '',
-    gasEndDate: '',
     gasBalloonLastChangedAt: '',
     gasBalloonNextChangeAt: '',
     driverId: '',
@@ -145,18 +139,6 @@ export function VehiclesPage() {
     return start > todayStart ? start : todayStart;
   }, [form.insuranceStartDate, todayStart]);
 
-  const inspectionEndMin = useMemo(() => {
-    const start = parseYmdLocal(form.inspectionStartDate);
-    if (!start) return todayStart;
-    return start > todayStart ? start : todayStart;
-  }, [form.inspectionStartDate, todayStart]);
-
-  const gasEndMin = useMemo(() => {
-    const start = parseYmdLocal(form.gasStartDate);
-    if (!start) return todayStart;
-    return start > todayStart ? start : todayStart;
-  }, [form.gasStartDate, todayStart]);
-
   useEffect(() => {
     const end = parseYmdLocal(form.insuranceEndDate);
     if (!end) return;
@@ -164,22 +146,6 @@ export function VehiclesPage() {
       setForm((f) => ({ ...f, insuranceEndDate: formatYmdLocal(insuranceEndMin) }));
     }
   }, [insuranceEndMin, form.insuranceEndDate]);
-
-  useEffect(() => {
-    const end = parseYmdLocal(form.inspectionEndDate);
-    if (!end) return;
-    if (end < inspectionEndMin) {
-      setForm((f) => ({ ...f, inspectionEndDate: formatYmdLocal(inspectionEndMin) }));
-    }
-  }, [inspectionEndMin, form.inspectionEndDate]);
-
-  useEffect(() => {
-    const end = parseYmdLocal(form.gasEndDate);
-    if (!end) return;
-    if (end < gasEndMin) {
-      setForm((f) => ({ ...f, gasEndDate: formatYmdLocal(gasEndMin) }));
-    }
-  }, [gasEndMin, form.gasEndDate]);
 
   useEffect(() => {
     if (!pendingDelete) return;
@@ -202,12 +168,8 @@ export function VehiclesPage() {
       oilChangeIntervalKm: '',
       insuranceStartDate: '',
       insuranceEndDate: '',
-      inspectionStartDate: '',
-      inspectionEndDate: '',
       inspectionLastChangedAt: '',
       inspectionNextChangeAt: '',
-      gasStartDate: '',
-      gasEndDate: '',
       gasBalloonLastChangedAt: '',
       gasBalloonNextChangeAt: '',
       driverId: '',
@@ -234,10 +196,6 @@ export function VehiclesPage() {
       oilChangeIntervalKm: form.oilChangeIntervalKm ? Number(form.oilChangeIntervalKm) : undefined,
       insuranceStartDate: form.insuranceStartDate || undefined,
       insuranceEndDate: form.insuranceEndDate || undefined,
-      inspectionStartDate: form.inspectionStartDate || undefined,
-      inspectionEndDate: form.inspectionEndDate || undefined,
-      gasStartDate: form.gasStartDate || undefined,
-      gasEndDate: form.gasEndDate || undefined,
     };
 
     const inspectionLastIso = datetimeLocalToIso(form.inspectionLastChangedAt);
@@ -281,7 +239,7 @@ export function VehiclesPage() {
     }
   }
 
-  function onEdit(v: Vehicle) {
+  const onEdit = useCallback((v: Vehicle) => {
     setErr(null);
     setEditingId(v.id);
     setInitialDriverId(currentDriverId(v));
@@ -294,18 +252,25 @@ export function VehiclesPage() {
       oilChangeIntervalKm: v.oilChangeIntervalKm ? String(v.oilChangeIntervalKm) : '',
       insuranceStartDate: toDateInputValue(v.insuranceStartDate),
       insuranceEndDate: toDateInputValue(v.insuranceEndDate),
-      inspectionStartDate: toDateInputValue(v.inspectionStartDate),
-      inspectionEndDate: toDateInputValue(v.inspectionEndDate),
       inspectionLastChangedAt: isoToDatetimeLocal(v.inspectionLastChangedAt),
       inspectionNextChangeAt: isoToDatetimeLocal(v.inspectionNextChangeAt),
-      gasStartDate: toDateInputValue(v.gasStartDate),
-      gasEndDate: toDateInputValue(v.gasEndDate),
       gasBalloonLastChangedAt: isoToDatetimeLocal(v.gasBalloonLastChangedAt),
       gasBalloonNextChangeAt: isoToDatetimeLocal(v.gasBalloonNextChangeAt),
       driverId: currentDriverId(v),
     });
     document.querySelector('main form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+  }, []);
+
+  // Open edit form when coming from deadlines sub-pages (Link state).
+  useEffect(() => {
+    const st = location.state as { editVehicleId?: string } | undefined;
+    const id = st?.editVehicleId;
+    if (!id || rows.length === 0) return;
+    const v = rows.find((x) => x.id === id);
+    if (!v) return;
+    onEdit(v);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [rows, location.state, location.pathname, navigate, onEdit]);
 
   function onCancelEdit() {
     emptyForm();
@@ -337,10 +302,6 @@ export function VehiclesPage() {
       )}
 
       <form onSubmit={onCreate} className="app-card-pad min-w-0 space-y-4">
-        <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-300">
-          {t('vehicleCategoryManageHint')}
-        </div>
-
         <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-4">
           <div className="min-w-0 sm:col-span-2 xl:col-span-2">
             <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleCategory')}</label>
@@ -421,24 +382,7 @@ export function VehiclesPage() {
           </div>
 
           <div className="min-w-0 sm:col-span-2 xl:col-span-4 pt-1">
-            <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">{t('vehicleInspectionPeriod')}</div>
-          </div>
-          <div className="min-w-0">
-            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleInspectionStart')}</label>
-            <DateField
-              value={form.inspectionStartDate}
-              onChange={(v) => setForm({ ...form, inspectionStartDate: v })}
-              onClear={() => setForm({ ...form, inspectionStartDate: '' })}
-            />
-          </div>
-          <div className="min-w-0">
-            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleInspectionEnd')}</label>
-            <DateField
-              value={form.inspectionEndDate}
-              onChange={(v) => setForm({ ...form, inspectionEndDate: v })}
-              onClear={() => setForm({ ...form, inspectionEndDate: '' })}
-              minDate={inspectionEndMin}
-            />
+            <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">{t('vehicleInspectionSection')}</div>
           </div>
           <div className="min-w-0">
             <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleInspectionLastChange')}</label>
@@ -458,24 +402,7 @@ export function VehiclesPage() {
           </div>
 
           <div className="min-w-0 sm:col-span-2 xl:col-span-4 pt-1">
-            <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">{t('vehicleGasBalloonPeriod')}</div>
-          </div>
-          <div className="min-w-0">
-            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleGasBalloonStart')}</label>
-            <DateField
-              value={form.gasStartDate}
-              onChange={(v) => setForm({ ...form, gasStartDate: v })}
-              onClear={() => setForm({ ...form, gasStartDate: '' })}
-            />
-          </div>
-          <div className="min-w-0">
-            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleGasBalloonEnd')}</label>
-            <DateField
-              value={form.gasEndDate}
-              onChange={(v) => setForm({ ...form, gasEndDate: v })}
-              onClear={() => setForm({ ...form, gasEndDate: '' })}
-              minDate={gasEndMin}
-            />
+            <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">{t('vehicleGasBalloonSection')}</div>
           </div>
           <div className="min-w-0">
             <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleGasBalloonLastChange')}</label>

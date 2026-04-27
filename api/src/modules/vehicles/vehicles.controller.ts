@@ -26,6 +26,12 @@ export class VehiclesController {
     return this.vehicles.findMineForDriver(user.driverId);
   }
 
+  @Get('assignments')
+  @Roles(UserRole.ADMIN)
+  allAssignments() {
+    return this.vehicles.allDriverAssignments();
+  }
+
   @Get(':id')
   @Roles(UserRole.ADMIN)
   findOne(@Param('id') id: string) {
