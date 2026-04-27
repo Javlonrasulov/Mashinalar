@@ -70,70 +70,164 @@ export class DailyKmService {
     }));
   }
 
-  async findAll(params?: { date?: string }) {
-    const dayStart =
-      params?.date != null && params.date !== ''
-        ? (() => {
-            const d = new Date(params.date!);
-            if (Number.isNaN(d.getTime())) return null;
-            d.setUTCHours(0, 0, 0, 0);
-            return d;
-          })()
-        : null;
-    if (params?.date && dayStart == null) throw new BadRequestException('daily_km.invalid_report_date');
+  async findAll(params?: { date?: string; from?: string; to?: string }) {
+    const parseDayUtc = (s: string): Date | null => {
+      const d = new Date(s);
+      if (Number.isNaN(d.getTime())) return null;
+      d.setUTCHours(0, 0, 0, 0);
+      return d;
+    };
 
-    const dayEnd =
-      dayStart != null
-        ? (() => {
-            const next = new Date(dayStart);
-            next.setUTCDate(next.getUTCDate() + 1);
-            return next;
-          })()
-        : null;
+    let fromD: Date | null = null;
+    let toExclusive: Date | null = null;
+
+    const hasRange =
+      params?.from != null &&
+      params.from !== '' &&
+      params?.to != null &&
+      params.to !== '';
+
+    if (hasRange) {
+      const a = parseDayUtc(params!.from!);
+      const b = parseDayUtc(params!.to!);
+      if (!a || !b) throw new BadRequestException('daily_km.invalid_report_date');
+      if (a.getTime() > b.getTime()) throw new BadRequestException('daily_km.range_invalid');
+      const spanDays = Math.floor((b.getTime() - a.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+      if (spanDays > 366) throw new BadRequestException('daily_km.range_too_wide');
+      fromD = a;
+      toExclusive = new Date(b);
+      toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
+    } else if (params?.date != null && params.date !== '') {
+      const d = parseDayUtc(params.date);
+      if (!d) throw new BadRequestException('daily_km.invalid_report_date');
+      fromD = d;
+      toExclusive = new Date(d);
+      toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
+    }
+
+    const selectFull = {
+      id: true,
+      reportDate: true,
+      startKm: true,
+      endKm: true,
+      startOdometerUrl: true,
+      endOdometerUrl: true,
+      startRecordedAt: true,
+      endRecordedAt: true,
+      startLatitude: true,
+      startLongitude: true,
+      endLatitude: true,
+      endLongitude: true,
+      vehicleId: true,
+      vehicle: { select: { plateNumber: true } },
+      driver: { select: { fullName: true } },
+    } as const;
+
+    if (fromD == null || toExclusive == null) {
+      const rows = await this.prisma.dailyKmReport.findMany({
+        where: undefined,
+        orderBy: { reportDate: 'desc' },
+        select: selectFull,
+      });
+      return rows.map((r) => ({
+        id: r.id,
+        reportDate: r.reportDate.toISOString(),
+        startKm: String(r.startKm),
+        endKm: r.endKm == null ? null : String(r.endKm),
+        startOdometerUrl: r.startOdometerUrl ?? null,
+        endOdometerUrl: r.endOdometerUrl ?? null,
+        startRecordedAt: r.startRecordedAt?.toISOString() ?? null,
+        endRecordedAt: r.endRecordedAt?.toISOString() ?? null,
+        startLatitude: r.startLatitude == null ? null : String(r.startLatitude),
+        startLongitude: r.startLongitude == null ? null : String(r.startLongitude),
+        endLatitude: r.endLatitude == null ? null : String(r.endLatitude),
+        endLongitude: r.endLongitude == null ? null : String(r.endLongitude),
+        vehicle: r.vehicle,
+        driver: r.driver,
+        gapKm: null as string | null,
+        gapFromReportDate: null as string | null,
+        gapFromEndKm: null as string | null,
+      }));
+    }
 
     const rows = await this.prisma.dailyKmReport.findMany({
-      where: dayStart != null ? { reportDate: { gte: dayStart, lt: dayEnd! } } : undefined,
-      orderBy: { reportDate: 'desc' },
-      select: {
-        id: true,
-        reportDate: true,
-        startKm: true,
-        endKm: true,
-        startOdometerUrl: true,
-        endOdometerUrl: true,
-        startRecordedAt: true,
-        endRecordedAt: true,
-        startLatitude: true,
-        startLongitude: true,
-        endLatitude: true,
-        endLongitude: true,
-        vehicleId: true,
-        vehicle: { select: { plateNumber: true } },
-        driver: { select: { fullName: true } },
-      },
+      where: { reportDate: { gte: fromD, lt: toExclusive } },
+      orderBy: [{ reportDate: 'desc' }, { vehicleId: 'asc' }],
+      select: selectFull,
     });
 
     const vehicleIds = Array.from(new Set(rows.map((r) => r.vehicleId)));
-    const prevByVehicleId =
-      dayStart != null && vehicleIds.length > 0
+    const lookback = new Date(fromD);
+    lookback.setUTCDate(lookback.getUTCDate() - 400);
+
+    const beforeRows =
+      vehicleIds.length > 0
         ? await this.prisma.dailyKmReport.findMany({
-            where: { vehicleId: { in: vehicleIds }, reportDate: { lt: dayStart }, endKm: { not: null } },
-            orderBy: { reportDate: 'desc' },
-            distinct: ['vehicleId'],
-            select: { vehicleId: true, reportDate: true, endKm: true },
+            where: { vehicleId: { in: vehicleIds }, reportDate: { gte: lookback, lt: fromD } },
+            select: { id: true, vehicleId: true, reportDate: true, startKm: true, endKm: true },
+            orderBy: [{ vehicleId: 'asc' }, { reportDate: 'asc' }],
           })
         : [];
 
-    const prevMap = new Map(prevByVehicleId.map((p) => [p.vehicleId, p]));
+    const inRangeSlim = rows.map((r) => ({
+      id: r.id,
+      vehicleId: r.vehicleId,
+      reportDate: r.reportDate,
+      startKm: r.startKm,
+      endKm: r.endKm,
+    }));
+
+    type ChainRow = (typeof inRangeSlim)[number];
+    const byVehicle = new Map<string, ChainRow[]>();
+    for (const r of beforeRows) {
+      if (!byVehicle.has(r.vehicleId)) byVehicle.set(r.vehicleId, []);
+      byVehicle.get(r.vehicleId)!.push({
+        id: r.id,
+        vehicleId: r.vehicleId,
+        reportDate: r.reportDate,
+        startKm: r.startKm,
+        endKm: r.endKm,
+      });
+    }
+    for (const r of inRangeSlim) {
+      if (!byVehicle.has(r.vehicleId)) byVehicle.set(r.vehicleId, []);
+      byVehicle.get(r.vehicleId)!.push(r);
+    }
+
+    const gapMeta = new Map<string, { gapKm: string | null; gapFromReportDate: string | null; gapFromEndKm: string | null }>();
+
+    for (const vid of vehicleIds) {
+      const hist = (byVehicle.get(vid) ?? []).sort((a, b) => a.reportDate.getTime() - b.reportDate.getTime());
+      let prevClosedEnd: number | null = null;
+      let prevReportDate: Date | null = null;
+      let prevEndKmStr: string | null = null;
+      for (const r of hist) {
+        const inWindow = r.reportDate >= fromD && r.reportDate < toExclusive;
+        const startNum = Number(r.startKm);
+        let gapNum: number | null = null;
+        if (prevClosedEnd != null && Number.isFinite(startNum)) {
+          gapNum = Math.max(0, startNum - prevClosedEnd);
+        }
+        if (inWindow) {
+          gapMeta.set(r.id, {
+            gapKm: gapNum == null ? null : String(gapNum),
+            gapFromReportDate: prevReportDate ? prevReportDate.toISOString() : null,
+            gapFromEndKm: prevEndKmStr,
+          });
+        }
+        if (r.endKm != null) {
+          const e = Number(r.endKm);
+          if (Number.isFinite(e)) {
+            prevClosedEnd = e;
+            prevReportDate = r.reportDate;
+            prevEndKmStr = String(r.endKm);
+          }
+        }
+      }
+    }
 
     return rows.map((r) => {
-      const prev = prevMap.get(r.vehicleId);
-      const startKmNum = Number(r.startKm);
-      const prevEndNum = prev?.endKm != null ? Number(prev.endKm) : NaN;
-      const gapNum =
-        prev && Number.isFinite(startKmNum) && Number.isFinite(prevEndNum)
-          ? Math.max(0, startKmNum - prevEndNum)
-          : null;
+      const g = gapMeta.get(r.id);
       return {
         id: r.id,
         reportDate: r.reportDate.toISOString(),
@@ -149,10 +243,9 @@ export class DailyKmService {
         endLongitude: r.endLongitude == null ? null : String(r.endLongitude),
         vehicle: r.vehicle,
         driver: r.driver,
-        /** Oldingi yopilgan hisobotdan farq (oraliq km). */
-        gapKm: gapNum == null ? null : String(gapNum),
-        gapFromReportDate: prev?.reportDate ? prev.reportDate.toISOString() : null,
-        gapFromEndKm: prev?.endKm == null ? null : String(prev.endKm),
+        gapKm: g?.gapKm ?? null,
+        gapFromReportDate: g?.gapFromReportDate ?? null,
+        gapFromEndKm: g?.gapFromEndKm ?? null,
       };
     });
   }

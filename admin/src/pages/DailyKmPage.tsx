@@ -6,6 +6,8 @@ import { MapContainer, Marker, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { DateTimeField } from '@/components/DateTimeField';
+import { DatetimeLocalRangeField } from '@/components/DatetimeLocalRangeField';
+import { SelectField } from '@/components/SelectField';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -157,11 +159,13 @@ export function DailyKmPage() {
   const [view, setView] = useState<'table' | 'gaps'>('table');
   const [rows, setRows] = useState<DailyKmRow[]>([]);
   const [filter, setFilter] = useState<'all' | 'gapsOnly' | 'gapDesc'>('all');
-  const [dateValue, setDateValue] = useState(() => {
+  const initToday = () => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return toDatetimeLocalValue(d);
-  });
+  };
+  const [tableFromValue, setTableFromValue] = useState(initToday);
+  const [tableToValue, setTableToValue] = useState(initToday);
   const [gapRows, setGapRows] = useState<GapAuditRow[]>([]);
   const [gapFromValue, setGapFromValue] = useState(() => {
     const d = new Date();
@@ -190,19 +194,22 @@ export function DailyKmPage() {
   useEffect(() => {
     if (view !== 'gaps' || !isAdmin || gapsRangeSeededRef.current) return;
     gapsRangeSeededRef.current = true;
-    const end = new Date(dateValue);
+    const end = new Date(tableToValue);
     end.setHours(0, 0, 0, 0);
     const start = new Date(end);
     start.setDate(start.getDate() - 30);
     setGapFromValue(toDatetimeLocalValue(start));
     setGapToValue(toDatetimeLocalValue(end));
-  }, [view, dateValue, isAdmin]);
+  }, [view, tableToValue, isAdmin]);
 
   useEffect(() => {
-    const selected = new Date(dateValue);
-    const date = toDateInputValueLocal(selected);
-    api<DailyKmRow[]>(`/daily-km-reports?date=${encodeURIComponent(date)}`).then(setRows).catch(() => {});
-  }, [dateValue]);
+    const a = toDateInputValueLocal(new Date(tableFromValue));
+    const b = toDateInputValueLocal(new Date(tableToValue));
+    const fromStr = a <= b ? a : b;
+    const toStr = a <= b ? b : a;
+    const q = `from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
+    api<DailyKmRow[]>(`/daily-km-reports?${q}`).then(setRows).catch(() => {});
+  }, [tableFromValue, tableToValue]);
 
   useEffect(() => {
     if (view !== 'gaps' || !isAdmin) return;
@@ -238,6 +245,16 @@ export function DailyKmPage() {
     if (filter === 'gapDesc') list = [...list].sort((a, b) => Math.abs(withGapNum(b)) - Math.abs(withGapNum(a)));
     return list;
   }, [rows, filter]);
+
+  const dailyKmFilterOptions = useMemo(
+    () =>
+      [
+        { value: 'all' as const, label: t('dailyKmFilterAll') },
+        { value: 'gapsOnly' as const, label: t('dailyKmFilterGapsOnly') },
+        { value: 'gapDesc' as const, label: t('dailyKmFilterGapDesc') },
+      ],
+    [t],
+  );
 
   const gapDriverSummaries = useMemo(() => {
     const m = new Map<string, GapAuditRow[]>();
@@ -278,26 +295,21 @@ export function DailyKmPage() {
         <h1 className="app-page-title shrink-0">{t('navDailyKm')}</h1>
         <div className="flex min-w-0 flex-col items-stretch gap-3 sm:items-end">
           {view === 'table' && (
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-              <div className="flex items-center gap-2">
-                <span className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmFilterLabel')}</span>
-                <select className="app-select w-full min-w-[200px] sm:w-[220px]" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
-                  <option value="all">{t('dailyKmFilterAll')}</option>
-                  <option value="gapsOnly">{t('dailyKmFilterGapsOnly')}</option>
-                  <option value="gapDesc">{t('dailyKmFilterGapDesc')}</option>
-                </select>
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end sm:justify-end">
+              <div className="flex min-w-0 w-full flex-col gap-1 sm:w-[220px]">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmFilterLabel')}</span>
+                <SelectField value={filter} onChange={setFilter} options={dailyKmFilterOptions} />
               </div>
-              <div className="flex items-center justify-between gap-3 sm:justify-end">
-                <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
-                <div className="w-[190px]">
-                  <DateTimeField
-                    value={dateValue}
-                    onChange={setDateValue}
-                    mode="date"
-                    disabled={{ after: new Date() }}
-                    align="right"
-                  />
-                </div>
+              <div className="flex min-w-0 w-full flex-col gap-1 sm:min-w-[280px] sm:max-w-[min(100vw-2rem,22rem)]">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmTableDateRange')}</span>
+                <DatetimeLocalRangeField
+                  fromValue={tableFromValue}
+                  toValue={tableToValue}
+                  onFromChange={setTableFromValue}
+                  onToChange={setTableToValue}
+                  disabled={{ after: new Date() }}
+                  align="right"
+                />
               </div>
             </div>
           )}
@@ -366,7 +378,7 @@ export function DailyKmPage() {
       {view === 'table' && (
       <div className="app-card min-w-0 overflow-hidden">
         <div className="app-table-wrap overflow-x-auto">
-          <table className="app-table-inner min-w-[960px] text-sm">
+          <table className="app-table-inner min-w-[1040px] text-sm">
             <thead className="app-table-head">
               <tr>
                 <th rowSpan={2} className="p-3 align-bottom">
@@ -374,6 +386,9 @@ export function DailyKmPage() {
                 </th>
                 <th rowSpan={2} className="p-3 align-bottom">
                   {t('fullName')}
+                </th>
+                <th rowSpan={2} className="whitespace-nowrap p-3 align-bottom">
+                  {t('dailyKmGapsColReportDay')}
                 </th>
                 <th colSpan={4} className="border-s border-slate-200 p-3 text-center dark:border-slate-700">
                   {t('dailyKmGroupStart')}
@@ -396,7 +411,7 @@ export function DailyKmPage() {
             <tbody>
               {visibleRows.map((r) => {
                 const endPending = isDailyKmEndMissing(r);
-                /** Jadval 10 ustun: 2+4 бошланиш + 4 тугаш. Иккинчи `tr`да фақат 4 та `td` булса, улар 3–6-устунларга тушади — тугаш сарлавҳалари остига эмас. */
+                /** Jadval: 2 + сана + 4 бошланиш + 4 тугаш. Иккинчи `tr`да `colSpan` 4 — бошланиш блоки ости. */
                 const pendingEndCell =
                   'border-t border-red-100 bg-red-50 dark:border-red-900/55 dark:bg-red-950/50';
                 const row2FillerWhenPending =
@@ -413,6 +428,9 @@ export function DailyKmPage() {
                       </td>
                       <td rowSpan={2} className="p-3 align-top">
                         {r.driver.fullName}
+                      </td>
+                      <td rowSpan={2} className="whitespace-nowrap p-3 align-top text-slate-700 dark:text-slate-200">
+                        {formatDateOnly(r.reportDate)}
                       </td>
                       <td className="border-s border-slate-100 p-3 dark:border-slate-800">
                         <div className="flex flex-col gap-1">
@@ -451,7 +469,7 @@ export function DailyKmPage() {
                             target="_blank"
                             rel="noreferrer"
                           >
-                            {t('linkOpen')}
+                            {t('dailyKmViewPhoto')}
                           </a>
                         ) : (
                           '—'
@@ -527,7 +545,7 @@ export function DailyKmPage() {
                             target="_blank"
                             rel="noreferrer"
                           >
-                            {t('linkOpen')}
+                            {t('dailyKmViewPhoto')}
                           </a>
                         ) : (
                           '—'

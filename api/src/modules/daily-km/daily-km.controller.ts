@@ -56,8 +56,9 @@ export class DailyKmController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @AdminRoutePage('DAILY_KM')
-  async findAll(@Query('date') date?: string) {
-    return await this.dailyKm.findAll({ date });
+  async findAll(@Query('date') date?: string, @Query('from') from?: string, @Query('to') to?: string) {
+    const hasRange = from != null && from !== '' && to != null && to !== '';
+    return await this.dailyKm.findAll(hasRange ? { from, to } : { date });
   }
 
   /** Admin: оралиқ KM аудити (саналар oralig‘и) */

@@ -39,11 +39,17 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
 /** ~34rem at 16px root — must match max popover width used for horizontal clamping */
-const POPOVER_MAX_WIDTH_PX = 544;
+const POPOVER_MAX_WIDTH_DATETIME_PX = 544;
+/** Date-only: compact month grid (~20rem) */
+const POPOVER_MAX_WIDTH_DATE_PX = 320;
 const VIEW_MARGIN = 12;
 
-function popoverWidthPx(): number {
-  return Math.min(window.innerWidth - VIEW_MARGIN * 2, POPOVER_MAX_WIDTH_PX);
+function popoverMaxWidthPx(mode: 'date' | 'datetime'): number {
+  return mode === 'date' ? POPOVER_MAX_WIDTH_DATE_PX : POPOVER_MAX_WIDTH_DATETIME_PX;
+}
+
+function popoverWidthPx(mode: 'date' | 'datetime'): number {
+  return Math.min(window.innerWidth - VIEW_MARGIN * 2, popoverMaxWidthPx(mode));
 }
 
 function clampPopoverLeft(left: number, popoverW: number): number {
@@ -93,6 +99,8 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
       next.setHours(hour, minute, 0, 0);
     }
     setParts(next);
+    // Defer close so DayPicker / document click ordering cannot reopen the toggle in the same tick.
+    if (mode === 'date') queueMicrotask(() => setOpen(false));
   };
 
   const onHour = (h: number) => {
@@ -117,6 +125,7 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
       next.setHours(hour, minute, 0, 0);
     }
     setParts(next);
+    if (mode === 'date') queueMicrotask(() => setOpen(false));
   };
 
   useLayoutEffect(() => {
@@ -125,7 +134,7 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
     if (!btn) return;
     const update = () => {
       const r = btn.getBoundingClientRect();
-      const w = popoverWidthPx();
+      const w = popoverWidthPx(mode);
       const leftBase = align === 'right' ? r.right - w : r.left;
       setPopoverPos({ top: r.bottom + 8, left: clampPopoverLeft(leftBase, w) });
     };
@@ -136,7 +145,7 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
       window.removeEventListener('scroll', update, true);
       window.removeEventListener('resize', update);
     };
-  }, [open, align]);
+  }, [open, align, mode]);
 
   useEffect(() => {
     if (!open) return;
@@ -179,7 +188,11 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
             role="dialog"
             aria-labelledby={fieldId}
             style={{ top: popoverPos.top, left: popoverPos.left }}
-            className="app-datetime-popover fixed z-[5000] w-[min(100vw-1.5rem,34rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
+            className={
+              mode === 'date'
+                ? 'app-datetime-popover fixed z-[5000] w-[min(100vw-1.5rem,20rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900'
+                : 'app-datetime-popover fixed z-[5000] w-[min(100vw-1.5rem,34rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900'
+            }
           >
           <div className="flex max-h-[min(70vh,420px)] flex-col lg:max-h-none lg:flex-row">
             <div className="min-w-0 flex-1 overflow-y-auto p-2 lg:p-3">
@@ -187,12 +200,23 @@ export function DateTimeField({ value, onChange, id, onClear, mode = 'datetime',
                 mode="single"
                 selected={selected}
                 onSelect={onSelectDay}
+                onDayClick={
+                  mode === 'date'
+                    ? () => {
+                        queueMicrotask(() => setOpen(false));
+                      }
+                    : undefined
+                }
                 locale={locale}
                 captionLayout="label"
                 hideNavigation={false}
                 showOutsideDays
                 disabled={disabled}
-                className="app-datetime-daypicker w-full max-w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] [--rdp-day-width:38px] [--rdp-day-height:38px] [--rdp-day_button-width:36px] [--rdp-day_button-height:36px] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]"
+                className={
+                  mode === 'date'
+                    ? 'app-datetime-daypicker w-full max-w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] [--rdp-day-width:34px] [--rdp-day-height:34px] [--rdp-day_button-width:32px] [--rdp-day_button-height:32px] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]'
+                    : 'app-datetime-daypicker w-full max-w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] [--rdp-day-width:38px] [--rdp-day-height:38px] [--rdp-day_button-width:36px] [--rdp-day_button-height:36px] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]'
+                }
               />
             </div>
 
