@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import {
@@ -29,6 +30,7 @@ export function SystemUsersPage() {
   const [err, setErr] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const load = useCallback(async () => {
     const list = await api<OperatorRow[]>('/admin-users');
@@ -49,6 +51,7 @@ export function SystemUsersPage() {
   }
 
   function startEdit(row: OperatorRow) {
+    setShowPassword(false);
     setEditingId(row.id);
     setForm({
       login: row.login,
@@ -65,6 +68,7 @@ export function SystemUsersPage() {
     setEditingId(null);
     setForm(emptyForm);
     setErr(null);
+    setShowPassword(false);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -81,14 +85,20 @@ export function SystemUsersPage() {
           position: form.position.trim(),
           allowedPages: form.allowedPages,
         };
-        if (form.password.trim()) body.password = form.password.trim();
+        if (form.password.trim()) {
+          if (form.password.trim().length < 6) {
+            setErr(t('adminUsersPasswordMin'));
+            return;
+          }
+          body.password = form.password.trim();
+        }
         await api(`/admin-users/${editingId}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
         });
       } else {
-        if (!form.password.trim()) {
-          setErr(t('genericError'));
+        if (form.password.trim().length < 6) {
+          setErr(t('adminUsersPasswordMin'));
           return;
         }
         await api('/admin-users', {
@@ -160,14 +170,28 @@ export function SystemUsersPage() {
           </div>
           <div className="min-w-0">
             <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('password')}</label>
-            <input
-              type="password"
-              className="app-input"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              required={!editingId}
-              autoComplete="new-password"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                className="app-input pr-10"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                required={!editingId}
+                minLength={!editingId ? 6 : undefined}
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? t('passwordHide') : t('passwordShow')}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+              </button>
+            </div>
+            {!editingId && (
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{t('adminUsersPasswordMin')}</p>
+            )}
             {editingId && (
               <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{t('adminUsersOptionalPassword')}</p>
             )}

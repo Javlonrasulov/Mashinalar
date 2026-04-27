@@ -80,22 +80,31 @@ export function TasksPage() {
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!form.vehicleId || !form.driverId) return;
+    const title = form.title.trim();
+    if (title.length < 2) {
+      window.alert(t('taskTitleMinLength'));
+      return;
+    }
     const deadline = new Date(form.deadlineAt);
     if (!Number.isFinite(deadline.getTime()) || deadline.getTime() < Date.now()) {
       window.alert(t('taskDeadlineMustBeFuture'));
       return;
     }
-    await api('/tasks', {
-      method: 'POST',
-      body: JSON.stringify({
-        vehicleId: form.vehicleId,
-        driverId: form.driverId,
-        title: form.title,
-        deadlineAt: new Date(form.deadlineAt).toISOString(),
-      }),
-    });
-    setForm({ vehicleId: '', driverId: '', title: '', deadlineAt: defaultTaskDeadline() });
-    await load();
+    try {
+      await api('/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          vehicleId: form.vehicleId,
+          driverId: form.driverId,
+          title,
+          deadlineAt: new Date(form.deadlineAt).toISOString(),
+        }),
+      });
+      setForm({ vehicleId: '', driverId: '', title: '', deadlineAt: defaultTaskDeadline() });
+      await load();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : t('genericError'));
+    }
   }
 
   async function review(id: string, status: 'APPROVED' | 'REJECTED') {
@@ -155,6 +164,8 @@ export function TasksPage() {
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
             required
+            minLength={2}
+            autoComplete="off"
           />
         </div>
         <div>

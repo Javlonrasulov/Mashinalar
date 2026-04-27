@@ -7,7 +7,6 @@ export const ADMIN_PAGE_KEYS = [
   'TASKS',
   'FUEL',
   'DAILY_KM',
-  'DAILY_KM_GAPS',
   'OIL',
   'EXPENSES',
   'EXPENSES_STATS',
@@ -23,7 +22,6 @@ export function pathnameToAdminPageKey(pathname: string): AdminPageKey | null {
   if (p.startsWith('/drivers')) return 'DRIVERS';
   if (p.startsWith('/tasks')) return 'TASKS';
   if (p.startsWith('/fuel')) return 'FUEL';
-  if (p.startsWith('/daily-km/gaps')) return 'DAILY_KM_GAPS';
   if (p.startsWith('/daily-km')) return 'DAILY_KM';
   if (p.startsWith('/oil')) return 'OIL';
   if (p.startsWith('/expenses/stats')) return 'EXPENSES_STATS';
@@ -43,7 +41,6 @@ export function firstAllowedHref(allowed: string[] | undefined): string {
     { path: '/tasks', key: 'TASKS' },
     { path: '/fuel', key: 'FUEL' },
     { path: '/daily-km', key: 'DAILY_KM' },
-    { path: '/daily-km/gaps', key: 'DAILY_KM_GAPS' },
     { path: '/oil', key: 'OIL' },
     { path: '/expenses', key: 'EXPENSES' },
     { path: '/expenses/stats', key: 'EXPENSES_STATS' },
@@ -63,7 +60,6 @@ export const ADMIN_PAGE_LABEL_KEYS: Record<AdminPageKey, string> = {
   TASKS: 'navTasks',
   FUEL: 'navFuel',
   DAILY_KM: 'navDailyKm',
-  DAILY_KM_GAPS: 'navDailyKmGaps',
   OIL: 'navOil',
   EXPENSES: 'navExpenses',
   EXPENSES_STATS: 'navExpensesStats',

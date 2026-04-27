@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { api, apiUrl } from '@/lib/api';
+import { useAuth } from '@/auth/AuthContext';
 import { useI18n } from '@/i18n/I18nContext';
 import { MapContainer, Marker, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
@@ -64,6 +64,69 @@ function isDailyKmEndMissing(r: DailyKmRow): boolean {
   return false;
 }
 
+type GapAuditRow = {
+  reportId: string;
+  reportDate: string;
+  vehicleId: string;
+  plateNumber: string;
+  driverName: string;
+  startKm: string;
+  endKm: string | null;
+  prevReportId: string | null;
+  prevReportDate: string | null;
+  prevEndKm: string | null;
+  gapKm: string | null;
+};
+
+type GapTier = 'unknown' | 'ok' | 'low' | 'mid' | 'high';
+
+function formatDateOnly(iso: string | null | undefined) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString();
+}
+
+function gapTier(gap: number | null): GapTier {
+  if (gap == null || !Number.isFinite(gap)) return 'unknown';
+  if (gap <= 0) return 'ok';
+  if (gap <= 20) return 'low';
+  if (gap <= 100) return 'mid';
+  return 'high';
+}
+
+function gapRowTone(tier: GapTier): string {
+  switch (tier) {
+    case 'unknown':
+      return 'bg-slate-50/70 dark:bg-slate-900/40';
+    case 'ok':
+      return 'bg-emerald-50/80 dark:bg-emerald-950/25';
+    case 'low':
+      return 'bg-emerald-100/85 dark:bg-emerald-950/35';
+    case 'mid':
+      return 'bg-amber-50/95 dark:bg-amber-950/30';
+    case 'high':
+      return 'bg-red-50/95 dark:bg-red-950/35';
+    default:
+      return '';
+  }
+}
+
+function gapBadgeClass(tier: GapTier): string {
+  switch (tier) {
+    case 'ok':
+      return 'bg-emerald-600/15 text-emerald-900 dark:bg-emerald-500/15 dark:text-emerald-100';
+    case 'low':
+      return 'bg-emerald-700/12 text-emerald-950 dark:bg-emerald-400/12 dark:text-emerald-50';
+    case 'mid':
+      return 'bg-amber-500/20 text-amber-950 dark:bg-amber-400/15 dark:text-amber-100';
+    case 'high':
+      return 'bg-red-600/15 text-red-950 dark:bg-red-500/20 dark:text-red-100';
+    default:
+      return 'bg-slate-200/60 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200';
+  }
+}
+
 function LocBtn({
   lat,
   lng,
@@ -89,6 +152,9 @@ function LocBtn({
 
 export function DailyKmPage() {
   const { t } = useI18n();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+  const [view, setView] = useState<'table' | 'gaps'>('table');
   const [rows, setRows] = useState<DailyKmRow[]>([]);
   const [filter, setFilter] = useState<'all' | 'gapsOnly' | 'gapDesc'>('all');
   const [dateValue, setDateValue] = useState(() => {
@@ -96,14 +162,57 @@ export function DailyKmPage() {
     d.setHours(0, 0, 0, 0);
     return toDatetimeLocalValue(d);
   });
+  const [gapRows, setGapRows] = useState<GapAuditRow[]>([]);
+  const [gapFromValue, setGapFromValue] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - 30);
+    return toDatetimeLocalValue(d);
+  });
+  const [gapToValue, setGapToValue] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return toDatetimeLocalValue(d);
+  });
+  const [expandedVehicleId, setExpandedVehicleId] = useState<string | null>(null);
+  const gapsRangeSeededRef = useRef(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [mapPoint, setMapPoint] = useState<{ lat: number; lon: number; title: string } | null>(null);
+
+  useEffect(() => {
+    if (!isAdmin && view === 'gaps') setView('table');
+  }, [isAdmin, view]);
+
+  useEffect(() => {
+    if (view === 'table') gapsRangeSeededRef.current = false;
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== 'gaps' || !isAdmin || gapsRangeSeededRef.current) return;
+    gapsRangeSeededRef.current = true;
+    const end = new Date(dateValue);
+    end.setHours(0, 0, 0, 0);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 30);
+    setGapFromValue(toDatetimeLocalValue(start));
+    setGapToValue(toDatetimeLocalValue(end));
+  }, [view, dateValue, isAdmin]);
 
   useEffect(() => {
     const selected = new Date(dateValue);
     const date = toDateInputValueLocal(selected);
     api<DailyKmRow[]>(`/daily-km-reports?date=${encodeURIComponent(date)}`).then(setRows).catch(() => {});
   }, [dateValue]);
+
+  useEffect(() => {
+    if (view !== 'gaps' || !isAdmin) return;
+    const a = toDateInputValueLocal(new Date(gapFromValue));
+    const b = toDateInputValueLocal(new Date(gapToValue));
+    const fromStr = a <= b ? a : b;
+    const toStr = a <= b ? b : a;
+    const q = `from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
+    api<GapAuditRow[]>(`/daily-km-reports/gap-audit?${q}`).then(setGapRows).catch(() => setGapRows([]));
+  }, [view, gapFromValue, gapToValue, isAdmin]);
 
   useEffect(() => {
     if (!mapOpen) return;
@@ -130,41 +239,131 @@ export function DailyKmPage() {
     return list;
   }, [rows, filter]);
 
+  const gapDriverSummaries = useMemo(() => {
+    const m = new Map<string, GapAuditRow[]>();
+    for (const r of gapRows) {
+      if (!m.has(r.vehicleId)) m.set(r.vehicleId, []);
+      m.get(r.vehicleId)!.push(r);
+    }
+    const list = Array.from(m.entries()).map(([vehicleId, rs]) => {
+      const sorted = [...rs].sort((a, b) => new Date(a.reportDate).getTime() - new Date(b.reportDate).getTime());
+      let sumPos = 0;
+      let maxG = 0;
+      let countPos = 0;
+      for (const x of sorted) {
+        const g = x.gapKm == null ? NaN : Number(x.gapKm);
+        if (Number.isFinite(g) && g > 0) {
+          sumPos += g;
+          maxG = Math.max(maxG, g);
+          countPos += 1;
+        }
+      }
+      return {
+        vehicleId,
+        plate: sorted[0]?.plateNumber ?? '',
+        driver: sorted[0]?.driverName ?? '',
+        rows: sorted,
+        sumPos,
+        maxG,
+        countPos,
+      };
+    });
+    list.sort((a, b) => b.maxG - a.maxG || b.sumPos - a.sumPos);
+    return list;
+  }, [gapRows]);
+
   return (
     <div className="app-page">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <h1 className="app-page-title">{t('navDailyKm')}</h1>
-          <Link to="/daily-km/gaps" className="text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400">
-            {t('navDailyKmGaps')}
-          </Link>
-          <div className="hidden items-center gap-2 sm:flex">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmFilterLabel')}</span>
-            <select className="app-select w-[240px]" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
-              <option value="all">{t('dailyKmFilterAll')}</option>
-              <option value="gapsOnly">{t('dailyKmFilterGapsOnly')}</option>
-              <option value="gapDesc">{t('dailyKmFilterGapDesc')}</option>
-            </select>
-          </div>
-        </div>
-        <div className="flex min-w-0 items-center justify-between gap-3 sm:justify-end">
-          <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
-          <div className="w-[190px]">
-            <DateTimeField
-              value={dateValue}
-              onChange={setDateValue}
-              mode="date"
-              disabled={{ after: new Date() }}
-              align="right"
-            />
-          </div>
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <h1 className="app-page-title shrink-0">{t('navDailyKm')}</h1>
+        <div className="flex min-w-0 flex-col items-stretch gap-3 sm:items-end">
+          {view === 'table' && (
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmFilterLabel')}</span>
+                <select className="app-select w-full min-w-[200px] sm:w-[220px]" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
+                  <option value="all">{t('dailyKmFilterAll')}</option>
+                  <option value="gapsOnly">{t('dailyKmFilterGapsOnly')}</option>
+                  <option value="gapDesc">{t('dailyKmFilterGapDesc')}</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between gap-3 sm:justify-end">
+                <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
+                <div className="w-[190px]">
+                  <DateTimeField
+                    value={dateValue}
+                    onChange={setDateValue}
+                    mode="date"
+                    disabled={{ after: new Date() }}
+                    align="right"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          {view === 'gaps' && isAdmin && (
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-end sm:justify-end">
+              <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                {t('dailyKmGapsFrom')}
+                <div className="w-full min-w-[160px] sm:w-[170px]">
+                  <DateTimeField value={gapFromValue} onChange={setGapFromValue} mode="date" disabled={{ after: new Date() }} />
+                </div>
+              </label>
+              <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                {t('dailyKmGapsTo')}
+                <div className="w-full min-w-[160px] sm:w-[170px]">
+                  <DateTimeField value={gapToValue} onChange={setGapToValue} mode="date" disabled={{ after: new Date() }} />
+                </div>
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
-      <p className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-2 text-xs leading-relaxed text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 sm:text-sm">
-        {t('dailyKmLayoutExplain')}
-      </p>
+      {isAdmin && (
+        <div className="inline-flex rounded-xl border border-slate-200/90 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
+          <button
+            type="button"
+            onClick={() => {
+              setView('table');
+              setExpandedVehicleId(null);
+            }}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              view === 'table'
+                ? 'bg-blue-600 text-white shadow-sm dark:bg-blue-500'
+                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
+            }`}
+          >
+            {t('dailyKmTabByDay')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('gaps')}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              view === 'gaps'
+                ? 'bg-blue-600 text-white shadow-sm dark:bg-blue-500'
+                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
+            }`}
+          >
+            {t('navDailyKmGaps')}
+          </button>
+        </div>
+      )}
 
+      {view === 'table' && (
+        <p className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-2 text-xs leading-relaxed text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 sm:text-sm">
+          {t('dailyKmLayoutExplain')}
+        </p>
+      )}
+
+      {view === 'gaps' && isAdmin && (
+        <p className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-2 text-xs leading-relaxed text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 sm:text-sm">
+          {t('dailyKmGapsHint')}
+          <span className="mt-1 block text-slate-500 dark:text-slate-400">{t('dailyKmGapsClickRow')}</span>
+        </p>
+      )}
+
+      {view === 'table' && (
       <div className="app-card min-w-0 overflow-hidden">
         <div className="app-table-wrap overflow-x-auto">
           <table className="app-table-inner min-w-[960px] text-sm">
@@ -342,6 +541,123 @@ export function DailyKmPage() {
           </table>
         </div>
       </div>
+      )}
+
+      {view === 'gaps' && isAdmin && (
+        <div className="app-card min-w-0 overflow-hidden">
+          <div className="app-table-wrap overflow-x-auto">
+            <table className="app-table-inner min-w-[720px] text-sm">
+              <thead className="app-table-head">
+                <tr>
+                  <th className="p-3">{t('plate')}</th>
+                  <th className="p-3">{t('fullName')}</th>
+                  <th className="p-3">{t('dailyKmGapsTotalPlusKm')}</th>
+                  <th className="p-3">{t('dailyKmGapsMaxInPeriod')}</th>
+                  <th className="p-3">{t('dailyKmGapsCountDays')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gapDriverSummaries.length === 0 ? (
+                  <tr className="app-table-row">
+                    <td colSpan={5} className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                      {t('dailyKmGapsNoData')}
+                    </td>
+                  </tr>
+                ) : (
+                  gapDriverSummaries.map((s) => {
+                    const tier = gapTier(s.maxG);
+                    const open = expandedVehicleId === s.vehicleId;
+                    return (
+                      <Fragment key={s.vehicleId}>
+                        <tr
+                          className={`app-table-row cursor-pointer ${gapRowTone(tier)}`}
+                          onClick={() => setExpandedVehicleId((id) => (id === s.vehicleId ? null : s.vehicleId))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setExpandedVehicleId((id) => (id === s.vehicleId ? null : s.vehicleId));
+                            }
+                          }}
+                          tabIndex={0}
+                          role="button"
+                          aria-expanded={open}
+                        >
+                          <td className="p-3 font-mono">{s.plate}</td>
+                          <td className="p-3">{s.driver}</td>
+                          <td className="p-3 font-semibold tabular-nums">+{s.sumPos}</td>
+                          <td className="p-3 tabular-nums">{s.maxG}</td>
+                          <td className="p-3 tabular-nums">{s.countPos}</td>
+                        </tr>
+                        {open && (
+                          <tr className="bg-slate-50/50 dark:bg-slate-900/60">
+                            <td colSpan={5} className="p-0">
+                              <div className="border-t border-slate-200 px-3 py-3 dark:border-slate-700">
+                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                  {t('dailyKmGapsDetailTitle')}
+                                </p>
+                                <div className="app-table-wrap overflow-x-auto">
+                                  <table className="app-table-inner min-w-[840px] text-sm">
+                                    <thead className="app-table-head">
+                                      <tr>
+                                        <th className="p-2">{t('dailyKmGapsColReportDay')}</th>
+                                        <th className="p-2">{t('dailyKmGapsColPrevDay')}</th>
+                                        <th className="p-2">{t('dailyKmGapsColPrevEnd')}</th>
+                                        <th className="p-2">{t('dailyKmGapsColStart')}</th>
+                                        <th className="p-2">{t('dailyKmGapsColEnd')}</th>
+                                        <th className="p-2">{t('dailyKmGapsColGap')}</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {s.rows.map((r) => {
+                                        const g = r.gapKm == null ? NaN : Number(r.gapKm);
+                                        const trTier = gapTier(Number.isFinite(g) ? g : null);
+                                        return (
+                                          <tr
+                                            key={r.reportId}
+                                            className={`${gapRowTone(trTier)} border-t border-slate-100 dark:border-slate-800`}
+                                          >
+                                            <td className="p-2 whitespace-nowrap">{formatDateOnly(r.reportDate)}</td>
+                                            <td className="p-2 whitespace-nowrap">{formatDateOnly(r.prevReportDate)}</td>
+                                            <td className="p-2 tabular-nums">{r.prevEndKm ?? '—'}</td>
+                                            <td className="p-2 tabular-nums">{r.startKm}</td>
+                                            <td className="p-2 tabular-nums">{r.endKm ?? '—'}</td>
+                                            <td className="p-2">
+                                              {r.gapKm == null ? (
+                                                '—'
+                                              ) : (
+                                                <span className="inline-flex flex-wrap items-center gap-2">
+                                                  <span className="font-semibold tabular-nums">+{r.gapKm}</span>
+                                                  <span
+                                                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${gapBadgeClass(trTier)}`}
+                                                  >
+                                                    {trTier === 'ok' && t('dailyKmGapsOk')}
+                                                    {trTier === 'low' && t('dailyKmGapsSeverityLow')}
+                                                    {trTier === 'mid' && t('dailyKmGapsSeverityMid')}
+                                                    {trTier === 'high' && t('dailyKmGapsSeverityHigh')}
+                                                    {trTier === 'unknown' && '—'}
+                                                  </span>
+                                                </span>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {mapOpen && mapPoint && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6">

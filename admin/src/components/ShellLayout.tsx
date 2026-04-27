@@ -9,7 +9,6 @@ import {
   ClipboardList,
   Fuel,
   Gauge,
-  BarChart3,
   LayoutDashboard,
   LogOut,
   Map,
@@ -37,7 +36,6 @@ type NavKey =
   | 'navTasks'
   | 'navFuel'
   | 'navDailyKm'
-  | 'navDailyKmGaps'
   | 'navOil'
   | 'navExpenses'
   | 'navSystemUsers';
@@ -57,7 +55,6 @@ const nav: {
   { to: '/tasks', icon: ClipboardList, key: 'navTasks', page: 'TASKS' },
   { to: '/fuel', icon: Fuel, key: 'navFuel', page: 'FUEL' },
   { to: '/daily-km', icon: Gauge, key: 'navDailyKm', page: 'DAILY_KM', end: true },
-  { to: '/daily-km/gaps', icon: BarChart3, key: 'navDailyKmGaps', page: 'DAILY_KM_GAPS', end: true },
   { to: '/oil', icon: Droplets, key: 'navOil', page: 'OIL' },
   { to: '/expenses', icon: Receipt, key: 'navExpenses', page: 'EXPENSES' },
   { to: '/system-users', icon: UserCog, key: 'navSystemUsers', adminOnly: true, end: true },
@@ -79,7 +76,6 @@ function usePageTitle() {
     { path: '/drivers', key: 'navDrivers' },
     { path: '/tasks', key: 'navTasks' },
     { path: '/fuel', key: 'navFuel' },
-    { path: '/daily-km/gaps', end: true, key: 'navDailyKmGaps' },
     { path: '/daily-km', key: 'navDailyKm' },
     { path: '/oil', key: 'navOil' },
     { path: '/expenses/stats', key: 'navExpensesStats' },

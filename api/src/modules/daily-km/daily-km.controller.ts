@@ -64,7 +64,7 @@ export class DailyKmController {
   @Get('gap-audit')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @AdminRoutePage('DAILY_KM_GAPS')
+  @AdminRoutePage('DAILY_KM')
   async gapAudit(@Query('from') from: string, @Query('to') to: string) {
     return await this.dailyKm.findGapAudit({ from, to });
   }

@@ -16,6 +16,30 @@ export function apiUrl(path: string) {
   return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+function formatNestErrorMessage(j: { message?: unknown; error?: string }): string {
+  const m = j.message;
+  if (Array.isArray(m)) {
+    return m
+      .map((x) => {
+        if (typeof x === 'string') return x;
+        if (x && typeof x === 'object' && 'constraints' in x) {
+          const c = (x as { constraints?: Record<string, string> }).constraints;
+          if (c && typeof c === 'object') return Object.values(c).join(', ');
+        }
+        try {
+          return JSON.stringify(x);
+        } catch {
+          return String(x);
+        }
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+  if (typeof m === 'string') return m;
+  if (m != null) return String(m);
+  return j.error || JSON.stringify(j);
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has('Content-Type') && init.body && !(init.body instanceof FormData)) {
@@ -32,8 +56,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     let msg = res.statusText;
     try {
-      const j = await res.json();
-      msg = j.message || JSON.stringify(j);
+      const j = (await res.json()) as { message?: unknown; error?: string };
+      msg = formatNestErrorMessage(j);
     } catch {
       try {
         msg = await res.text();
