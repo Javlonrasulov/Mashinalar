@@ -1,4 +1,5 @@
-export const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || 'http://localhost:3000';
+/** Same-origin `/api` (Nginx prod/dev, Vite dev proxy). Override with VITE_API_URL if needed. */
+export const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || '/api';
 
 export function getToken(): string | null {
   return localStorage.getItem('mashinalar_token');
