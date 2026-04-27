@@ -100,6 +100,8 @@ export function VehiclesPage() {
   const [initialDriverId, setInitialDriverId] = useState<string>('');
   const [pendingDelete, setPendingDelete] = useState<Vehicle | null>(null);
   const [deleting, setDeleting] = useState(false);
+  /** Yangi mashina formasi yashirin; tahrirda doim ochiq. */
+  const [createFormOpen, setCreateFormOpen] = useState(false);
   const [form, setForm] = useState({
     categoryId: '',
     name: '',
@@ -156,7 +158,7 @@ export function VehiclesPage() {
     return () => document.removeEventListener('keydown', onEsc);
   }, [pendingDelete, deleting]);
 
-  function emptyForm() {
+  function resetVehicleForm() {
     setEditingId(null);
     setInitialDriverId('');
     setForm({
@@ -175,6 +177,13 @@ export function VehiclesPage() {
       driverId: '',
     });
   }
+
+  function emptyForm() {
+    resetVehicleForm();
+    setCreateFormOpen(false);
+  }
+
+  const showVehicleForm = Boolean(editingId) || createFormOpen;
 
   async function assignDriverIfNeeded(vehicleId: string, nextDriverId: string, prevDriverId: string) {
     if (nextDriverId === prevDriverId) return;
@@ -301,6 +310,22 @@ export function VehiclesPage() {
         </div>
       )}
 
+      {!showVehicleForm ? (
+        <div className="mb-4 flex min-w-0 justify-end">
+          <button
+            type="button"
+            className="app-btn-primary"
+            onClick={() => {
+              resetVehicleForm();
+              setCreateFormOpen(true);
+            }}
+          >
+            {t('vehicleFormOpenCreate')}
+          </button>
+        </div>
+      ) : null}
+
+      {showVehicleForm ? (
       <form onSubmit={onCreate} className="app-card-pad min-w-0 space-y-4">
         <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-4">
           <div className="min-w-0 sm:col-span-2 xl:col-span-2">
@@ -423,6 +448,11 @@ export function VehiclesPage() {
         </div>
 
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          {!editingId && createFormOpen && (
+            <button type="button" className="app-btn-ghost w-full sm:w-auto" onClick={() => emptyForm()}>
+              {t('vehicleFormCloseCreate')}
+            </button>
+          )}
           {editingId && (
             <button type="button" className="app-btn-ghost w-full sm:w-auto" onClick={onCancelEdit}>
               {t('cancel')}
@@ -433,6 +463,7 @@ export function VehiclesPage() {
           </button>
         </div>
       </form>
+      ) : null}
 
       <div className="app-card min-w-0 overflow-hidden">
         <div className="app-table-wrap">
