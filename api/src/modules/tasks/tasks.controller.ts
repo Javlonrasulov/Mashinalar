@@ -17,6 +17,7 @@ import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
 import { extname, join } from 'path';
 import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -43,6 +44,7 @@ export class TasksController {
   @Get()
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('TASKS')
   findAllAdmin() {
     return this.tasks.findAllAdmin();
   }
@@ -66,6 +68,7 @@ export class TasksController {
   @Post()
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('TASKS')
   create(@Body() dto: CreateTaskDto, @CurrentUser() user: JwtUser) {
     return this.tasks.create(dto, user.userId);
   }
@@ -99,6 +102,7 @@ export class TasksController {
   @Patch(':id/review')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('TASKS')
   review(@Param('id') id: string, @Body() dto: ReviewTaskDto, @CurrentUser() user: JwtUser) {
     return this.tasks.review(id, dto.status, user.userId);
   }
@@ -106,6 +110,7 @@ export class TasksController {
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('TASKS')
   remove(@Param('id') id: string, @CurrentUser() user: JwtUser) {
     return this.tasks.remove(id, user.userId, UserRole.ADMIN);
   }

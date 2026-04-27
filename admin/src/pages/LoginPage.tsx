@@ -19,7 +19,9 @@ export function LoginPage() {
     try {
       await login(loginStr, password);
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : t('genericError'));
+      const raw = e instanceof Error ? e.message : '';
+      if (raw.includes('operator_no_pages')) setErr(t('operatorNoPages'));
+      else setErr(raw || t('genericError'));
     } finally {
       setLoading(false);
     }
@@ -44,7 +46,7 @@ export function LoginPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('appTitle')}</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Admin</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{t('loginPortalSubtitle')}</p>
           </div>
         </div>
         {err && (

@@ -6,6 +6,17 @@ export function intlLocaleFor(lang: Lang): string {
   return 'uz-Latn-UZ';
 }
 
+export function formatDate(iso: string | null | undefined, lang: Lang): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '—';
+  return new Intl.DateTimeFormat(intlLocaleFor(lang), {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+}
+
 export function formatDateTime(iso: string | null | undefined, lang: Lang): string {
   if (!iso) return '—';
   const d = new Date(iso);

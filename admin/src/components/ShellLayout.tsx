@@ -19,6 +19,7 @@ import {
   Droplets,
   Sun,
   Users,
+  UserCog,
   X,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
@@ -26,24 +27,47 @@ import { useAuth } from '@/auth/AuthContext';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { clsx } from 'clsx';
 import { api } from '@/lib/api';
+import type { AdminPageKey } from '@/lib/adminPages';
 
-const nav = [
-  { to: '/', icon: LayoutDashboard, key: 'navDashboard' as const },
-  { to: '/map', icon: Map, key: 'navMap' as const },
-  { to: '/vehicles', icon: Car, key: 'navVehicles' as const },
-  { to: '/drivers', icon: Users, key: 'navDrivers' as const },
-  { to: '/tasks', icon: ClipboardList, key: 'navTasks' as const },
-  { to: '/fuel', icon: Fuel, key: 'navFuel' as const },
-  { to: '/daily-km', icon: Gauge, key: 'navDailyKm' as const, end: true },
-  { to: '/daily-km/gaps', icon: BarChart3, key: 'navDailyKmGaps' as const, end: true },
-  { to: '/oil', icon: Droplets, key: 'navOil' as const },
-  { to: '/expenses', icon: Receipt, key: 'navExpenses' as const },
+type NavKey =
+  | 'navDashboard'
+  | 'navMap'
+  | 'navVehicles'
+  | 'navDrivers'
+  | 'navTasks'
+  | 'navFuel'
+  | 'navDailyKm'
+  | 'navDailyKmGaps'
+  | 'navOil'
+  | 'navExpenses'
+  | 'navSystemUsers';
+
+const nav: {
+  to: string;
+  icon: typeof LayoutDashboard;
+  key: NavKey;
+  end?: boolean;
+  page?: AdminPageKey;
+  adminOnly?: boolean;
+}[] = [
+  { to: '/', icon: LayoutDashboard, key: 'navDashboard', page: 'DASHBOARD', end: true },
+  { to: '/map', icon: Map, key: 'navMap', page: 'MAP' },
+  { to: '/vehicles', icon: Car, key: 'navVehicles', page: 'VEHICLES' },
+  { to: '/drivers', icon: Users, key: 'navDrivers', page: 'DRIVERS' },
+  { to: '/tasks', icon: ClipboardList, key: 'navTasks', page: 'TASKS' },
+  { to: '/fuel', icon: Fuel, key: 'navFuel', page: 'FUEL' },
+  { to: '/daily-km', icon: Gauge, key: 'navDailyKm', page: 'DAILY_KM', end: true },
+  { to: '/daily-km/gaps', icon: BarChart3, key: 'navDailyKmGaps', page: 'DAILY_KM_GAPS', end: true },
+  { to: '/oil', icon: Droplets, key: 'navOil', page: 'OIL' },
+  { to: '/expenses', icon: Receipt, key: 'navExpenses', page: 'EXPENSES' },
+  { to: '/system-users', icon: UserCog, key: 'navSystemUsers', adminOnly: true, end: true },
 ];
 
 function usePageTitle() {
   const { pathname } = useLocation();
   const { t } = useI18n();
   const ordered: { path: string; end?: boolean; key: string }[] = [
+    { path: '/system-users', end: true, key: 'navSystemUsers' },
     { path: '/map', key: 'navMap' },
     { path: '/vehicles/:vehicleId/history', key: 'vehicleDriverHistoryTitle' },
     { path: '/vehicles/inspection', end: true, key: 'vehiclesSubNavInspection' },
@@ -178,6 +202,17 @@ function LanguageMenu({
   );
 }
 
+function navVisible(
+  user: { role: string; allowedPages?: string[] } | null | undefined,
+  item: (typeof nav)[number],
+) {
+  if (!user) return false;
+  if (item.adminOnly) return user.role === 'ADMIN';
+  if (user.role === 'ADMIN') return true;
+  if (user.role === 'OPERATOR' && item.page) return user.allowedPages?.includes(item.page) ?? false;
+  return false;
+}
+
 export function ShellLayout() {
   const { logout, user, refresh } = useAuth();
   const { t, lang, setLang } = useI18n();
@@ -227,6 +262,10 @@ export function ShellLayout() {
 
   const initialLogin = useMemo(() => user?.login ?? '', [user?.login]);
 
+  const sidebarNav = useMemo(() => nav.filter((item) => navVisible(user, item)), [user]);
+
+  const roleTitle = user?.role === 'OPERATOR' ? user.position?.trim() || t('userLabelOperator') : t('userLabel');
+
   return (
     <div className="flex min-h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-[#f4f6f9] text-slate-900 dark:bg-slate-950 dark:text-slate-50">
       {sidebarOpen && (
@@ -271,7 +310,7 @@ export function ShellLayout() {
             sidebarCollapsed ? 'px-2' : 'px-3',
           )}
         >
-          {nav.map((item) => (
+          {sidebarNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -371,7 +410,7 @@ export function ShellLayout() {
                       {(user?.login ?? 'A').slice(0, 1).toUpperCase()}
                     </div>
                     <div className="hidden min-w-0 max-w-[180px] md:block">
-                      <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{t('userLabel')}</p>
+                      <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{roleTitle}</p>
                       <p className="truncate text-xs text-slate-500">{user?.login}</p>
                     </div>
                   </button>

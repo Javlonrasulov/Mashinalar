@@ -15,6 +15,7 @@ import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
 import { extname, join } from 'path';
 import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -46,6 +47,7 @@ export class FuelController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
   findAll(@Query('date') date?: string, @Query('from') from?: string, @Query('to') to?: string) {
     return this.fuel.findAll({ date, from, to });
   }

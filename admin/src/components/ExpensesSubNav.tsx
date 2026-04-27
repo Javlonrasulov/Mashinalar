@@ -1,9 +1,14 @@
 import { NavLink } from 'react-router';
+import { useAuth } from '@/auth/AuthContext';
 import { useI18n } from '@/i18n/I18nContext';
 import { clsx } from 'clsx';
 
 export function ExpensesSubNav() {
   const { t } = useI18n();
+  const { user } = useAuth();
+  const pages = user?.allowedPages;
+  const showList = user?.role === 'ADMIN' || !pages || pages.includes('EXPENSES');
+  const showStats = user?.role === 'ADMIN' || !pages || pages.includes('EXPENSES_STATS');
   const tabClass = ({ isActive }: { isActive: boolean }) =>
     clsx(
       'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
@@ -13,12 +18,16 @@ export function ExpensesSubNav() {
     );
   return (
     <nav className="flex flex-wrap gap-2 border-b border-slate-200 pb-3 dark:border-slate-800" aria-label="Expenses">
-      <NavLink to="/expenses" end className={tabClass}>
-        {t('navExpenses')}
-      </NavLink>
-      <NavLink to="/expenses/stats" className={tabClass}>
-        {t('navExpensesStats')}
-      </NavLink>
+      {showList && (
+        <NavLink to="/expenses" end className={tabClass}>
+          {t('navExpenses')}
+        </NavLink>
+      )}
+      {showStats && (
+        <NavLink to="/expenses/stats" className={tabClass}>
+          {t('navExpensesStats')}
+        </NavLink>
+      )}
     </nav>
   );
 }

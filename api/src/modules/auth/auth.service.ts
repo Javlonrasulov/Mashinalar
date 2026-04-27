@@ -23,6 +23,10 @@ export class AuthService {
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Invalid credentials');
 
+    if (user.role === UserRole.OPERATOR && (!user.allowedPages || user.allowedPages.length === 0)) {
+      throw new UnauthorizedException('operator_no_pages');
+    }
+
     const payload: JwtPayload = {
       sub: user.id,
       role: user.role,
@@ -35,6 +39,8 @@ export class AuthService {
         id: user.id,
         role: user.role,
         login: user.login,
+        position: user.position,
+        allowedPages: user.allowedPages ?? [],
         driver: user.driver
           ? {
               id: user.driver.id,
@@ -53,10 +59,15 @@ export class AuthService {
       include: { driver: true },
     });
     if (!user) throw new UnauthorizedException();
+    if (user.role === UserRole.OPERATOR && (!user.allowedPages || user.allowedPages.length === 0)) {
+      throw new UnauthorizedException('operator_no_pages');
+    }
     return {
       id: user.id,
       role: user.role,
       login: user.login,
+      position: user.position,
+      allowedPages: user.allowedPages ?? [],
       driver: user.driver
         ? {
             id: user.driver.id,

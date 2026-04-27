@@ -1,11 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, clearToken, getToken, setToken } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
+import type { AdminPageKey } from '@/lib/adminPages';
 
 export type AuthUser = {
   id: string;
   role: string;
   login: string;
+  position?: string | null;
+  allowedPages?: AdminPageKey[] | string[];
   driver: null | { id: string; fullName: string; phone: string; vehicleId: string | null };
 };
 
@@ -25,6 +28,10 @@ type Ctx = {
 
 const AuthContext = createContext<Ctx | null>(null);
 
+function isAdminPanelUser(role: string) {
+  return role === 'ADMIN' || role === 'OPERATOR';
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setTok] = useState<string | null>(() => getToken());
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -43,17 +50,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     async function hydrate() {
-      const t = getToken();
-      if (!t) {
+      const t0 = getToken();
+      if (!t0) {
         setTok(null);
         setUser(null);
         setLoading(false);
         return;
       }
-      setTok(t);
+      setTok(t0);
       try {
         const me = await api<AuthUser>('/auth/me');
-        if (me.role !== 'ADMIN') {
+        if (!isAdminPanelUser(me.role)) {
           clearToken();
           setTok(null);
           setUser(null);
@@ -75,15 +82,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    const t = getToken();
-    if (!t) {
+    const t0 = getToken();
+    if (!t0) {
       setTok(null);
       setUser(null);
       return;
     }
-    setTok(t);
+    setTok(t0);
     const me = await api<AuthUser>('/auth/me');
-    if (me.role !== 'ADMIN') {
+    if (!isAdminPanelUser(me.role)) {
       clearToken();
       setTok(null);
       setUser(null);
@@ -97,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: 'POST',
       body: JSON.stringify({ login: loginStr, password }),
     });
-    if (res.user.role !== 'ADMIN') {
+    if (!isAdminPanelUser(res.user.role)) {
       throw new Error(t('adminOnly'));
     }
     setToken(res.accessToken);

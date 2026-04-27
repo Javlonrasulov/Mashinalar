@@ -15,6 +15,7 @@ import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
 import { extname, join } from 'path';
 import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -78,12 +79,14 @@ export class OilChangeController {
 
   @Get('admin/overview')
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('OIL')
   adminOverview() {
     return this.oil.adminOverview();
   }
 
   @Get('admin/list')
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('OIL')
   adminList(@Query('limit') limit?: string) {
     return this.oil.adminListReports(limit);
   }

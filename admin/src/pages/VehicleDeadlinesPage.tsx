@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
-import { formatDateTime } from '@/lib/assignmentDisplay';
+import { formatDate } from '@/lib/assignmentDisplay';
 
 export type DeadlineKind = 'inspection' | 'insurance' | 'gasBalloon';
 
@@ -37,6 +37,9 @@ function nextIso(v: Vehicle, kind: DeadlineKind): string | null {
   if (kind === 'insurance') return v.insuranceEndDate ?? null;
   return v.gasBalloonNextChangeAt ?? null;
 }
+
+/** Bundan kam qolgan kunlar — aniq qizil (foydalanuvchi 10 kun). */
+const URGENT_RED_MAX_DAYS = 10;
 
 function soonDays(kind: DeadlineKind): number {
   if (kind === 'insurance') return 30;
@@ -79,14 +82,20 @@ export function VehicleDeadlinesPage({ kind }: { kind: DeadlineKind }) {
 
   function rowTone(days: number | null): string {
     if (days === null) return '';
-    if (days < 0) return 'bg-red-50/80 dark:bg-red-950/25';
-    if (days <= threshold) return 'bg-amber-50/70 dark:bg-amber-950/20';
+    if (days < 0) {
+      return 'bg-red-200 shadow-[inset_0_0_0_2px_rgb(220_38_38)] dark:bg-red-950/80 dark:shadow-[inset_0_0_0_2px_rgb(248_113_113)]';
+    }
+    if (days < URGENT_RED_MAX_DAYS) {
+      return 'bg-red-200 shadow-[inset_0_0_0_2px_rgb(239_68_68)] dark:bg-red-900/75 dark:shadow-[inset_0_0_0_2px_rgb(252_165_165)]';
+    }
+    if (days <= threshold) return 'bg-amber-100 shadow-[inset_0_0_0_1px_rgb(245_158_11)] dark:bg-amber-950/35 dark:shadow-[inset_0_0_0_1px_rgb(251_191_36)]';
     return '';
   }
 
   function statusLabel(days: number | null): string {
     if (days === null) return t('deadlineStatus_noDate');
     if (days < 0) return t('deadlineStatus_overdue');
+    if (days < URGENT_RED_MAX_DAYS) return t('deadlineStatus_critical', { u: String(URGENT_RED_MAX_DAYS) });
     if (days <= threshold) return t('deadlineStatus_soon');
     return t('deadlineStatus_ok');
   }
@@ -95,7 +104,7 @@ export function VehicleDeadlinesPage({ kind }: { kind: DeadlineKind }) {
     <div className="app-page">
       <h1 className="app-page-title">{t(titleKey(kind))}</h1>
       <p className="mb-4 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
-        {t('vehicleDeadlinesHint', { n: String(threshold) })}
+        {t('vehicleDeadlinesHint', { n: String(threshold), u: String(URGENT_RED_MAX_DAYS) })}
       </p>
 
       {err && (
@@ -128,12 +137,18 @@ export function VehicleDeadlinesPage({ kind }: { kind: DeadlineKind }) {
               ) : (
                 sorted.map(({ v, iso, days }) => (
                   <tr key={v.id} className={['app-table-row', rowTone(days)].filter(Boolean).join(' ')}>
-                    <td className="p-3 font-mono">{v.plateNumber}</td>
-                    <td className="p-3">{v.name}</td>
+                    <td className="p-3 font-mono font-semibold text-slate-900 dark:text-white">{v.plateNumber}</td>
+                    <td className="p-3 font-medium text-slate-900 dark:text-white">{v.name}</td>
                     <td className="p-3">{v.category?.name ?? '—'}</td>
-                    <td className="p-3 whitespace-nowrap">{iso ? formatDateTime(iso, lang) : '—'}</td>
-                    <td className="p-3 tabular-nums">{days === null ? '—' : String(days)}</td>
-                    <td className="p-3 text-xs font-medium">{statusLabel(days)}</td>
+                    <td className="p-3 whitespace-nowrap font-medium">{iso ? formatDate(iso, lang) : '—'}</td>
+                    <td
+                      className={`p-3 tabular-nums font-semibold ${
+                        days !== null && days < URGENT_RED_MAX_DAYS ? 'text-red-800 dark:text-red-200' : 'text-slate-900 dark:text-white'
+                      }`}
+                    >
+                      {days === null ? '—' : String(days)}
+                    </td>
+                    <td className="p-3 text-xs font-semibold text-slate-800 dark:text-slate-100">{statusLabel(days)}</td>
                     <td className="p-3">
                       <Link
                         to="/vehicles"

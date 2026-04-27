@@ -19,6 +19,12 @@ data class TaskSubmitUiState(
   val proofPhoto: File? = null,
   val loading: Boolean = false,
   val message: String? = null,
+  /** Vazifa holati tekshirilmoqda. */
+  val gateLoading: Boolean = true,
+  /** PENDING / REJECTED — form; SUBMITTED / APPROVED yoki xato — yopilgan. */
+  val allowEdit: Boolean = false,
+  val gateMessage: String? = null,
+  val readOnlyReason: String? = null,
 )
 
 @HiltViewModel
@@ -42,8 +48,65 @@ class TaskSubmitViewModel @Inject constructor(
     _state.value = _state.value.copy(message = null)
   }
 
+  /**
+   * Vazifa `taskId` bo‘yicha serverdan tekshiriladi: yuborilgan/tasdiqlangan bo‘lsa
+   * [TaskSubmitUiState.allowEdit] `false`, shuningdek [readOnlyReason] beriladi.
+   */
+  fun prepareForTask(taskId: String) {
+    viewModelScope.launch {
+      _state.value =
+        TaskSubmitUiState(
+          proofText = "",
+          proofPhoto = null,
+          loading = false,
+          message = null,
+          gateLoading = true,
+          allowEdit = false,
+          gateMessage = null,
+          readOnlyReason = null,
+        )
+      when (val r = repo.myTasks()) {
+        is ApiResult.Ok -> {
+          val t = r.value.firstOrNull { it.id == taskId }
+          if (t == null) {
+            _state.value =
+              _state.value.copy(
+                gateLoading = false,
+                allowEdit = false,
+                gateMessage = context.getString(R.string.task_not_found),
+              )
+            return@launch
+          }
+          when (t.status.uppercase()) {
+            "SUBMITTED", "APPROVED" ->
+              _state.value =
+                _state.value.copy(
+                  gateLoading = false,
+                  allowEdit = false,
+                  readOnlyReason = context.getString(R.string.task_submit_readonly),
+                )
+            else ->
+              _state.value =
+                _state.value.copy(
+                  gateLoading = false,
+                  allowEdit = true,
+                )
+          }
+        }
+        is ApiResult.Err ->
+          _state.value =
+            _state.value.copy(
+              gateLoading = false,
+              allowEdit = false,
+              gateMessage = r.message,
+            )
+      }
+    }
+  }
+
   fun submit(taskId: String) {
     val s = _state.value
+    if (!s.allowEdit || s.gateLoading) return
     if (s.proofPhoto == null && s.proofText.isBlank()) {
       _state.value = s.copy(message = context.getString(R.string.msg_task_submit_needs_proof))
       return
@@ -56,7 +119,18 @@ class TaskSubmitViewModel @Inject constructor(
         proofPhoto = s.proofPhoto,
       )
       _state.value = when (r) {
-        is ApiResult.Ok -> TaskSubmitUiState(message = context.getString(R.string.msg_sent))
+        is ApiResult.Ok -> {
+          runCatching { s.proofPhoto?.delete() }
+          s.copy(
+            loading = false,
+            proofText = "",
+            proofPhoto = null,
+            message = context.getString(R.string.msg_sent),
+            gateLoading = false,
+            allowEdit = false,
+            readOnlyReason = context.getString(R.string.task_submit_readonly),
+          )
+        }
         is ApiResult.Err -> s.copy(loading = false, message = localizeTaskSubmitError(r.message))
       }
     }

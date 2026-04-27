@@ -2,13 +2,19 @@ package com.mashinalar.driver.ui.scaffold
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,7 +55,9 @@ import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Task
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.OilBarrel
+import com.mashinalar.driver.data.network.TaskDto
 
 enum class NavItem(val route: String, val labelRes: Int) {
   Home("home", R.string.nav_home),
@@ -69,6 +77,13 @@ fun AppScaffold(
   onProfileClick: () -> Unit,
   onBackClick: (() -> Unit)? = null,
   showProfileAction: Boolean = true,
+  showTaskBell: Boolean = false,
+  taskBellCount: Int = 0,
+  taskBellTasks: List<TaskDto> = emptyList(),
+  taskBellMenuExpanded: Boolean = false,
+  onTaskBellClick: () -> Unit = {},
+  onDismissTaskBellMenu: () -> Unit = {},
+  onTaskBellItemClick: (String) -> Unit = {},
   content: @Composable (PaddingValues, SnackbarHostState) -> Unit,
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
@@ -91,6 +106,67 @@ fun AppScaffold(
           }
         },
         actions = {
+          if (showTaskBell) {
+            Box {
+              IconButton(onClick = onTaskBellClick) {
+                if (taskBellCount > 0) {
+                  BadgedBox(
+                    badge = {
+                      Badge { Text(taskBellCount.toString()) }
+                    },
+                  ) {
+                    Icon(
+                      Icons.Filled.Notifications,
+                      contentDescription = stringResource(R.string.task_bell_cd),
+                    )
+                  }
+                } else {
+                  Icon(
+                    Icons.Filled.Notifications,
+                    contentDescription = stringResource(R.string.task_bell_cd),
+                  )
+                }
+              }
+              DropdownMenu(
+                expanded = taskBellMenuExpanded,
+                onDismissRequest = onDismissTaskBellMenu,
+                modifier = Modifier.width(280.dp),
+              ) {
+                if (taskBellTasks.isEmpty()) {
+                  DropdownMenuItem(
+                    text = { Text(stringResource(R.string.home_tasks_empty)) },
+                    onClick = onDismissTaskBellMenu,
+                    enabled = false,
+                  )
+                } else {
+                  taskBellTasks.forEach { task ->
+                    DropdownMenuItem(
+                      text = {
+                        Column {
+                          Text(
+                            task.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = 2,
+                          )
+                          Text(
+                            stringResource(taskStatusLabelRes(task.status)),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                          )
+                        }
+                      },
+                      onClick = { onTaskBellItemClick(task.id) },
+                    )
+                  }
+                  HorizontalDivider()
+                }
+                DropdownMenuItem(
+                  text = { Text(stringResource(R.string.close)) },
+                  onClick = onDismissTaskBellMenu,
+                )
+              }
+            }
+          }
           IconButton(onClick = onLanguageClick) { Icon(Icons.Default.Language, contentDescription = null) }
           if (showProfileAction) {
             IconButton(onClick = onProfileClick) { Icon(Icons.Default.AccountCircle, contentDescription = null) }
@@ -170,4 +246,13 @@ fun AppScaffold(
     content(pv, snackbarHostState)
   }
 }
+
+private fun taskStatusLabelRes(status: String): Int =
+  when (status.uppercase()) {
+    "PENDING" -> R.string.task_status_pending
+    "SUBMITTED" -> R.string.task_status_submitted
+    "APPROVED" -> R.string.task_status_approved
+    "REJECTED" -> R.string.task_status_rejected
+    else -> R.string.status
+  }
 

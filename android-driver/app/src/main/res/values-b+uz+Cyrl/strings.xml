@@ -73,6 +73,10 @@
   <string name="task_status_approved">Тасдиқланган</string>
   <string name="task_status_rejected">Рад этилган</string>
   <string name="task_submit_title">Вазифа топшириш</string>
+  <string name="task_not_found">Вазифа топилмади</string>
+  <string name="task_submit_readonly">Бу вазифа юборилган ёки тасдиқланган. Қайта изоҳ ёки расм талаб қилинмайди.</string>
+  <string name="task_sent_at">Юборилган</string>
+  <string name="task_reviewed_at">Кўриб чиқилган</string>
   <string name="comment_optional">Изоҳ (ихтиёрий)</string>
   <string name="add_photo">Расм қўшиш</string>
   <string name="camera_permission">Камера рухсатини беринг</string>
@@ -159,6 +163,7 @@
   <string name="home_tasks_title">Фаол вазифалар</string>
   <string name="home_tasks_deadline">Муддат</string>
   <string name="home_tasks_empty">Фаол вазифа йўқ</string>
+  <string name="task_bell_cd">Кутилаётган вазифалар</string>
   <string name="home_empty">Машина бириктирилмаган</string>
 </resources>
 

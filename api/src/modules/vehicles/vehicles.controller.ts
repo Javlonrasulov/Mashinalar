@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -10,6 +11,7 @@ import { VehiclesService } from './vehicles.service';
 
 @Controller('vehicles')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@AdminRoutePage('VEHICLES')
 export class VehiclesController {
   constructor(private readonly vehicles: VehiclesService) {}
 

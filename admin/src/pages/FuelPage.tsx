@@ -54,8 +54,12 @@ export function FuelPage() {
   const { t, lang } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
   const [allVehicles, setAllVehicles] = useState<VehicleRow[]>([]);
+  const [vehiclesErr, setVehiclesErr] = useState<string | null>(null);
   const [globalGasPrice, setGlobalGasPrice] = useState('');
   const [globalGasSaving, setGlobalGasSaving] = useState(false);
+  const [gasSaveErr, setGasSaveErr] = useState<string | null>(null);
+  const [gasSaveOk, setGasSaveOk] = useState(false);
+  const gasSaveOkTimerRef = useRef<number | null>(null);
   const [vehicleGasDraft, setVehicleGasDraft] = useState<Record<string, string>>({});
   const [dateValue, setDateValue] = useState(() => {
     const d = new Date();
@@ -87,6 +91,7 @@ export function FuelPage() {
   }, [dateValue]);
 
   useEffect(() => {
+    setVehiclesErr(null);
     api<VehicleRow[]>('/vehicles')
       .then((vs) => {
         const mapped = vs.map((v) => ({ id: v.id, plateNumber: v.plateNumber, gasPricePerM3: v.gasPricePerM3 }));
@@ -96,7 +101,16 @@ export function FuelPage() {
         const uniq = Array.from(new Set(prices.filter((p) => p !== '')));
         if (uniq.length === 1) setGlobalGasPrice(uniq[0] ?? '');
       })
-      .catch(() => {});
+      .catch((e: unknown) => {
+        setAllVehicles([]);
+        setVehiclesErr(e instanceof Error ? e.message : String(e));
+      });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (gasSaveOkTimerRef.current != null) window.clearTimeout(gasSaveOkTimerRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -188,6 +202,8 @@ export function FuelPage() {
     if (!allVehicles.length) return;
 
     setGlobalGasSaving(true);
+    setGasSaveErr(null);
+    setGasSaveOk(false);
     try {
       const value = raw === '' ? null : n;
       await Promise.all(
@@ -212,6 +228,11 @@ export function FuelPage() {
           vehicle: { ...r.vehicle, gasPricePerM3: raw === '' ? null : s },
         })),
       );
+      setGasSaveOk(true);
+      if (gasSaveOkTimerRef.current != null) window.clearTimeout(gasSaveOkTimerRef.current);
+      gasSaveOkTimerRef.current = window.setTimeout(() => setGasSaveOk(false), 2000);
+    } catch (e: unknown) {
+      setGasSaveErr(e instanceof Error ? e.message : String(e));
     } finally {
       setGlobalGasSaving(false);
     }
@@ -307,6 +328,22 @@ export function FuelPage() {
           </button>
         </div>
       </div>
+
+      {vehiclesErr && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {t('genericError')}: {vehiclesErr}
+        </div>
+      )}
+      {gasSaveErr && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {t('genericError')}: {gasSaveErr}
+        </div>
+      )}
+      {gasSaveOk && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
+          {t('credentialsSaved')}
+        </div>
+      )}
 
       <div className="app-card min-w-0 overflow-hidden">
         <div className="app-table-wrap">

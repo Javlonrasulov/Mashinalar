@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavHostController
@@ -27,6 +29,7 @@ import com.mashinalar.driver.ui.screens.LoginScreen
 import com.mashinalar.driver.ui.screens.OilScreen
 import com.mashinalar.driver.ui.screens.ProfileScreen
 import com.mashinalar.driver.ui.screens.TaskSubmitScreen
+import com.mashinalar.driver.ui.screens.TaskBellViewModel
 import com.mashinalar.driver.ui.screens.TasksScreen
 
 private object Routes {
@@ -43,6 +46,13 @@ fun AppNav(
   onSetLanguageTag: (String) -> Unit,
   navController: NavHostController = rememberNavController(),
 ) {
+  val taskBellVm: TaskBellViewModel = hiltViewModel()
+  val navBackStackEntry by navController.currentBackStackEntryAsState()
+  LaunchedEffect(state.hasToken, navBackStackEntry?.destination?.route) {
+    if (state.hasToken) taskBellVm.refresh()
+    else taskBellVm.clear()
+  }
+
   if (!state.hasToken) {
     LoginScreen(
       loading = state.loginLoading,
@@ -52,8 +62,9 @@ fun AppNav(
     return
   }
 
-  val navBackStackEntry by navController.currentBackStackEntryAsState()
   val route = navBackStackEntry?.destination?.route
+  val bellTasks by taskBellVm.tasks.collectAsState()
+  var taskBellMenuExpanded by remember { mutableStateOf(false) }
   val title = when (route) {
     NavItem.Home.route -> stringResource(R.string.home_title)
     NavItem.Fuel.route -> stringResource(R.string.fuel_title)
@@ -72,6 +83,8 @@ fun AppNav(
   )
   // Birinchi frame'da route hali null bo‘lishi mumkin — bottom bar yo‘qolib qolmasin.
   val showBottom = route == null || route in mainTabRoutes
+
+  LaunchedEffect(route) { taskBellMenuExpanded = false }
 
   var langOpen by remember { mutableStateOf(false) }
 
@@ -92,6 +105,16 @@ fun AppNav(
         null
       },
     showProfileAction = route != Routes.Profile,
+    showTaskBell = true,
+    taskBellCount = bellTasks.size,
+    taskBellTasks = bellTasks,
+    taskBellMenuExpanded = taskBellMenuExpanded,
+    onTaskBellClick = { taskBellMenuExpanded = !taskBellMenuExpanded },
+    onDismissTaskBellMenu = { taskBellMenuExpanded = false },
+    onTaskBellItemClick = { taskId ->
+      taskBellMenuExpanded = false
+      navController.navigate("${Routes.TaskSubmit}/$taskId")
+    },
   ) { pv, snackbar ->
     Box(
       modifier = Modifier

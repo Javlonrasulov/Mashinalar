@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { CommonModule } from './common/common.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DailyKmModule } from './modules/daily-km/daily-km.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { DriversModule } from './modules/drivers/drivers.module';
 import { ExpenseCategoriesModule } from './modules/expense-categories/expense-categories.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
@@ -21,6 +23,7 @@ import { HealthController } from './health.controller';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    CommonModule,
     PrismaModule,
     AuditModule,
     AuthModule,
@@ -37,6 +40,7 @@ import { HealthController } from './health.controller';
     ExpenseCategoriesModule,
     ExpensesModule,
     DashboardModule,
+    AdminUsersModule,
   ],
   controllers: [HealthController],
 })

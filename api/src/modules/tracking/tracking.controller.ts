@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -30,6 +31,7 @@ export class TrackingController {
   @Get('tracking/history')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('MAP')
   history(
     @Query('vehicleId') vehicleId: string,
     @Query('from') from: string,
@@ -44,6 +46,7 @@ export class TrackingController {
   @Get('tracking/path-summary')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('MAP')
   pathSummary(
     @Query('vehicleId') vehicleId: string,
     @Query('from') from: string,
@@ -57,6 +60,7 @@ export class TrackingController {
   @Get('tracking/analytics')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('MAP')
   analytics(
     @Query('vehicleId') vehicleId: string,
     @Query('from') from: string,
@@ -69,6 +73,7 @@ export class TrackingController {
   @Get('tracking/live')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
+  @AdminRoutePage('MAP')
   live() {
     return this.tracking.livePositions();
   }

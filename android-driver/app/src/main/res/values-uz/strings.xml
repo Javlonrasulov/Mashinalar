@@ -73,6 +73,10 @@
   <string name="task_status_approved">Tasdiqlangan</string>
   <string name="task_status_rejected">Rad etilgan</string>
   <string name="task_submit_title">Vazifa topshirish</string>
+  <string name="task_not_found">Vazifa topilmadi</string>
+  <string name="task_submit_readonly">Bu vazifa yuborilgan yoki tasdiqlangan. Qayta izoh yoki rasm talab qilinmaydi.</string>
+  <string name="task_sent_at">Yuborilgan</string>
+  <string name="task_reviewed_at">Ko‘rib chiqilgan</string>
   <string name="comment_optional">Izoh (ixtiyoriy)</string>
   <string name="add_photo">Rasm qo‘shish</string>
   <string name="camera_permission">Kamera ruxsatini bering</string>
@@ -159,6 +163,7 @@
   <string name="home_tasks_title">Faol vazifalar</string>
   <string name="home_tasks_deadline">Muddat</string>
   <string name="home_tasks_empty">Faol vazifa yo‘q</string>
+  <string name="task_bell_cd">Kutilayotgan vazifalar</string>
   <string name="home_empty">Mashina biriktirilmagan</string>
 </resources>
 

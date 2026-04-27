@@ -28,7 +28,10 @@ export class TasksService {
 
   findMineActive(driverId: string) {
     return this.prisma.task.findMany({
-      where: { driverId, status: TaskStatus.PENDING },
+      where: {
+        driverId,
+        status: { in: [TaskStatus.PENDING, TaskStatus.REJECTED] },
+      },
       orderBy: { deadlineAt: 'asc' },
       include: { vehicle: true },
     });

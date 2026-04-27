@@ -73,6 +73,10 @@
   <string name="task_status_approved">Одобрена</string>
   <string name="task_status_rejected">Отклонена</string>
   <string name="task_submit_title">Сдать задачу</string>
+  <string name="task_not_found">Задача не найдена</string>
+  <string name="task_submit_readonly">Задача уже отправлена или подтверждена. Повторная отправка не требуется.</string>
+  <string name="task_sent_at">Отправлено</string>
+  <string name="task_reviewed_at">Рассмотрено</string>
   <string name="comment_optional">Комментарий (необязательно)</string>
   <string name="add_photo">Добавить фото</string>
   <string name="camera_permission">Разрешите доступ к камере</string>
@@ -159,6 +163,7 @@
   <string name="home_tasks_title">Активные задачи</string>
   <string name="home_tasks_deadline">Срок</string>
   <string name="home_tasks_empty">Нет активных задач</string>
+  <string name="task_bell_cd">Ожидающие задачи</string>
   <string name="home_empty">Машина не назначена</string>
 </resources>
 

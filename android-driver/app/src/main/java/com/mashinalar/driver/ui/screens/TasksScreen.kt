@@ -1,6 +1,7 @@
 package com.mashinalar.driver.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +28,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mashinalar.driver.R
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 @Composable
@@ -60,26 +63,76 @@ fun TasksScreen(
           ChronoUnit.DAYS.between(Instant.now(), d)
         }.getOrNull()
 
+        val openSubmit = taskOpensSubmitScreen(t.status)
+
         Card(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .clickable { onSubmit(t.id) },
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .padding(vertical = 6.dp)
+              .then(
+                if (openSubmit) {
+                  Modifier.clickable { onSubmit(t.id) }
+                } else {
+                  Modifier
+                },
+              ),
           colors = taskCardColorsForStatus(t.status),
         ) {
           Column(modifier = Modifier.padding(12.dp)) {
-            Text(t.title)
-            Spacer(Modifier.height(4.dp))
-            Row {
+            Text(t.title, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
               Text("${stringResource(R.string.status)}: ${taskStatusLabel(t.status)}")
               Spacer(Modifier.weight(1f))
-              Text("${stringResource(R.string.days_left)}: ${daysLeft ?: "-"}")
+              Text("${stringResource(R.string.days_left)}: ${daysLeft ?: "—"}")
+            }
+            Spacer(Modifier.height(8.dp))
+            kvRow(stringResource(R.string.home_tasks_deadline), formatIsoDateOnly(t.deadlineAt))
+            t.submittedAt?.takeIf { it.isNotBlank() }?.let {
+              kvRow(stringResource(R.string.task_sent_at), formatIsoDateTime(it))
+            }
+            t.reviewedAt?.takeIf { it.isNotBlank() }?.let {
+              kvRow(stringResource(R.string.task_reviewed_at), formatIsoDateTime(it))
             }
           }
         }
       }
     }
   }
+}
+
+private fun taskOpensSubmitScreen(status: String): Boolean =
+  when (status.uppercase()) {
+    "PENDING", "REJECTED" -> true
+    else -> false
+  }
+
+@Composable
+private fun kvRow(label: String, value: String) {
+  Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(value, style = MaterialTheme.typography.bodySmall)
+  }
+  Spacer(Modifier.height(4.dp))
+}
+
+private fun formatIsoDateOnly(iso: String?): String {
+  if (iso.isNullOrBlank()) return "—"
+  return runCatching {
+    val i = Instant.parse(iso)
+    val z = ZoneId.systemDefault()
+    DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(z).format(i)
+  }.getOrElse { "—" }
+}
+
+private fun formatIsoDateTime(iso: String?): String {
+  if (iso.isNullOrBlank()) return "—"
+  return runCatching {
+    val i = Instant.parse(iso)
+    val z = ZoneId.systemDefault()
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(z).format(i)
+  }.getOrElse { "—" }
 }
 
 @Composable

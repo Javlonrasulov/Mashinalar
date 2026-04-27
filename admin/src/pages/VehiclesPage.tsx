@@ -4,8 +4,6 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import { DateField } from '@/components/DateField';
-import { DateTimeField } from '@/components/DateTimeField';
-import { parseDatetimeLocalValue, toDatetimeLocalValue } from '@/lib/datetimeLocal';
 
 type VehicleCategory = {
   id: string;
@@ -41,21 +39,6 @@ function toDateInputValue(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return '';
   return d.toISOString().slice(0, 10);
-}
-
-function isoToDatetimeLocal(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return '';
-  return toDatetimeLocalValue(d);
-}
-
-function datetimeLocalToIso(value: string): string | null {
-  const v = value.trim();
-  if (!v) return null;
-  const d = parseDatetimeLocalValue(v);
-  if (!Number.isFinite(d.getTime())) return null;
-  return d.toISOString();
 }
 
 function startOfLocalDay(d: Date): Date {
@@ -155,6 +138,34 @@ export function VehiclesPage() {
     }
   }, [insuranceEndMin, form.insuranceEndDate]);
 
+  const inspectionNextMin = useMemo(() => {
+    const last = parseYmdLocal(form.inspectionLastChangedAt);
+    if (!last) return todayStart;
+    return last > todayStart ? last : todayStart;
+  }, [form.inspectionLastChangedAt, todayStart]);
+
+  useEffect(() => {
+    const next = parseYmdLocal(form.inspectionNextChangeAt);
+    if (!next) return;
+    if (next < inspectionNextMin) {
+      setForm((f) => ({ ...f, inspectionNextChangeAt: formatYmdLocal(inspectionNextMin) }));
+    }
+  }, [inspectionNextMin, form.inspectionNextChangeAt]);
+
+  const gasBalloonNextMin = useMemo(() => {
+    const last = parseYmdLocal(form.gasBalloonLastChangedAt);
+    if (!last) return todayStart;
+    return last > todayStart ? last : todayStart;
+  }, [form.gasBalloonLastChangedAt, todayStart]);
+
+  useEffect(() => {
+    const next = parseYmdLocal(form.gasBalloonNextChangeAt);
+    if (!next) return;
+    if (next < gasBalloonNextMin) {
+      setForm((f) => ({ ...f, gasBalloonNextChangeAt: formatYmdLocal(gasBalloonNextMin) }));
+    }
+  }, [gasBalloonNextMin, form.gasBalloonNextChangeAt]);
+
   useEffect(() => {
     if (!pendingDelete) return;
     function onEsc(e: KeyboardEvent) {
@@ -213,25 +224,25 @@ export function VehiclesPage() {
       insuranceEndDate: form.insuranceEndDate || undefined,
     };
 
-    const inspectionLastIso = datetimeLocalToIso(form.inspectionLastChangedAt);
-    const inspectionNextIso = datetimeLocalToIso(form.inspectionNextChangeAt);
-    const gasLastIso = datetimeLocalToIso(form.gasBalloonLastChangedAt);
-    const gasNextIso = datetimeLocalToIso(form.gasBalloonNextChangeAt);
+    const inspectionLast = form.inspectionLastChangedAt.trim();
+    const inspectionNext = form.inspectionNextChangeAt.trim();
+    const gasLast = form.gasBalloonLastChangedAt.trim();
+    const gasNext = form.gasBalloonNextChangeAt.trim();
 
     if (isEdit) {
       Object.assign(base, {
         categoryId: form.categoryId ? form.categoryId : null,
-        inspectionLastChangedAt: inspectionLastIso,
-        inspectionNextChangeAt: inspectionNextIso,
-        gasBalloonLastChangedAt: gasLastIso,
-        gasBalloonNextChangeAt: gasNextIso,
+        inspectionLastChangedAt: inspectionLast || null,
+        inspectionNextChangeAt: inspectionNext || null,
+        gasBalloonLastChangedAt: gasLast || null,
+        gasBalloonNextChangeAt: gasNext || null,
       });
     } else {
       if (form.categoryId) base.categoryId = form.categoryId;
-      if (inspectionLastIso) base.inspectionLastChangedAt = inspectionLastIso;
-      if (inspectionNextIso) base.inspectionNextChangeAt = inspectionNextIso;
-      if (gasLastIso) base.gasBalloonLastChangedAt = gasLastIso;
-      if (gasNextIso) base.gasBalloonNextChangeAt = gasNextIso;
+      if (inspectionLast) base.inspectionLastChangedAt = inspectionLast;
+      if (inspectionNext) base.inspectionNextChangeAt = inspectionNext;
+      if (gasLast) base.gasBalloonLastChangedAt = gasLast;
+      if (gasNext) base.gasBalloonNextChangeAt = gasNext;
     }
 
     try {
@@ -267,10 +278,10 @@ export function VehiclesPage() {
       oilChangeIntervalKm: v.oilChangeIntervalKm ? String(v.oilChangeIntervalKm) : '',
       insuranceStartDate: toDateInputValue(v.insuranceStartDate),
       insuranceEndDate: toDateInputValue(v.insuranceEndDate),
-      inspectionLastChangedAt: isoToDatetimeLocal(v.inspectionLastChangedAt),
-      inspectionNextChangeAt: isoToDatetimeLocal(v.inspectionNextChangeAt),
-      gasBalloonLastChangedAt: isoToDatetimeLocal(v.gasBalloonLastChangedAt),
-      gasBalloonNextChangeAt: isoToDatetimeLocal(v.gasBalloonNextChangeAt),
+      inspectionLastChangedAt: toDateInputValue(v.inspectionLastChangedAt),
+      inspectionNextChangeAt: toDateInputValue(v.inspectionNextChangeAt),
+      gasBalloonLastChangedAt: toDateInputValue(v.gasBalloonLastChangedAt),
+      gasBalloonNextChangeAt: toDateInputValue(v.gasBalloonNextChangeAt),
       driverId: currentDriverId(v),
     });
     document.querySelector('main form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -432,7 +443,7 @@ export function VehiclesPage() {
           </div>
           <div className="min-w-0">
             <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleInspectionLastChange')}</label>
-            <DateTimeField
+            <DateField
               value={form.inspectionLastChangedAt}
               onChange={(v) => setForm({ ...form, inspectionLastChangedAt: v })}
               onClear={() => setForm({ ...form, inspectionLastChangedAt: '' })}
@@ -440,10 +451,11 @@ export function VehiclesPage() {
           </div>
           <div className="min-w-0">
             <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleInspectionNextChange')}</label>
-            <DateTimeField
+            <DateField
               value={form.inspectionNextChangeAt}
               onChange={(v) => setForm({ ...form, inspectionNextChangeAt: v })}
               onClear={() => setForm({ ...form, inspectionNextChangeAt: '' })}
+              minDate={inspectionNextMin}
             />
           </div>
 
@@ -452,7 +464,7 @@ export function VehiclesPage() {
           </div>
           <div className="min-w-0">
             <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleGasBalloonLastChange')}</label>
-            <DateTimeField
+            <DateField
               value={form.gasBalloonLastChangedAt}
               onChange={(v) => setForm({ ...form, gasBalloonLastChangedAt: v })}
               onClear={() => setForm({ ...form, gasBalloonLastChangedAt: '' })}
@@ -460,10 +472,11 @@ export function VehiclesPage() {
           </div>
           <div className="min-w-0">
             <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleGasBalloonNextChange')}</label>
-            <DateTimeField
+            <DateField
               value={form.gasBalloonNextChangeAt}
               onChange={(v) => setForm({ ...form, gasBalloonNextChangeAt: v })}
               onClear={() => setForm({ ...form, gasBalloonNextChangeAt: '' })}
+              minDate={gasBalloonNextMin}
             />
           </div>
         </div>

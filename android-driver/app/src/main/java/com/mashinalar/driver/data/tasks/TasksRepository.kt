@@ -23,6 +23,16 @@ class TasksRepository @Inject constructor(
       ApiResult.Err(NetworkErrors.toUserMessage(t))
     }
 
+  /** Haydovchi uchun bajarish kerak bo‘lgan vazifalar (server: `mine/active`). */
+  suspend fun myActiveTasks(): ApiResult<List<TaskDto>> =
+    try {
+      ApiResult.Ok(api.myActiveTasks())
+    } catch (e: HttpException) {
+      ApiResult.Err(HttpErrors.userMessage(e), e.code())
+    } catch (t: Throwable) {
+      ApiResult.Err(NetworkErrors.toUserMessage(t))
+    }
+
   suspend fun submitTask(id: String, proofText: String?, proofPhoto: File?): ApiResult<TaskDto> =
     try {
       ApiResult.Ok(
