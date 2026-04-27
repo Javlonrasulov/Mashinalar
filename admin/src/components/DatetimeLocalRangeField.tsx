@@ -36,7 +36,8 @@ function formatDayShort(d: Date, lang: Lang): string {
 }
 
 const VIEW_MARGIN = 12;
-const POPOVER_MAX_WIDTH_RANGE_PX = 672;
+/** Bitta oy — `DateTimeField` date rejimiga o‘xshash tor popover */
+const POPOVER_MAX_WIDTH_RANGE_PX = 320;
 
 function popoverWidthPx(): number {
   return Math.min(window.innerWidth - VIEW_MARGIN * 2, POPOVER_MAX_WIDTH_RANGE_PX);
@@ -69,17 +70,7 @@ export function DatetimeLocalRangeField({ fromValue, toValue, onFromChange, onTo
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
-  const [numberOfMonths, setNumberOfMonths] = useState(1);
-
   const locale = useMemo(() => dayPickerLocaleFor(lang), [lang]);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    const up = () => setNumberOfMonths(window.innerWidth >= 640 ? 2 : 1);
-    up();
-    window.addEventListener('resize', up);
-    return () => window.removeEventListener('resize', up);
-  }, [open]);
 
   const selected = useMemo((): DateRange | undefined => {
     const a = startOfLocalDay(parseDatetimeLocalValue(fromValue));
@@ -177,21 +168,21 @@ export function DatetimeLocalRangeField({ fromValue, toValue, onFromChange, onTo
             role="dialog"
             aria-labelledby={fieldId}
             style={{ top: popoverPos.top, left: popoverPos.left }}
-            className="app-datetime-popover fixed z-[5000] w-[min(100vw-1.5rem,42rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
+            className="app-datetime-popover fixed z-[5000] w-[min(100vw-1.5rem,20rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
           >
-            <div className="max-h-[min(78vh,480px)] overflow-y-auto p-2 sm:p-3">
+            <div className="max-h-[min(78vh,420px)] overflow-y-auto p-2">
               <DayPicker
                 mode="range"
                 selected={selected}
                 onSelect={onSelectRange}
                 locale={locale}
                 defaultMonth={defaultMonth}
-                numberOfMonths={numberOfMonths}
+                numberOfMonths={1}
                 captionLayout="label"
                 hideNavigation={false}
                 showOutsideDays
                 disabled={disabled}
-                className="app-datetime-daypicker w-full max-w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] [--rdp-day-width:34px] [--rdp-day-height:34px] [--rdp-day_button-width:32px] [--rdp-day_button-height:32px] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]"
+                className="app-datetime-daypicker w-full max-w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] [--rdp-day-width:32px] [--rdp-day-height:32px] [--rdp-day_button-width:30px] [--rdp-day_button-height:30px] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]"
               />
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-200/90 bg-slate-50/80 px-3 py-2 dark:border-slate-700/90 dark:bg-slate-950/40">
