@@ -131,7 +131,9 @@ export class DailyKmService {
       const startKmNum = Number(r.startKm);
       const prevEndNum = prev?.endKm != null ? Number(prev.endKm) : NaN;
       const gapNum =
-        prev && Number.isFinite(startKmNum) && Number.isFinite(prevEndNum) ? startKmNum - prevEndNum : null;
+        prev && Number.isFinite(startKmNum) && Number.isFinite(prevEndNum)
+          ? Math.max(0, startKmNum - prevEndNum)
+          : null;
       return {
         id: r.id,
         reportDate: r.reportDate.toISOString(),
@@ -153,6 +155,115 @@ export class DailyKmService {
         gapFromEndKm: prev?.endKm == null ? null : String(prev.endKm),
       };
     });
+  }
+
+  /**
+   * Admin: sanalar oralig‘ida har bir kun uchun «oldingi yopilgan тугаш KM» → «shu kun бошланиш KM» farqi.
+   * Oldingi kun yopilmagan bo‘lsa (endKm null), keyingi kun uchun farq hisoblanmaydi (null).
+   */
+  async findGapAudit(params: { from: string; to: string }) {
+    const fromD = new Date(params.from);
+    const toD = new Date(params.to);
+    if (Number.isNaN(fromD.getTime()) || Number.isNaN(toD.getTime())) {
+      throw new BadRequestException('daily_km.invalid_report_date');
+    }
+    fromD.setUTCHours(0, 0, 0, 0);
+    toD.setUTCHours(0, 0, 0, 0);
+    if (fromD.getTime() > toD.getTime()) {
+      throw new BadRequestException('daily_km.range_invalid');
+    }
+    const toExclusive = new Date(toD);
+    toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
+
+    const inRange = await this.prisma.dailyKmReport.findMany({
+      where: { reportDate: { gte: fromD, lt: toExclusive } },
+      include: {
+        vehicle: { select: { plateNumber: true } },
+        driver: { select: { fullName: true } },
+      },
+      orderBy: [{ vehicleId: 'asc' }, { reportDate: 'asc' }],
+    });
+
+    if (inRange.length === 0) return [];
+
+    const vehicleIds = Array.from(new Set(inRange.map((r) => r.vehicleId)));
+    const lookback = new Date(fromD);
+    lookback.setUTCDate(lookback.getUTCDate() - 400);
+
+    const beforeRows = await this.prisma.dailyKmReport.findMany({
+      where: { vehicleId: { in: vehicleIds }, reportDate: { gte: lookback, lt: fromD } },
+      include: {
+        vehicle: { select: { plateNumber: true } },
+        driver: { select: { fullName: true } },
+      },
+      orderBy: [{ vehicleId: 'asc' }, { reportDate: 'asc' }],
+    });
+
+    const byVehicle = new Map<string, typeof inRange>();
+    for (const r of [...beforeRows, ...inRange]) {
+      if (!byVehicle.has(r.vehicleId)) byVehicle.set(r.vehicleId, []);
+      byVehicle.get(r.vehicleId)!.push(r as (typeof inRange)[number]);
+    }
+
+    const out: Array<{
+      reportId: string;
+      reportDate: string;
+      vehicleId: string;
+      plateNumber: string;
+      driverName: string;
+      startKm: string;
+      endKm: string | null;
+      prevReportId: string | null;
+      prevReportDate: string | null;
+      prevEndKm: string | null;
+      gapKm: string | null;
+    }> = [];
+
+    for (const vid of vehicleIds) {
+      const hist = (byVehicle.get(vid) ?? []).sort((a, b) => a.reportDate.getTime() - b.reportDate.getTime());
+      let prevClosedEnd: number | null = null;
+      let prevReportId: string | null = null;
+      let prevReportDate: Date | null = null;
+      for (const r of hist) {
+        const inWindow = r.reportDate >= fromD && r.reportDate < toExclusive;
+        const startNum = Number(r.startKm);
+        let gapNum: number | null = null;
+        if (prevClosedEnd != null && Number.isFinite(startNum)) {
+          gapNum = Math.max(0, startNum - prevClosedEnd);
+        }
+        if (inWindow) {
+          out.push({
+            reportId: r.id,
+            reportDate: r.reportDate.toISOString(),
+            vehicleId: r.vehicleId,
+            plateNumber: r.vehicle.plateNumber,
+            driverName: r.driver.fullName,
+            startKm: String(r.startKm),
+            endKm: r.endKm == null ? null : String(r.endKm),
+            prevReportId,
+            prevReportDate: prevReportDate ? prevReportDate.toISOString() : null,
+            prevEndKm: prevClosedEnd == null ? null : String(prevClosedEnd),
+            gapKm: gapNum == null ? null : String(gapNum),
+          });
+        }
+        if (r.endKm != null) {
+          const e = Number(r.endKm);
+          if (Number.isFinite(e)) {
+            prevClosedEnd = e;
+            prevReportId = r.id;
+            prevReportDate = r.reportDate;
+          }
+        }
+      }
+    }
+
+    out.sort((a, b) => {
+      const ga = a.gapKm == null ? -1 : Number(a.gapKm);
+      const gb = b.gapKm == null ? -1 : Number(b.gapKm);
+      if (gb !== ga) return gb - ga;
+      return new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime();
+    });
+    return out;
   }
 
   async submitDayStart(params: {

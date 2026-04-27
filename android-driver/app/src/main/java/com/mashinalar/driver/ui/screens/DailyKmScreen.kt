@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.mashinalar.driver.core.ServerErrorMapper
 import com.mashinalar.driver.data.network.DailyKmHistoryDto
@@ -222,7 +223,7 @@ fun DailyKmScreen(
         onValueChange = vm::setStartKm,
         label = { Text(stringResource(R.string.start_km_field)) },
         singleLine = true,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
         keyboardActions =
           KeyboardActions(
             onDone = {
@@ -259,7 +260,7 @@ fun DailyKmScreen(
         onValueChange = vm::setEndKm,
         label = { Text(stringResource(R.string.end_km_field)) },
         singleLine = true,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
         keyboardActions =
           KeyboardActions(
             onDone = {

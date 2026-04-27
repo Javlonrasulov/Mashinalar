@@ -58,6 +58,14 @@ export class DailyKmController {
     return await this.dailyKm.findAll({ date });
   }
 
+  /** Admin: оралиқ KM аудити (саналар oralig‘и) */
+  @Get('gap-audit')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async gapAudit(@Query('from') from: string, @Query('to') to: string) {
+    return await this.dailyKm.findGapAudit({ from, to });
+  }
+
   /** Kun boshlanishi: boshlang‘ich KM + start rasm + lokatsiya + vaqt */
   @Post('start')
   @UseGuards(JwtAuthGuard, RolesGuard)

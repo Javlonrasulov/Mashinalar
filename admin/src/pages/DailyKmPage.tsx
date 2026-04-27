@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { api, apiUrl } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import { MapContainer, Marker, TileLayer } from 'react-leaflet';
@@ -134,6 +135,9 @@ export function DailyKmPage() {
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <h1 className="app-page-title">{t('navDailyKm')}</h1>
+          <Link to="/daily-km/gaps" className="text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400">
+            {t('navDailyKmGaps')}
+          </Link>
           <div className="hidden items-center gap-2 sm:flex">
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmFilterLabel')}</span>
             <select className="app-select w-[240px]" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>

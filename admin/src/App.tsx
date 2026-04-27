@@ -16,6 +16,7 @@ import { DriversPage } from '@/pages/DriversPage';
 import { TasksPage } from '@/pages/TasksPage';
 import { FuelPage } from '@/pages/FuelPage';
 import { DailyKmPage } from '@/pages/DailyKmPage';
+import { DailyKmGapsPage } from '@/pages/DailyKmGapsPage';
 import { OilPage } from '@/pages/OilPage';
 import { ExpensesPage } from '@/pages/ExpensesPage';
 import { ExpensesStatsPage } from '@/pages/ExpensesStatsPage';
@@ -54,6 +55,7 @@ function Shell() {
         <Route path="tasks" element={<TasksPage />} />
         <Route path="fuel" element={<FuelPage />} />
         <Route path="daily-km" element={<DailyKmPage />} />
+        <Route path="daily-km/gaps" element={<DailyKmGapsPage />} />
         <Route path="oil" element={<OilPage />} />
         <Route path="expenses/stats" element={<ExpensesStatsPage />} />
         <Route path="expenses" element={<ExpensesPage />} />

@@ -78,11 +78,13 @@ class DailyKmViewModel @Inject constructor(
     }
   }
 
-  fun setStartKm(v: String) { _state.value = _state.value.copy(startKm = v, message = null) }
+  fun setStartKm(v: String) {
+    _state.value = _state.value.copy(startKm = filterDailyKmNumeric(v), message = null)
+  }
 
   fun setEndKm(v: String) {
     if (!_state.value.endSectionVisible) return
-    _state.value = _state.value.copy(endKm = v, message = null)
+    _state.value = _state.value.copy(endKm = filterDailyKmNumeric(v), message = null)
   }
 
   fun setStartPhoto(f: File) { _state.value = _state.value.copy(startPhoto = f, message = null) }
@@ -218,6 +220,9 @@ class DailyKmViewModel @Inject constructor(
     }
   }
 }
+
+/** Faqat raqamlar (harf va boshqa belgilar chiqariladi). */
+private fun filterDailyKmNumeric(input: String): String = input.filter { it.isDigit() }
 
 /**
  * `reportDate` dan oldin bo‘lgan tarix qatorlaridan **eng so‘nggi sana**dagi yozuvning

@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Fuel,
   Gauge,
+  BarChart3,
   LayoutDashboard,
   LogOut,
   Map,
@@ -33,7 +34,8 @@ const nav = [
   { to: '/drivers', icon: Users, key: 'navDrivers' as const },
   { to: '/tasks', icon: ClipboardList, key: 'navTasks' as const },
   { to: '/fuel', icon: Fuel, key: 'navFuel' as const },
-  { to: '/daily-km', icon: Gauge, key: 'navDailyKm' as const },
+  { to: '/daily-km', icon: Gauge, key: 'navDailyKm' as const, end: true },
+  { to: '/daily-km/gaps', icon: BarChart3, key: 'navDailyKmGaps' as const, end: true },
   { to: '/oil', icon: Droplets, key: 'navOil' as const },
   { to: '/expenses', icon: Receipt, key: 'navExpenses' as const },
 ];
@@ -53,6 +55,7 @@ function usePageTitle() {
     { path: '/drivers', key: 'navDrivers' },
     { path: '/tasks', key: 'navTasks' },
     { path: '/fuel', key: 'navFuel' },
+    { path: '/daily-km/gaps', end: true, key: 'navDailyKmGaps' },
     { path: '/daily-km', key: 'navDailyKm' },
     { path: '/oil', key: 'navOil' },
     { path: '/expenses/stats', key: 'navExpensesStats' },
@@ -272,7 +275,7 @@ export function ShellLayout() {
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === '/'}
+              end={'end' in item ? item.end : item.to === '/'}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
                 clsx(

@@ -54,9 +54,9 @@ export function FuelPage() {
   const { t, lang } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
   const [allVehicles, setAllVehicles] = useState<VehicleRow[]>([]);
-  const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [globalGasPrice, setGlobalGasPrice] = useState('');
+  const [globalGasSaving, setGlobalGasSaving] = useState(false);
   const [vehicleGasDraft, setVehicleGasDraft] = useState<Record<string, string>>({});
-  const [vehicleGasSaving, setVehicleGasSaving] = useState<Record<string, boolean>>({});
   const [dateValue, setDateValue] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -89,7 +89,12 @@ export function FuelPage() {
   useEffect(() => {
     api<VehicleRow[]>('/vehicles')
       .then((vs) => {
-        setAllVehicles(vs.map((v) => ({ id: v.id, plateNumber: v.plateNumber, gasPricePerM3: v.gasPricePerM3 })));
+        const mapped = vs.map((v) => ({ id: v.id, plateNumber: v.plateNumber, gasPricePerM3: v.gasPricePerM3 }));
+        setAllVehicles(mapped);
+
+        const prices = mapped.map((v) => (v.gasPricePerM3 == null ? '' : String(v.gasPricePerM3)));
+        const uniq = Array.from(new Set(prices.filter((p) => p !== '')));
+        if (uniq.length === 1) setGlobalGasPrice(uniq[0] ?? '');
       })
       .catch(() => {});
   }, []);
@@ -159,6 +164,13 @@ export function FuelPage() {
     });
   }, [lang]);
 
+  const moneyFmt = useMemo(() => {
+    return new Intl.NumberFormat(intlLocaleFor(lang), {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+  }, [lang]);
+
   function calcM3(amountRaw: string, vehicleId: string): string {
     const a = Number(String(amountRaw).replace(/[^\d.]/g, ''));
     const raw = vehicleGasDraft[vehicleId] ?? '';
@@ -169,29 +181,39 @@ export function FuelPage() {
     return m3Fmt.format(v);
   }
 
-  async function saveVehicleGasPrice(vehicleId: string) {
-    const raw = (vehicleGasDraft[vehicleId] ?? '').trim();
+  async function saveGlobalGasPriceForAllVehicles() {
+    const raw = globalGasPrice.trim();
     const n = raw === '' ? NaN : Number(raw);
     if (raw !== '' && (!Number.isFinite(n) || n < 0)) return;
+    if (!allVehicles.length) return;
 
-    setVehicleGasSaving((m) => ({ ...m, [vehicleId]: true }));
+    setGlobalGasSaving(true);
     try {
-      await api(`/vehicles/${vehicleId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ gasPricePerM3: raw === '' ? null : n }),
-      });
-      setAllVehicles((prev) =>
-        prev.map((v) => (v.id === vehicleId ? { ...v, gasPricePerM3: raw === '' ? null : String(n) } : v)),
-      );
-      setRows((prev) =>
-        prev.map((r) =>
-          r.vehicle.id === vehicleId
-            ? { ...r, vehicle: { ...r.vehicle, gasPricePerM3: raw === '' ? null : String(n) } }
-            : r,
+      const value = raw === '' ? null : n;
+      await Promise.all(
+        allVehicles.map((v) =>
+          api(`/vehicles/${v.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ gasPricePerM3: value }),
+          }),
         ),
       );
+
+      const s = raw === '' ? '' : String(n);
+      setAllVehicles((prev) => prev.map((v) => ({ ...v, gasPricePerM3: raw === '' ? null : s })));
+      setVehicleGasDraft((prev) => {
+        const next = { ...prev };
+        for (const v of allVehicles) next[v.id] = s;
+        return next;
+      });
+      setRows((prev) =>
+        prev.map((r) => ({
+          ...r,
+          vehicle: { ...r.vehicle, gasPricePerM3: raw === '' ? null : s },
+        })),
+      );
     } finally {
-      setVehicleGasSaving((m) => ({ ...m, [vehicleId]: false }));
+      setGlobalGasSaving(false);
     }
   }
 
@@ -258,55 +280,30 @@ export function FuelPage() {
       </div>
 
       <div className="app-card-pad grid min-w-0 grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
-        <div className="min-w-0 md:col-span-5">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('mapVehicle')}</label>
-          <select
-            className="app-input w-full"
-            value={selectedVehicleId}
-            onChange={(e) => {
-              const id = e.target.value;
-              setSelectedVehicleId(id);
-            }}
-          >
-            <option value="">{t('mapVehicleSelectPlaceholder')}</option>
-            {allVehicles
-              .slice()
-              .sort((a, b) => a.plateNumber.localeCompare(b.plateNumber))
-              .map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.plateNumber}
-                </option>
-              ))}
-          </select>
+        <div className="min-w-0 md:col-span-7">
+          <div className="text-sm font-semibold text-slate-900 dark:text-white">{t('gasPriceAllTitle')}</div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('gasPriceAllHint')}</div>
         </div>
-        <div className="min-w-0 md:col-span-4">
+        <div className="min-w-0 md:col-span-3">
           <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('gasPricePerM3')}</label>
           <input
             type="number"
             min={0}
             step="0.01"
             className="app-input w-full text-right tabular-nums"
-            value={selectedVehicleId ? vehicleGasDraft[selectedVehicleId] ?? '' : ''}
-            onChange={(e) => {
-              const id = selectedVehicleId;
-              if (!id) return;
-              setVehicleGasDraft((m) => ({ ...m, [id]: e.target.value }));
-            }}
-            disabled={!selectedVehicleId}
+            value={globalGasPrice}
+            onChange={(e) => setGlobalGasPrice(e.target.value)}
             placeholder="—"
           />
         </div>
-        <div className="md:col-span-3">
+        <div className="md:col-span-2">
           <button
             type="button"
             className="app-btn-primary w-full"
-            disabled={!selectedVehicleId || Boolean(vehicleGasSaving[selectedVehicleId])}
-            onClick={() => {
-              if (!selectedVehicleId) return;
-              void saveVehicleGasPrice(selectedVehicleId);
-            }}
+            disabled={globalGasSaving || !allVehicles.length}
+            onClick={() => void saveGlobalGasPriceForAllVehicles()}
           >
-            {selectedVehicleId && vehicleGasSaving[selectedVehicleId] ? '…' : t('save')}
+            {globalGasSaving ? '…' : t('gasPriceAllSave')}
           </button>
         </div>
       </div>
@@ -335,30 +332,12 @@ export function FuelPage() {
                 <td className="p-3">{r.driver.fullName}</td>
                 <td className="p-3">{r.amount}</td>
                 <td className="p-3">
-                  <div className="flex min-w-[220px] items-center gap-2">
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      className="app-input w-[120px] text-right tabular-nums"
-                      value={vehicleGasDraft[r.vehicle.id] ?? ''}
-                      onChange={(e) =>
-                        setVehicleGasDraft((m) => ({
-                          ...m,
-                          [r.vehicle.id]: e.target.value,
-                        }))
-                      }
-                      placeholder="—"
-                    />
-                    <button
-                      type="button"
-                      className="app-btn-primary shrink-0 px-3 py-2 text-xs"
-                      disabled={Boolean(vehicleGasSaving[r.vehicle.id])}
-                      onClick={() => void saveVehicleGasPrice(r.vehicle.id)}
-                    >
-                      {vehicleGasSaving[r.vehicle.id] ? '…' : t('save')}
-                    </button>
-                  </div>
+                  {(() => {
+                    const raw = (vehicleGasDraft[r.vehicle.id] ?? '').trim();
+                    const n = raw ? Number(raw) : NaN;
+                    if (!raw || !Number.isFinite(n) || n <= 0) return <span className="text-slate-500 dark:text-slate-400">—</span>;
+                    return <span className="tabular-nums text-slate-900 dark:text-slate-100">{moneyFmt.format(n)}</span>;
+                  })()}
                 </td>
                 <td className="p-3 tabular-nums">{calcM3(r.amount, r.vehicle.id)}</td>
                 <td className="p-3 whitespace-nowrap">{formatDateTimeNoSeconds(r.createdAt)}</td>

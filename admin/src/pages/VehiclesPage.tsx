@@ -102,6 +102,7 @@ export function VehiclesPage() {
   const [deleting, setDeleting] = useState(false);
   /** Yangi mashina formasi yashirin; tahrirda doim ochiq. */
   const [createFormOpen, setCreateFormOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [form, setForm] = useState({
     categoryId: '',
     name: '',
@@ -132,6 +133,11 @@ export function VehiclesPage() {
   useEffect(() => {
     load().catch((e: Error) => setErr(e.message));
   }, []);
+
+  const filteredRows = useMemo(() => {
+    if (!categoryFilter) return rows;
+    return rows.filter((v) => (v.category?.id ?? v.categoryId ?? '') === categoryFilter);
+  }, [rows, categoryFilter]);
 
   const todayStart = useMemo(() => startOfLocalDay(new Date()), []);
 
@@ -310,11 +316,26 @@ export function VehiclesPage() {
         </div>
       )}
 
-      {!showVehicleForm ? (
-        <div className="mb-4 flex min-w-0 justify-end">
+      <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 sm:max-w-xs">
+          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleListFilterCategory')}</label>
+          <select
+            className="app-select w-full"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="">{t('vehicleListFilterAll')}</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {!showVehicleForm ? (
           <button
             type="button"
-            className="app-btn-primary"
+            className="app-btn-primary w-full shrink-0 sm:w-auto"
             onClick={() => {
               resetVehicleForm();
               setCreateFormOpen(true);
@@ -322,8 +343,8 @@ export function VehiclesPage() {
           >
             {t('vehicleFormOpenCreate')}
           </button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {showVehicleForm ? (
       <form onSubmit={onCreate} className="app-card-pad min-w-0 space-y-4">
@@ -479,45 +500,53 @@ export function VehiclesPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((v) => (
-                <tr key={v.id} className="app-table-row">
-                  <td className="p-3 font-mono">{v.plateNumber}</td>
-                  <td className="p-3">{v.name}</td>
-                  <td className="p-3">{v.model}</td>
-                  <td className="p-3">{v.category?.name ?? '—'}</td>
-                  <td className="p-3">{String(v.initialKm)}</td>
-                  <td className="p-3">
-                    <div className="flex flex-wrap items-center gap-1">
-                      <Link
-                        to={`/vehicles/${v.id}/history`}
-                        className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
-                        aria-label={t('vehicleDriverHistoryLink')}
-                        title={t('vehicleDriverHistoryLink')}
-                      >
-                        <History size={16} className="text-slate-700 dark:text-slate-200" aria-hidden />
-                      </Link>
-                      <button
-                        type="button"
-                        className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
-                        onClick={() => onEdit(v)}
-                        aria-label={t('edit')}
-                        title={t('edit')}
-                      >
-                        <Pencil size={16} className="text-blue-600 dark:text-blue-400" aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
-                        onClick={() => setPendingDelete(v)}
-                        aria-label={t('delete')}
-                        title={t('delete')}
-                      >
-                        <Trash2 size={16} className="text-red-600 dark:text-red-400" aria-hidden />
-                      </button>
-                    </div>
+              {filteredRows.length === 0 ? (
+                <tr className="app-table-row">
+                  <td className="p-3 text-slate-500 dark:text-slate-400" colSpan={6}>
+                    {rows.length === 0 ? t('vehicleDeadlinesEmpty') : t('vehicleListFilterEmpty')}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredRows.map((v) => (
+                  <tr key={v.id} className="app-table-row">
+                    <td className="p-3 font-mono">{v.plateNumber}</td>
+                    <td className="p-3">{v.name}</td>
+                    <td className="p-3">{v.model}</td>
+                    <td className="p-3">{v.category?.name ?? '—'}</td>
+                    <td className="p-3">{String(v.initialKm)}</td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Link
+                          to={`/vehicles/${v.id}/history`}
+                          className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+                          aria-label={t('vehicleDriverHistoryLink')}
+                          title={t('vehicleDriverHistoryLink')}
+                        >
+                          <History size={16} className="text-slate-700 dark:text-slate-200" aria-hidden />
+                        </Link>
+                        <button
+                          type="button"
+                          className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+                          onClick={() => onEdit(v)}
+                          aria-label={t('edit')}
+                          title={t('edit')}
+                        >
+                          <Pencil size={16} className="text-blue-600 dark:text-blue-400" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+                          onClick={() => setPendingDelete(v)}
+                          aria-label={t('delete')}
+                          title={t('delete')}
+                        >
+                          <Trash2 size={16} className="text-red-600 dark:text-red-400" aria-hidden />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
