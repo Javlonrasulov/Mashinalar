@@ -110,7 +110,7 @@
   <string name="tracking_notif_text">Lokatsiya yuborish faol</string>
 
   <string name="msg_enter_amount">Summa kiriting</string>
-  <string name="msg_fuel_complete_all">Summa, mashina rasmi va chek rasmini to‘ldiring.</string>
+  <string name="msg_fuel_complete_all">Summa va mashina rasmini to‘ldiring.</string>
   <string name="msg_enter_km">Start/End KM kiriting</string>
   <string name="msg_daily_km_start_km_required">Boshlang‘ich KM kiriting</string>
   <string name="msg_daily_km_start_photo_required">Ish boshlanishi rasmini yuklang</string>

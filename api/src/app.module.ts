@@ -13,6 +13,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { OsmFuelModule } from './modules/osm-fuel/osm-fuel.module';
 import { OilChangeModule } from './modules/oil-change/oil-change.module';
+import { VehicleCategoriesModule } from './modules/vehicle-categories/vehicle-categories.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
 import { StatsModule } from './modules/stats/stats.module';
 import { HealthController } from './health.controller';
@@ -24,6 +25,7 @@ import { HealthController } from './health.controller';
     AuditModule,
     AuthModule,
     VehiclesModule,
+    VehicleCategoriesModule,
     OilChangeModule,
     DriversModule,
     TrackingModule,

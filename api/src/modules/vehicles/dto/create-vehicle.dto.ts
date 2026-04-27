@@ -9,6 +9,10 @@ import {
 } from 'class-validator';
 
 export class CreateVehicleDto {
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
   @IsString()
   name!: string;
 
@@ -47,4 +51,21 @@ export class CreateVehicleDto {
   @IsOptional()
   @IsDateString()
   insuranceEndDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  inspectionStartDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  inspectionEndDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  gasStartDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  gasEndDate?: string;
+
 }

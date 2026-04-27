@@ -44,6 +44,22 @@ export class VehiclesController {
     return this.vehicles.update(id, dto, user.userId);
   }
 
+  @Get(':id/driver-history')
+  @Roles(UserRole.ADMIN)
+  driverHistory(@Param('id') id: string) {
+    return this.vehicles.driverHistory(id);
+  }
+
+  @Patch(':id/assign-driver')
+  @Roles(UserRole.ADMIN)
+  assignDriver(
+    @Param('id') id: string,
+    @Body() body: { driverId?: string | null; startAt?: string },
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.vehicles.assignDriver(id, body, user.userId);
+  }
+
   @Delete(':id')
   @Roles(UserRole.ADMIN)
   remove(@Param('id') id: string, @CurrentUser() user: JwtUser) {

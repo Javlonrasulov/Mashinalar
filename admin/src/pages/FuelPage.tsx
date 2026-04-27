@@ -42,9 +42,16 @@ function formatDateTimeNoSeconds(iso: string) {
   return `${date}, ${time}`;
 }
 
+function intlLocaleFor(lang: 'uzCyrl' | 'uzLatn' | 'ru'): string {
+  if (lang === 'ru') return 'ru-RU';
+  if (lang === 'uzCyrl') return 'ru-RU';
+  return 'uz-Latn-UZ';
+}
+
 export function FuelPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
+  const [gasPricePerM3, setGasPricePerM3] = useState('');
   const [dateValue, setDateValue] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -57,6 +64,7 @@ export function FuelPage() {
   const [photo, setPhoto] = useState<{ src: string; title: string } | null>(null);
   const [photoFs, setPhotoFs] = useState(false);
   const photoStageRef = useRef<HTMLDivElement>(null);
+  const [stationByKey, setStationByKey] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const selected = new Date(dateValue);
@@ -72,6 +80,61 @@ export function FuelPage() {
 
     api<Row[]>(`/fuel-reports?${qs.toString()}`).then(setRows).catch(() => {});
   }, [dateValue]);
+
+  useEffect(() => {
+    const pts = rows
+      .map((r) => {
+        const lat = r.latitude ? Number(r.latitude) : NaN;
+        const lon = r.longitude ? Number(r.longitude) : NaN;
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+        const key = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
+        return { key, lat, lon };
+      })
+      .filter(Boolean) as { key: string; lat: number; lon: number }[];
+    const unique = Array.from(new Map(pts.map((p) => [p.key, p])).values()).filter((p) => stationByKey[p.key] == null);
+    if (!unique.length) return;
+
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        unique.map(async (p) => {
+          try {
+            const res = await api<{ label: string | null }>(
+              `/map/fuel-station-nearest?lat=${encodeURIComponent(String(p.lat))}&lon=${encodeURIComponent(String(p.lon))}`,
+            );
+            return [p.key, res.label ?? ''] as const;
+          } catch {
+            return [p.key, ''] as const;
+          }
+        }),
+      );
+      if (cancelled) return;
+      setStationByKey((prev) => {
+        const next = { ...prev };
+        for (const [k, v] of entries) next[k] = v;
+        return next;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rows, stationByKey]);
+
+  const m3Fmt = useMemo(() => {
+    return new Intl.NumberFormat(intlLocaleFor(lang), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }, [lang]);
+
+  function calcM3(amountRaw: string): string {
+    const a = Number(String(amountRaw).replace(/[^\d.]/g, ''));
+    const p = gasPricePerM3 ? Number(gasPricePerM3) : NaN;
+    if (!Number.isFinite(a) || !Number.isFinite(p) || p <= 0) return '—';
+    const v = a / p;
+    if (!Number.isFinite(v)) return '—';
+    return m3Fmt.format(v);
+  }
 
   useEffect(() => {
     if (!mapOpen) return;
@@ -121,15 +184,29 @@ export function FuelPage() {
     <div className="app-page">
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="app-page-title">{t('navFuel')}</h1>
-        <div className="flex min-w-0 items-center justify-between gap-3 sm:justify-end">
-          <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
-          <div className="w-[190px]">
-            <DateTimeField
-              value={dateValue}
-              onChange={setDateValue}
-              mode="date"
-              disabled={{ after: new Date() }}
-              align="right"
+        <div className="flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
+            <div className="w-[190px]">
+              <DateTimeField
+                value={dateValue}
+                onChange={setDateValue}
+                mode="date"
+                disabled={{ after: new Date() }}
+                align="right"
+              />
+            </div>
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-3 sm:w-[260px]">
+            <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('gasPricePerM3')}</label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              className="app-input w-[160px] text-right tabular-nums"
+              value={gasPricePerM3}
+              onChange={(e) => setGasPricePerM3(e.target.value)}
+              placeholder="—"
             />
           </div>
         </div>
@@ -143,8 +220,10 @@ export function FuelPage() {
               <th className="p-3">{t('plate')}</th>
               <th className="p-3">{t('fullName')}</th>
               <th className="p-3">{t('amount')}</th>
+              <th className="p-3">{t('colM3')}</th>
               <th className="p-3">{t('colTime')}</th>
               <th className="p-3">{t('colLocation')}</th>
+              <th className="p-3">{t('colFuelStation')}</th>
               <th className="p-3">{t('colVehiclePhoto')}</th>
               <th className="p-3">{t('colReceipt')}</th>
             </tr>
@@ -155,6 +234,7 @@ export function FuelPage() {
                 <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
                 <td className="p-3">{r.driver.fullName}</td>
                 <td className="p-3">{r.amount}</td>
+                <td className="p-3 tabular-nums">{calcM3(r.amount)}</td>
                 <td className="p-3 whitespace-nowrap">{formatDateTimeNoSeconds(r.createdAt)}</td>
                 <td className="p-3">
                   {r.latitude && r.longitude ? (
@@ -175,6 +255,23 @@ export function FuelPage() {
                     >
                       {t('linkMap')}
                     </button>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td className="p-3">
+                  {r.latitude && r.longitude ? (
+                    (() => {
+                      const lat = Number(r.latitude);
+                      const lon = Number(r.longitude);
+                      const key = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
+                      const lbl = stationByKey[key];
+                      return lbl ? (
+                        <span className="text-slate-700 dark:text-slate-200">{lbl}</span>
+                      ) : (
+                        <span className="text-slate-500 dark:text-slate-400">{t('fuelStationUnknown')}</span>
+                      );
+                    })()
                   ) : (
                     '—'
                   )}

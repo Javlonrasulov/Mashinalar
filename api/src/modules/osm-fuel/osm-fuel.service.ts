@@ -142,6 +142,7 @@ export class OsmFuelService {
   private readonly ttlMs = 60 * 60 * 1000;
 
   private readonly geoLabelCache = new Map<string, { at: number; label: string }>();
+  private readonly nearestCache = new Map<string, { at: number; data: { label: string | null; distanceM: number | null } }>();
   private lastNominatimRequestAt = 0;
 
   private async nominatimThrottle(): Promise<void> {
@@ -272,5 +273,51 @@ out center tags;`;
 
   defaultBbox(): FuelStationBbox {
     return { ...DEFAULT_BBOX };
+  }
+
+  private static haversineM(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+    const R = 6371000;
+    const toRad = (x: number) => (x * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLon = toRad(b.lon - a.lon);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const s =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+    return R * c;
+  }
+
+  /**
+   * Koordinata atrofida (radius) eng yaqin zapravka nomini qaytaradi.
+   * Topilmasa: `{ label: null }`.
+   */
+  async nearestFuelStation(lat: number, lon: number, radiusM = 450): Promise<{ label: string | null; distanceM: number | null }> {
+    const key = geoLabelKey(lat, lon);
+    const hit = this.nearestCache.get(key);
+    if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.data;
+
+    // Small bbox around point; Overpass doesn't support around in our current query builder.
+    // Convert meters to degrees (rough): 1 deg lat ~ 111km, lon depends on latitude.
+    const padLat = radiusM / 111000;
+    const padLon = radiusM / (111000 * Math.cos((lat * Math.PI) / 180));
+    const bbox: FuelStationBbox = { south: lat - padLat, west: lon - padLon, north: lat + padLat, east: lon + padLon };
+
+    const stations = await this.listFuelStations(bbox);
+    let best: { label: string | null; distanceM: number | null } = { label: null, distanceM: null };
+    let bestD = Infinity;
+    for (const s of stations) {
+      const d = OsmFuelService.haversineM({ lat, lon }, { lat: s.lat, lon: s.lon });
+      if (d < bestD) {
+        bestD = d;
+        best = { label: s.label ?? null, distanceM: Number.isFinite(d) ? Math.round(d) : null };
+      }
+    }
+    // Accept only reasonably close stations.
+    if (bestD > radiusM) best = { label: null, distanceM: null };
+
+    this.nearestCache.set(key, { at: Date.now(), data: best });
+    return best;
   }
 }

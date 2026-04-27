@@ -110,7 +110,7 @@
   <string name="tracking_notif_text">Отправка геолокации активна</string>
 
   <string name="msg_enter_amount">Введите сумму</string>
-  <string name="msg_fuel_complete_all">Укажите сумму, фото машины и фото чека.</string>
+  <string name="msg_fuel_complete_all">Укажите сумму и фото машины.</string>
   <string name="msg_enter_km">Введите старт/финиш км</string>
   <string name="msg_daily_km_start_km_required">Введите начальный км</string>
   <string name="msg_daily_km_start_photo_required">Загрузите фото начала работы</string>

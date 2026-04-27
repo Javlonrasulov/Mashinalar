@@ -78,7 +78,7 @@ fun FuelScreen(
   var fuelHistoryExpanded by remember { mutableStateOf(false) }
   val amountHasDigits = state.amount.any { it.isDigit() }
   val canSubmit =
-    amountHasDigits && state.vehiclePhoto != null && state.receiptPhoto != null && !state.loading
+    amountHasDigits && state.vehiclePhoto != null && !state.loading
 
   val context = LocalContext.current
   val app = context.applicationContext

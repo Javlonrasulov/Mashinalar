@@ -47,4 +47,15 @@ export class OsmFuelController {
     if (!dto.points?.length) return { labels: {} as Record<string, string> };
     return { labels: await this.osmFuel.reverseGeocodeBatch(dto.points) };
   }
+
+  /** Koordinata → eng yaqin zapravka nomi (OSM Overpass). */
+  @Get('fuel-station-nearest')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async nearest(@Query('lat') latQ?: string, @Query('lon') lonQ?: string) {
+    const lat = Number(latQ);
+    const lon = Number(lonQ);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new BadRequestException('Invalid coordinates');
+    return this.osmFuel.nearestFuelStation(lat, lon);
+  }
 }

@@ -19,6 +19,7 @@ export class VehiclesService {
       orderBy: { createdAt: 'desc' },
       include: {
         drivers: { include: { user: { select: { login: true } } } },
+        category: true,
       },
     });
   }
@@ -26,7 +27,7 @@ export class VehiclesService {
   async findOne(id: string) {
     const v = await this.prisma.vehicle.findUnique({
       where: { id },
-      include: { drivers: true },
+      include: { drivers: true, category: true },
     });
     if (!v) throw new NotFoundException('Vehicle not found');
     return v;
@@ -85,6 +86,7 @@ export class VehiclesService {
 
   async create(dto: CreateVehicleDto, actorUserId: string) {
     const data: Prisma.VehicleCreateInput = {
+      category: dto.categoryId ? { connect: { id: dto.categoryId } } : undefined,
       name: dto.name,
       model: dto.model,
       plateNumber: dto.plateNumber,
@@ -94,6 +96,10 @@ export class VehiclesService {
       oilChangeIntervalKm: dto.oilChangeIntervalKm,
       insuranceStartDate: dto.insuranceStartDate ? new Date(dto.insuranceStartDate) : undefined,
       insuranceEndDate: dto.insuranceEndDate ? new Date(dto.insuranceEndDate) : undefined,
+      inspectionStartDate: dto.inspectionStartDate ? new Date(dto.inspectionStartDate) : undefined,
+      inspectionEndDate: dto.inspectionEndDate ? new Date(dto.inspectionEndDate) : undefined,
+      gasStartDate: dto.gasStartDate ? new Date(dto.gasStartDate) : undefined,
+      gasEndDate: dto.gasEndDate ? new Date(dto.gasEndDate) : undefined,
     };
     const created = await this.prisma.vehicle.create({ data });
     await this.audit.log({
@@ -109,6 +115,9 @@ export class VehiclesService {
   async update(id: string, dto: UpdateVehicleDto, actorUserId: string) {
     await this.findOne(id);
     const data: Prisma.VehicleUpdateInput = {};
+    if (dto.categoryId !== undefined) {
+      data.category = dto.categoryId ? { connect: { id: dto.categoryId } } : { disconnect: true };
+    }
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.model !== undefined) data.model = dto.model;
     if (dto.plateNumber !== undefined) data.plateNumber = dto.plateNumber;
@@ -120,6 +129,12 @@ export class VehiclesService {
       data.insuranceStartDate = dto.insuranceStartDate ? new Date(dto.insuranceStartDate) : null;
     if (dto.insuranceEndDate !== undefined)
       data.insuranceEndDate = dto.insuranceEndDate ? new Date(dto.insuranceEndDate) : null;
+    if (dto.inspectionStartDate !== undefined)
+      data.inspectionStartDate = dto.inspectionStartDate ? new Date(dto.inspectionStartDate) : null;
+    if (dto.inspectionEndDate !== undefined)
+      data.inspectionEndDate = dto.inspectionEndDate ? new Date(dto.inspectionEndDate) : null;
+    if (dto.gasStartDate !== undefined) data.gasStartDate = dto.gasStartDate ? new Date(dto.gasStartDate) : null;
+    if (dto.gasEndDate !== undefined) data.gasEndDate = dto.gasEndDate ? new Date(dto.gasEndDate) : null;
 
     const updated = await this.prisma.vehicle.update({ where: { id }, data });
     await this.audit.log({
@@ -141,5 +156,83 @@ export class VehiclesService {
       entityId: id,
     });
     return { ok: true };
+  }
+
+  async driverHistory(vehicleId: string) {
+    await this.findOne(vehicleId);
+    return this.prisma.driverVehicleAssignment.findMany({
+      where: { vehicleId },
+      orderBy: { startAt: 'desc' },
+      include: {
+        driver: { select: { id: true, fullName: true, phone: true, user: { select: { login: true } } } },
+      },
+    });
+  }
+
+  /**
+   * Assign (or unassign) driver to a vehicle, keeping history.
+   */
+  async assignDriver(
+    vehicleId: string,
+    dto: { driverId?: string | null; startAt?: string },
+    actorUserId: string,
+  ) {
+    await this.findOne(vehicleId);
+    const startAt = dto.startAt ? new Date(dto.startAt) : new Date();
+    if (!Number.isFinite(startAt.getTime())) throw new BadRequestException('Invalid startAt');
+
+    return this.prisma.$transaction(async (tx) => {
+      // End any current assignment for this vehicle
+      await tx.driverVehicleAssignment.updateMany({
+        where: { vehicleId, endAt: null },
+        data: { endAt: startAt },
+      });
+
+      // Unassign current driver from this vehicle (if any)
+      await tx.driver.updateMany({
+        where: { vehicleId },
+        data: { vehicleId: null },
+      });
+
+      if (!dto.driverId) {
+        await this.audit.log({
+          actorUserId,
+          action: 'vehicle.assignDriver',
+          entity: 'Vehicle',
+          entityId: vehicleId,
+          meta: { driverId: null, startAt: startAt.toISOString() },
+        });
+        return { ok: true };
+      }
+
+      const driver = await tx.driver.findUnique({ where: { id: dto.driverId } });
+      if (!driver) throw new NotFoundException('Driver not found');
+
+      // End any current assignment for this driver
+      await tx.driverVehicleAssignment.updateMany({
+        where: { driverId: dto.driverId, endAt: null },
+        data: { endAt: startAt },
+      });
+
+      // Assign driver to this vehicle
+      await tx.driver.update({
+        where: { id: dto.driverId },
+        data: { vehicleId },
+      });
+
+      const row = await tx.driverVehicleAssignment.create({
+        data: { driverId: dto.driverId, vehicleId, startAt },
+      });
+
+      await this.audit.log({
+        actorUserId,
+        action: 'vehicle.assignDriver',
+        entity: 'Vehicle',
+        entityId: vehicleId,
+        meta: { driverId: dto.driverId, startAt: startAt.toISOString(), assignmentId: row.id },
+      });
+
+      return { ok: true, assignmentId: row.id };
+    });
   }
 }

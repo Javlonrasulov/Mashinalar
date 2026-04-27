@@ -42,6 +42,7 @@ model Driver {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  assignments DriverVehicleAssignment[]
   locationPoints LocationPoint[]
   fuelReports       FuelReport[]
   dailyKmReports    DailyKmReport[]
@@ -56,12 +57,18 @@ model Vehicle {
   name                 String
   model                String?
   plateNumber          String    @unique
+  categoryId           String?
+  category             VehicleCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   initialKm            Decimal   @db.Decimal(12, 2)
   lastOilChangeKm      Decimal?  @db.Decimal(12, 2)
   lastOilChangeAt      DateTime?
   oilChangeIntervalKm  Int?
   insuranceStartDate   DateTime?
   insuranceEndDate     DateTime?
+  inspectionStartDate  DateTime?
+  inspectionEndDate    DateTime?
+  gasStartDate         DateTime?
+  gasEndDate           DateTime?
   lastLatitude         Decimal?  @db.Decimal(10, 7)
   lastLongitude        Decimal?  @db.Decimal(10, 7)
   lastLocationAt       DateTime?
@@ -69,12 +76,39 @@ model Vehicle {
   updatedAt            DateTime  @updatedAt
 
   drivers        Driver[]
+  assignments    DriverVehicleAssignment[]
   locationPoints LocationPoint[]
   fuelReports       FuelReport[]
   dailyKmReports    DailyKmReport[]
   tasks             Task[]
   expenses          Expense[]
   oilChangeReports  OilChangeReport[]
+
+  @@index([categoryId])
+}
+
+model VehicleCategory {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vehicles Vehicle[]
+}
+
+model DriverVehicleAssignment {
+  id        String   @id @default(cuid())
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  startAt   DateTime @default(now())
+  endAt     DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([driverId, startAt])
+  @@index([vehicleId, startAt])
+  @@index([endAt])
 }
 
 model ExpenseCategory {

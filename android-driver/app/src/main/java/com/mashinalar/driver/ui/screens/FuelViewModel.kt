@@ -91,7 +91,7 @@ class FuelViewModel @Inject constructor(
       _state.value = s.copy(message = context.getString(R.string.msg_enter_amount))
       return
     }
-    if (s.vehiclePhoto == null || s.receiptPhoto == null) {
+    if (s.vehiclePhoto == null) {
       _state.value = s.copy(message = context.getString(R.string.msg_fuel_complete_all))
       return
     }
