@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -23,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -160,10 +162,17 @@ private fun taskCardColorsForStatus(status: String) =
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
       )
     "APPROVED" ->
-      CardDefaults.cardColors(
-        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-      )
+      if (isSystemInDarkTheme()) {
+        CardDefaults.cardColors(
+          containerColor = Color(0xFF1B3D2D),
+          contentColor = Color(0xFFB9F6CA),
+        )
+      } else {
+        CardDefaults.cardColors(
+          containerColor = Color(0xFFC8E6C9),
+          contentColor = Color(0xFF1B5E20),
+        )
+      }
     "REJECTED" ->
       CardDefaults.cardColors(
         containerColor = MaterialTheme.colorScheme.errorContainer,
