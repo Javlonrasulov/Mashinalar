@@ -4,10 +4,11 @@ import clsx from 'clsx';
 import { api, apiUrl } from '@/lib/api';
 import { fuelPumpLeafletIcon, fuelStationsApiPathForPoint, type FuelStationMapItem } from '@/lib/fuelStationsMap';
 import { useI18n } from '@/i18n/I18nContext';
-import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
+import { MapContainer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { DateTimeField } from '@/components/DateTimeField';
+import { MapBaseLayers } from '@/components/MapBaseLayers';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -505,10 +506,7 @@ export function FuelPage() {
                 <Fuel className="h-5 w-5 text-slate-900" strokeWidth={2.25} aria-hidden />
               </button>
               <MapContainer center={mapCenter} zoom={15} className="h-full w-full" scrollWheelZoom>
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
+                <MapBaseLayers />
                 <Marker position={[mapPoint.lat, mapPoint.lon]} />
                 {fuelLayerVisible &&
                   fuelStations.map((s) => (

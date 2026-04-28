@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { Circle, MapContainer, Marker, Polyline, Popup, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { io, Socket } from 'socket.io-client';
 import { api, API_BASE, getToken } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import { DateTimeField } from '@/components/DateTimeField';
+import { MapBaseLayers } from '@/components/MapBaseLayers';
 import { fuelPumpLeafletIcon, type FuelStationMapItem } from '@/lib/fuelStationsMap';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 import clsx from 'clsx';
@@ -769,10 +770,7 @@ export function MapPage() {
             <Fuel className="h-5 w-5 text-slate-900" strokeWidth={2.25} aria-hidden />
           </button>
           <MapContainer center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM} className="h-full w-full" scrollWheelZoom>
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
+            <MapBaseLayers />
             <FitBounds points={fitBoundsPoints} />
             <FlyToSelectedOnVehicleChange pos={selectedPos} vehicleId={vehicleId} />
             {showRoute && (
