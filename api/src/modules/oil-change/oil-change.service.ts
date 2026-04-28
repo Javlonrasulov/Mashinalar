@@ -58,14 +58,7 @@ export class OilChangeService {
       throw new BadRequestException('oil_change.no_vehicle');
     }
     const vehicle = driver.vehicle;
-    const initial = Number(vehicle.initialKm);
-    if (kmAtChange < initial) {
-      throw new BadRequestException('oil_change.km_below_initial');
-    }
     const prevLast = vehicle.lastOilChangeKm != null ? Number(vehicle.lastOilChangeKm) : null;
-    if (prevLast != null && kmAtChange <= prevLast) {
-      throw new BadRequestException('oil_change.km_not_above_last');
-    }
 
     const row = await this.prisma.oilChangeReport.create({
       data: {
@@ -76,13 +69,18 @@ export class OilChangeService {
       },
     });
 
-    await this.prisma.vehicle.update({
-      where: { id: vehicle.id },
-      data: {
-        lastOilChangeKm: kmAtChange,
-        lastOilChangeAt: new Date(),
-      },
-    });
+    // Moy almashtirishni "orqaga" kiritishga ruxsat beriladi (masalan, haydovchi keyinroq yozadi).
+    // Lekin `lastOilChangeKm/At` ni faqat yangi yozuv haqiqatdan ham eng so‘nggi bo‘lsa yangilaymiz.
+    const shouldUpdateVehicle = prevLast == null || kmAtChange > prevLast;
+    if (shouldUpdateVehicle) {
+      await this.prisma.vehicle.update({
+        where: { id: vehicle.id },
+        data: {
+          lastOilChangeKm: kmAtChange,
+          lastOilChangeAt: new Date(),
+        },
+      });
+    }
 
     await this.audit.log({
       actorUserId,
