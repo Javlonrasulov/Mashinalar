@@ -221,6 +221,7 @@ export function MapPage() {
   const [fuelLayerVisible, setFuelLayerVisible] = useState(false);
   const [vehicleQuery, setVehicleQuery] = useState('');
   const [vehicleCategoryId, setVehicleCategoryId] = useState('');
+  const [presenceFilter, setPresenceFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [vehicleOpen, setVehicleOpen] = useState(false);
   const vehicleRef = useRef<HTMLDivElement>(null);
   const [refreshUi, setRefreshUi] = useState<RefreshUi>('idle');
@@ -413,6 +414,12 @@ export function MapPage() {
   const onlineCount = useMemo(() => vehicles.filter((v) => onlineIds.has(v.id)).length, [vehicles, onlineIds]);
   const offlineCount = Math.max(0, vehicles.length - onlineCount);
 
+  const visibleMarkers = useMemo(() => {
+    if (presenceFilter === 'all') return markers;
+    if (presenceFilter === 'online') return markers.filter((m) => onlineIds.has(m.id));
+    return markers.filter((m) => !onlineIds.has(m.id));
+  }, [markers, onlineIds, presenceFilter]);
+
   const driverNameByVehicleId = useMemo(() => {
     const m = new Map<string, string>();
     for (const v of live) {
@@ -523,7 +530,7 @@ export function MapPage() {
     return pts;
   }, [history, analytics]);
 
-  const fleetFitBoundsPoints = useMemo(() => markers.map((m) => m.pos), [markers]);
+  const fleetFitBoundsPoints = useMemo(() => visibleMarkers.map((m) => m.pos), [visibleMarkers]);
 
   const clusterFitBoundsPoints = useMemo(() => {
     if (!focusedCluster || focusedStopSegments.length === 0) return [];
@@ -709,20 +716,42 @@ export function MapPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:col-span-2 lg:col-span-1">
-          <div className="flex items-end justify-between gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-3 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:border-slate-700/90 dark:bg-slate-900/85">
+          <button
+            type="button"
+            aria-pressed={presenceFilter === 'online'}
+            onClick={() => setPresenceFilter((v) => (v === 'online' ? 'all' : 'online'))}
+            className={clsx(
+              'flex items-end justify-between gap-2 rounded-xl border px-4 py-3 text-left shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition',
+              presenceFilter === 'online'
+                ? 'border-emerald-300 bg-emerald-50 ring-2 ring-emerald-400/80 ring-offset-2 ring-offset-white dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:ring-offset-slate-900'
+                : 'border-slate-200/90 bg-white dark:border-slate-700/90 dark:bg-slate-900/85',
+            )}
+            title={t('mapOnline')}
+          >
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('mapOnline')}</span>
             </div>
             <span className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">{onlineCount}</span>
-          </div>
-          <div className="flex items-end justify-between gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-3 shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:border-slate-700/90 dark:bg-slate-900/85">
+          </button>
+          <button
+            type="button"
+            aria-pressed={presenceFilter === 'offline'}
+            onClick={() => setPresenceFilter((v) => (v === 'offline' ? 'all' : 'offline'))}
+            className={clsx(
+              'flex items-end justify-between gap-2 rounded-xl border px-4 py-3 text-left shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition',
+              presenceFilter === 'offline'
+                ? 'border-slate-300 bg-slate-50 ring-2 ring-slate-400/70 ring-offset-2 ring-offset-white dark:border-slate-600 dark:bg-slate-800/60 dark:ring-offset-slate-900'
+                : 'border-slate-200/90 bg-white dark:border-slate-700/90 dark:bg-slate-900/85',
+            )}
+            title={t('mapOffline')}
+          >
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('mapOffline')}</span>
             </div>
             <span className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">{offlineCount}</span>
-          </div>
+          </button>
         </div>
 
         <div className="min-w-0">
@@ -860,7 +889,7 @@ export function MapPage() {
                 </Tooltip>
               </Marker>
             )}
-            {markers.map((m) => (
+            {visibleMarkers.map((m) => (
               <Marker
                 key={m.id}
                 position={m.pos}
