@@ -121,6 +121,7 @@ type Vehicle = {
   name: string;
   model: string | null;
   plateNumber: string;
+  category?: { id: string; name: string } | null;
 };
 
 type HistoryRow = { latitude: string; longitude: string; accuracyM: number | null };
@@ -218,6 +219,7 @@ export function MapPage() {
   const [fuelStations, setFuelStations] = useState<FuelStationMapItem[]>([]);
   const [fuelLayerVisible, setFuelLayerVisible] = useState(false);
   const [vehicleQuery, setVehicleQuery] = useState('');
+  const [vehicleCategoryId, setVehicleCategoryId] = useState('');
   const [vehicleOpen, setVehicleOpen] = useState(false);
   const vehicleRef = useRef<HTMLDivElement>(null);
   const [refreshUi, setRefreshUi] = useState<RefreshUi>('idle');
@@ -419,15 +421,36 @@ export function MapPage() {
     return m;
   }, [live]);
 
+  const vehicleCategoryOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const v of vehicles) {
+      if (v.category?.id && v.category.name) m.set(v.category.id, v.category.name);
+    }
+    return [...m.entries()].sort((a, b) =>
+      a[1].localeCompare(b[1], undefined, { sensitivity: 'base' }),
+    );
+  }, [vehicles]);
+
+  useEffect(() => {
+    if (!vehicleCategoryId || !vehicleId) return;
+    const v = vehicles.find((x) => x.id === vehicleId);
+    if (v?.category?.id !== vehicleCategoryId) setVehicleId('');
+  }, [vehicleCategoryId, vehicleId, vehicles]);
+
   const filteredVehicles = useMemo(() => {
+    let list = vehicles;
+    if (vehicleCategoryId) {
+      list = list.filter((v) => v.category?.id === vehicleCategoryId);
+    }
     const q = vehicleQuery.trim().toLowerCase();
-    if (!q) return vehicles;
-    return vehicles.filter((v) => {
+    if (!q) return list;
+    return list.filter((v) => {
       const driver = driverNameByVehicleId.get(v.id) ?? '';
-      const haystack = `${v.plateNumber} ${v.name} ${v.model ?? ''} ${driver}`.toLowerCase();
+      const cat = v.category?.name ?? '';
+      const haystack = `${v.plateNumber} ${v.name} ${v.model ?? ''} ${driver} ${cat}`.toLowerCase();
       return haystack.includes(q);
     });
-  }, [vehicles, vehicleQuery, driverNameByVehicleId]);
+  }, [vehicles, vehicleQuery, driverNameByVehicleId, vehicleCategoryId]);
 
   const selectedVehicleLabel = useMemo(() => {
     const v = vehicles.find((x) => x.id === vehicleId);
@@ -566,41 +589,74 @@ export function MapPage() {
       <div className="app-card-pad relative z-20 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
         <div ref={vehicleRef} className="relative min-w-0 sm:col-span-2 lg:col-span-1">
           <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('mapVehicle')}</label>
-          <div className="flex min-w-0 gap-1">
-            <button
-              type="button"
-              aria-haspopup="listbox"
-              aria-expanded={vehicleOpen}
-              onClick={() =>
-                setVehicleOpen((o) => {
-                  const next = !o;
-                  if (next) setVehicleQuery('');
-                  return next;
-                })
-              }
-              className={clsx(
-                'app-input flex min-w-0 flex-1 items-center justify-between gap-2 text-left',
-                !vehicleId && 'text-slate-500 dark:text-slate-400',
-              )}
-            >
-              <span className="truncate">{selectedVehicleLabel || t('mapVehicleSelectPlaceholder')}</span>
-              <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-            </button>
-            {vehicleId ? (
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="relative min-w-0">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden
+              />
+              <input
+                type="search"
+                className="app-input w-full pl-9"
+                value={vehicleQuery}
+                onChange={(e) => setVehicleQuery(e.target.value)}
+                placeholder={t('mapVehicleSearchPlaceholder')}
+                aria-label={t('mapVehicleSearchAria')}
+                autoComplete="off"
+              />
+            </div>
+            <div className="min-w-0">
+              <label
+                className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+                htmlFor="map-vehicle-category"
+              >
+                {t('mapVehicleCategory')}
+              </label>
+              <select
+                id="map-vehicle-category"
+                className="app-select w-full"
+                value={vehicleCategoryId}
+                onChange={(e) => setVehicleCategoryId(e.target.value)}
+              >
+                <option value="">{t('all')}</option>
+                {vehicleCategoryOptions.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex min-w-0 gap-1">
               <button
                 type="button"
-                className="app-btn-ghost shrink-0 rounded-lg border border-slate-200/90 px-2 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800/80"
-                aria-label={t('mapClearVehicle')}
-                title={t('mapClearVehicle')}
-                onClick={() => {
-                  setVehicleId('');
-                  setVehicleQuery('');
-                  setVehicleOpen(false);
-                }}
+                aria-haspopup="listbox"
+                aria-expanded={vehicleOpen}
+                onClick={() => setVehicleOpen((o) => !o)}
+                className={clsx(
+                  'app-input flex min-w-0 flex-1 items-center justify-between gap-2 text-left',
+                  !vehicleId && 'text-slate-500 dark:text-slate-400',
+                )}
               >
-                <X className="h-4 w-4" aria-hidden />
+                <span className="truncate">{selectedVehicleLabel || t('mapVehicleSelectPlaceholder')}</span>
+                <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
               </button>
-            ) : null}
+              {vehicleId ? (
+                <button
+                  type="button"
+                  className="app-btn-ghost shrink-0 rounded-lg border border-slate-200/90 px-2 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800/80"
+                  aria-label={t('mapClearVehicle')}
+                  title={t('mapClearVehicle')}
+                  onClick={() => {
+                    setVehicleId('');
+                    setVehicleQuery('');
+                    setVehicleCategoryId('');
+                    setVehicleOpen(false);
+                  }}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {vehicleOpen && (
@@ -608,16 +664,6 @@ export function MapPage() {
               role="listbox"
               className="absolute left-0 top-full z-[5000] mt-2 w-[min(100vw-1.5rem,30rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
             >
-              <div className="flex items-center gap-2 border-b border-slate-200/90 px-3 py-2 dark:border-slate-700/90">
-                <Search className="h-4 w-4 text-slate-400" aria-hidden />
-                <input
-                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
-                  value={vehicleQuery}
-                  onChange={(e) => setVehicleQuery(e.target.value)}
-                  placeholder={t('mapVehicleSearchPlaceholder')}
-                  autoFocus
-                />
-              </div>
               <div className="max-h-[min(55vh,360px)] overflow-auto p-1">
                 {filteredVehicles.length === 0 ? (
                   <div className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">{t('mapVehicleNoResults')}</div>
@@ -637,14 +683,21 @@ export function MapPage() {
                           setVehicleOpen(false);
                         }}
                         className={clsx(
-                          'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition',
+                          'flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left text-sm transition',
                           active
                             ? 'bg-blue-50 text-slate-900 dark:bg-blue-950/30 dark:text-slate-50'
                             : 'text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800/50',
                         )}
                       >
-                        <span className="truncate">{label}</span>
-                        {active && <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">✓</span>}
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate font-medium">{label}</span>
+                          {active && (
+                            <span className="shrink-0 text-xs font-semibold text-blue-600 dark:text-blue-400">✓</span>
+                          )}
+                        </span>
+                        {v.category?.name ? (
+                          <span className="truncate text-xs text-slate-500 dark:text-slate-400">{v.category.name}</span>
+                        ) : null}
                       </button>
                     );
                   })
