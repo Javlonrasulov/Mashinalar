@@ -342,6 +342,11 @@ export function VehiclesPage() {
               </option>
             ))}
           </select>
+          <div className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+            {categoryFilter
+              ? t('vehicleListCountFiltered', { filtered: String(filteredRows.length), total: String(rows.length) })
+              : t('vehicleListCountTotal', { total: String(rows.length) })}
+          </div>
         </div>
         {!showVehicleForm ? (
           <button
