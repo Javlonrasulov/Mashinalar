@@ -20,6 +20,13 @@ function formatDateOnly(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function formatDmy(d: Date): string {
+  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const y = String(d.getFullYear());
+  return `${day}.${m}.${y}`;
+}
+
 function startOfLocalDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -35,6 +42,18 @@ function parseYmdToLocalDay(value: string): Date | null {
   const dt = new Date(y, mo, day);
   if (!Number.isFinite(dt.getTime())) return null;
   // guard against JS date overflow weirdness
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== day) return null;
+  return startOfLocalDay(dt);
+}
+
+function parseDmyToLocalDay(value: string): Date | null {
+  const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value.trim());
+  if (!m) return null;
+  const day = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const y = Number(m[3]);
+  const dt = new Date(y, mo, day);
+  if (!Number.isFinite(dt.getTime())) return null;
   if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== day) return null;
   return startOfLocalDay(dt);
 }
@@ -106,7 +125,8 @@ export function DateField({ value, onChange, id, onClear, minDate, maxDate }: Pr
   const [draft, setDraft] = useState(value);
 
   useEffect(() => {
-    setDraft(value);
+    const d = value ? parseYmdToLocalDay(value) : null;
+    setDraft(d ? formatDmy(d) : '');
   }, [value]);
 
   const selectedDay = useMemo(() => (value ? parseYmdToLocalDay(value) : null), [value]);
@@ -123,12 +143,14 @@ export function DateField({ value, onChange, id, onClear, minDate, maxDate }: Pr
     if (!d) return;
     const clamped = clampDay(d, minDate, maxDate);
     onChange(formatDateOnly(clamped));
+    setDraft(formatDmy(clamped));
     setOpen(false);
   };
 
   const goToday = () => {
     const clamped = clampDay(new Date(), minDate, maxDate);
     onChange(formatDateOnly(clamped));
+    setDraft(formatDmy(clamped));
     setOpen(false);
   };
 
@@ -136,16 +158,18 @@ export function DateField({ value, onChange, id, onClear, minDate, maxDate }: Pr
     const raw = draft.trim();
     if (!raw) {
       onChange('');
+      setDraft('');
       return;
     }
-    const d = parseYmdToLocalDay(raw);
+    const d = parseDmyToLocalDay(raw) ?? parseYmdToLocalDay(raw);
     if (!d) {
-      setDraft(value);
+      const back = value ? parseYmdToLocalDay(value) : null;
+      setDraft(back ? formatDmy(back) : '');
       return;
     }
     const clamped = clampDay(d, minDate, maxDate);
     onChange(formatDateOnly(clamped));
-    setDraft(formatDateOnly(clamped));
+    setDraft(formatDmy(clamped));
   };
 
   useLayoutEffect(() => {
@@ -209,7 +233,7 @@ export function DateField({ value, onChange, id, onClear, minDate, maxDate }: Pr
       <div ref={anchorRef} className="flex min-w-0 items-stretch gap-2">
         <input
           id={fieldId}
-          className="app-input min-w-0 flex-1 font-mono text-sm tabular-nums"
+          className="app-input min-w-0 flex-1 text-sm tabular-nums"
           value={draft}
           placeholder={t('dateInputPlaceholder')}
           inputMode="numeric"
