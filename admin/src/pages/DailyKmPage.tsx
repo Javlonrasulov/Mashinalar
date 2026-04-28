@@ -6,7 +6,7 @@ import { MapContainer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { DateTimeField } from '@/components/DateTimeField';
-import { MapBaseLayers } from '@/components/MapBaseLayers';
+import { LEAFLET_MAP_MAX_ZOOM, MapBaseLayers } from '@/components/MapBaseLayers';
 import { DatetimeLocalRangeField } from '@/components/DatetimeLocalRangeField';
 import { SelectField } from '@/components/SelectField';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
@@ -689,7 +689,7 @@ export function DailyKmPage() {
               </button>
             </div>
             <div className="h-[360px] w-full">
-              <MapContainer center={mapCenter} zoom={14} className="h-full w-full" scrollWheelZoom>
+              <MapContainer center={mapCenter} zoom={14} maxZoom={LEAFLET_MAP_MAX_ZOOM} className="h-full w-full" scrollWheelZoom>
                 <MapBaseLayers />
                 <Marker position={[mapPoint.lat, mapPoint.lon]} />
               </MapContainer>

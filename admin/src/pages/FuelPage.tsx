@@ -8,7 +8,7 @@ import { MapContainer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { DateTimeField } from '@/components/DateTimeField';
-import { MapBaseLayers } from '@/components/MapBaseLayers';
+import { LEAFLET_MAP_MAX_ZOOM, MapBaseLayers } from '@/components/MapBaseLayers';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -505,7 +505,7 @@ export function FuelPage() {
               >
                 <Fuel className="h-5 w-5 text-slate-900" strokeWidth={2.25} aria-hidden />
               </button>
-              <MapContainer center={mapCenter} zoom={15} className="h-full w-full" scrollWheelZoom>
+              <MapContainer center={mapCenter} zoom={15} maxZoom={LEAFLET_MAP_MAX_ZOOM} className="h-full w-full" scrollWheelZoom>
                 <MapBaseLayers />
                 <Marker position={[mapPoint.lat, mapPoint.lon]} />
                 {fuelLayerVisible &&

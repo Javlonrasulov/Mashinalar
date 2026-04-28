@@ -6,7 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import { api, API_BASE, getToken } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import { DateTimeField } from '@/components/DateTimeField';
-import { MapBaseLayers } from '@/components/MapBaseLayers';
+import { LEAFLET_MAP_MAX_ZOOM, MapBaseLayers } from '@/components/MapBaseLayers';
 import { fuelPumpLeafletIcon, type FuelStationMapItem } from '@/lib/fuelStationsMap';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 import clsx from 'clsx';
@@ -769,7 +769,13 @@ export function MapPage() {
           >
             <Fuel className="h-5 w-5 text-slate-900" strokeWidth={2.25} aria-hidden />
           </button>
-          <MapContainer center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM} className="h-full w-full" scrollWheelZoom>
+          <MapContainer
+            center={DEFAULT_MAP_CENTER}
+            zoom={DEFAULT_MAP_ZOOM}
+            maxZoom={LEAFLET_MAP_MAX_ZOOM}
+            className="h-full w-full"
+            scrollWheelZoom
+          >
             <MapBaseLayers />
             <FitBounds points={fitBoundsPoints} />
             <FlyToSelectedOnVehicleChange pos={selectedPos} vehicleId={vehicleId} />
