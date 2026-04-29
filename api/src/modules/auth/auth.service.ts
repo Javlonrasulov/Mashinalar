@@ -15,10 +15,35 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { login: dto.login },
+    const rawLogin = dto.login;
+    const normalizedLogin = rawLogin.trim();
+    if (!normalizedLogin) throw new UnauthorizedException('Invalid credentials');
+
+    let user = await this.prisma.user.findUnique({
+      where: { login: rawLogin },
       include: { driver: true },
     });
+    if (!user && normalizedLogin !== rawLogin) {
+      user = await this.prisma.user.findUnique({
+        where: { login: normalizedLogin },
+        include: { driver: true },
+      });
+    }
+    if (!user) {
+      const trimmedMatch = await this.prisma.$queryRaw<{ id: string }[]>`
+        select id
+        from "User"
+        where btrim(login) = ${normalizedLogin}
+        limit 1
+      `;
+      const userId = trimmedMatch[0]?.id;
+      if (userId) {
+        user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          include: { driver: true },
+        });
+      }
+    }
     if (!user) throw new UnauthorizedException('Invalid credentials');
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Invalid credentials');

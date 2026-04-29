@@ -100,9 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (loginStr: string, password: string) => {
+    const normalizedLogin = loginStr.trim();
     const res = await api<LoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ login: loginStr, password }),
+      body: JSON.stringify({ login: normalizedLogin, password }),
     });
     if (!isAdminPanelUser(res.user.role)) {
       throw new Error(t('adminOnly'));
