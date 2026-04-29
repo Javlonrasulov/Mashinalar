@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Pencil } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 
@@ -16,6 +17,7 @@ export function DriversPage() {
   const [rows, setRows] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<{ id: string; plateNumber: string }[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     login: '',
     password: '',
@@ -37,27 +39,77 @@ export function DriversPage() {
     load().catch((e: Error) => setErr(e.message));
   }, []);
 
-  async function onCreate(e: React.FormEvent) {
+  function startEdit(d: Driver) {
+    setEditingId(d.id);
+    setForm({
+      login: d.user.login,
+      password: '',
+      fullName: d.fullName,
+      phone: d.phone,
+      vehicleId: d.vehicleId ?? '',
+    });
+    setErr(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm({ login: '', password: '', fullName: '', phone: '', vehicleId: '' });
+    setErr(null);
+  }
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    await api('/drivers', {
-      method: 'POST',
-      body: JSON.stringify({
-        login: form.login,
-        password: form.password,
-        fullName: form.fullName,
-        phone: form.phone,
-        vehicleId: form.vehicleId || undefined,
-      }),
-    });
-    setForm({ login: '', password: '', fullName: '', phone: '', vehicleId: '' });
-    await load();
+    try {
+      if (editingId) {
+        const pw = form.password.trim();
+        if (pw.length > 0 && pw.length < 6) {
+          setErr(t('adminUsersPasswordMin'));
+          return;
+        }
+        const body: Record<string, unknown> = {
+          fullName: form.fullName,
+          phone: form.phone,
+          vehicleId: form.vehicleId ? form.vehicleId : null,
+        };
+        if (pw.length > 0) {
+          body.password = pw;
+        }
+        await api(`/drivers/${editingId}`, { method: 'PATCH', body: JSON.stringify(body) });
+        cancelEdit();
+      } else {
+        const pw = form.password.trim();
+        if (pw.length < 6) {
+          setErr(t('adminUsersPasswordMin'));
+          return;
+        }
+        await api('/drivers', {
+          method: 'POST',
+          body: JSON.stringify({
+            login: form.login.trim(),
+            password: pw,
+            fullName: form.fullName,
+            phone: form.phone,
+            vehicleId: form.vehicleId || undefined,
+          }),
+        });
+        setForm({ login: '', password: '', fullName: '', phone: '', vehicleId: '' });
+      }
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
   }
 
   async function onDelete(id: string) {
     if (!confirm('Delete?')) return;
-    await api(`/drivers/${id}`, { method: 'DELETE' });
-    await load();
+    try {
+      await api(`/drivers/${id}`, { method: 'DELETE' });
+      if (editingId === id) cancelEdit();
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
   }
 
   return (
@@ -70,27 +122,34 @@ export function DriversPage() {
       )}
 
       <form
-        onSubmit={onCreate}
+        onSubmit={onSubmit}
         className="app-card-pad grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-6"
       >
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('loginLabel')}</label>
           <input
-            className="app-input"
+            className={editingId ? 'app-input bg-slate-100 dark:bg-slate-800/80' : 'app-input'}
             value={form.login}
             onChange={(e) => setForm({ ...form, login: e.target.value })}
-            required
+            required={!editingId}
+            readOnly={Boolean(editingId)}
+            aria-readonly={editingId ? true : undefined}
           />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('password')}</label>
           <input
-            type="password"
+            type="text"
+            autoComplete="off"
             className="app-input"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            required
+            required={!editingId}
+            minLength={!editingId ? 6 : undefined}
           />
+          {editingId ? (
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('adminUsersOptionalPassword')}</p>
+          ) : null}
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('fullName')}</label>
@@ -125,9 +184,16 @@ export function DriversPage() {
             ))}
           </select>
         </div>
-        <button type="submit" className="app-btn-primary w-full md:w-auto">
-          {t('add')}
-        </button>
+        <div className="flex flex-wrap items-end gap-2">
+          <button type="submit" className="app-btn-primary w-full sm:w-auto">
+            {editingId ? t('save') : t('add')}
+          </button>
+          {editingId ? (
+            <button type="button" className="app-btn-ghost w-full sm:w-auto" onClick={cancelEdit}>
+              {t('cancel')}
+            </button>
+          ) : null}
+        </div>
       </form>
 
       <div className="app-card min-w-0 overflow-hidden">
@@ -150,9 +216,20 @@ export function DriversPage() {
                 <td className="p-3">{d.phone}</td>
                 <td className="p-3">{d.vehicle?.plateNumber ?? '—'}</td>
                 <td className="p-3">
-                  <button type="button" className="app-link-danger" onClick={() => onDelete(d.id)}>
-                    {t('delete')}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      className="inline-flex items-center rounded-md p-1 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50"
+                      onClick={() => startEdit(d)}
+                      title={t('edit')}
+                      aria-label={t('edit')}
+                    >
+                      <Pencil size={16} aria-hidden />
+                    </button>
+                    <button type="button" className="app-link-danger" onClick={() => void onDelete(d.id)}>
+                      {t('delete')}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
