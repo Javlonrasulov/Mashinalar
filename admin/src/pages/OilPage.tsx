@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Droplets, Maximize2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Droplets, Maximize2, Search, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api, API_BASE } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
@@ -39,6 +39,12 @@ function photoHref(url: string | null | undefined): string | null {
   return `${API_BASE.replace(/\/$/, '')}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
+function rowMatchesQuery(q: string, parts: (string | null | undefined)[]): boolean {
+  if (!q) return true;
+  const n = q.toLowerCase();
+  return parts.some((p) => (p ?? '').toLowerCase().includes(n));
+}
+
 export function OilPage() {
   const { t } = useI18n();
   const [overview, setOverview] = useState<OilOverviewRow[]>([]);
@@ -47,6 +53,7 @@ export function OilPage() {
   const [photoModal, setPhotoModal] = useState<{ src: string; title: string } | null>(null);
   const [photoFs, setPhotoFs] = useState(false);
   const photoStageRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const load = () => {
     setErr(null);
@@ -111,6 +118,31 @@ export function OilPage() {
     return 'bg-white text-slate-800 dark:bg-slate-900/60 dark:text-slate-100 border-slate-200 dark:border-slate-700';
   }
 
+  const searchTrim = searchQuery.trim();
+  const filteredOverview = useMemo(() => {
+    if (!searchTrim) return overview;
+    return overview.filter((r) =>
+      rowMatchesQuery(searchTrim, [
+        r.plateNumber,
+        r.name,
+        r.driverLogin,
+        fmtKm(r.lastOilChangeKm),
+        r.oilChangeIntervalKm != null ? String(r.oilChangeIntervalKm) : '',
+        fmtKm(r.estimatedCurrentKm),
+        fmtKm(r.nextOilChangeKm),
+        fmtKm(r.kmRemainingToNext),
+        urgencyLabel(r.oilUrgency),
+      ]),
+    );
+  }, [overview, searchTrim, t]);
+
+  const filteredHistory = useMemo(() => {
+    if (!searchTrim) return history;
+    return history.filter((h) =>
+      rowMatchesQuery(searchTrim, [h.plateNumber, h.vehicleName, h.driverLogin, h.kmAtChange]),
+    );
+  }, [history, searchTrim]);
+
   return (
     <div className="app-page">
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -127,7 +159,27 @@ export function OilPage() {
       )}
 
       <div className="app-card-pad mb-6 min-w-0 overflow-x-auto">
-        <h2 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">{t('oilOverviewTitle')}</h2>
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t('oilOverviewTitle')}</h2>
+          <div className="w-full min-w-0 sm:max-w-xs">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('oilSearchLabel')}</label>
+            <div className="relative min-w-0">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden
+              />
+              <input
+                type="search"
+                className="app-input w-full pl-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('oilSearchPlaceholder')}
+                aria-label={t('oilSearchPlaceholder')}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+        </div>
         <table className="min-w-[920px] w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-xs uppercase text-slate-500 dark:border-slate-700 dark:text-slate-400">
@@ -142,24 +194,32 @@ export function OilPage() {
             </tr>
           </thead>
           <tbody>
-            {overview.map((r) => (
-              <tr
-                key={r.vehicleId}
-                className={clsx('border-b border-slate-100 dark:border-slate-800', rowTone(r.oilUrgency))}
-              >
-                <td className="py-2 pr-3 font-medium">
-                  {r.plateNumber}
-                  <div className="text-xs font-normal opacity-80">{r.name}</div>
+            {filteredOverview.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                  {t('oilSearchNoResults')}
                 </td>
-                <td className="py-2 pr-3">{r.driverLogin ?? '—'}</td>
-                <td className="py-2 pr-3">{fmtKm(r.lastOilChangeKm)}</td>
-                <td className="py-2 pr-3">{r.oilChangeIntervalKm ?? '—'}</td>
-                <td className="py-2 pr-3">{fmtKm(r.estimatedCurrentKm)}</td>
-                <td className="py-2 pr-3">{fmtKm(r.nextOilChangeKm)}</td>
-                <td className="py-2 pr-3">{fmtKm(r.kmRemainingToNext)}</td>
-                <td className="py-2 font-semibold">{urgencyLabel(r.oilUrgency)}</td>
               </tr>
-            ))}
+            ) : (
+              filteredOverview.map((r) => (
+                <tr
+                  key={r.vehicleId}
+                  className={clsx('border-b border-slate-100 dark:border-slate-800', rowTone(r.oilUrgency))}
+                >
+                  <td className="py-2 pr-3 font-medium">
+                    {r.plateNumber}
+                    <div className="text-xs font-normal opacity-80">{r.name}</div>
+                  </td>
+                  <td className="py-2 pr-3">{r.driverLogin ?? '—'}</td>
+                  <td className="py-2 pr-3">{fmtKm(r.lastOilChangeKm)}</td>
+                  <td className="py-2 pr-3">{r.oilChangeIntervalKm ?? '—'}</td>
+                  <td className="py-2 pr-3">{fmtKm(r.estimatedCurrentKm)}</td>
+                  <td className="py-2 pr-3">{fmtKm(r.nextOilChangeKm)}</td>
+                  <td className="py-2 pr-3">{fmtKm(r.kmRemainingToNext)}</td>
+                  <td className="py-2 font-semibold">{urgencyLabel(r.oilUrgency)}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -177,41 +237,49 @@ export function OilPage() {
             </tr>
           </thead>
           <tbody>
-            {history.map((h) => (
-              <tr key={h.id} className="border-b border-slate-100 dark:border-slate-800">
-                <td className="py-2 pr-3">{new Date(h.createdAt).toLocaleString()}</td>
-                <td className="py-2 pr-3">
-                  {h.plateNumber}
-                  <div className="text-xs opacity-70">{h.vehicleName}</div>
-                </td>
-                <td className="py-2 pr-3">{h.driverLogin}</td>
-                <td className="py-2 pr-3">{h.kmAtChange}</td>
-                <td className="py-2">
-                  {photoHref(h.photoUrl) ? (
-                    <button
-                      type="button"
-                      className="group relative h-14 w-[4.5rem] shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 p-0 shadow-sm transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-600 dark:bg-slate-800"
-                      aria-label={t('oilHistoryTableTablo')}
-                      onClick={() =>
-                        setPhotoModal({
-                          src: photoHref(h.photoUrl)!,
-                          title: `${h.plateNumber} · ${h.kmAtChange} ${t('oilHistoryTableKm')}`,
-                        })
-                      }
-                    >
-                      <img
-                        src={photoHref(h.photoUrl)!}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    </button>
-                  ) : (
-                    '—'
-                  )}
+            {filteredHistory.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                  {t('oilSearchNoResults')}
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredHistory.map((h) => (
+                <tr key={h.id} className="border-b border-slate-100 dark:border-slate-800">
+                  <td className="py-2 pr-3">{new Date(h.createdAt).toLocaleString()}</td>
+                  <td className="py-2 pr-3">
+                    {h.plateNumber}
+                    <div className="text-xs opacity-70">{h.vehicleName}</div>
+                  </td>
+                  <td className="py-2 pr-3">{h.driverLogin}</td>
+                  <td className="py-2 pr-3">{h.kmAtChange}</td>
+                  <td className="py-2">
+                    {photoHref(h.photoUrl) ? (
+                      <button
+                        type="button"
+                        className="group relative h-14 w-[4.5rem] shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 p-0 shadow-sm transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-slate-600 dark:bg-slate-800"
+                        aria-label={t('oilHistoryTableTablo')}
+                        onClick={() =>
+                          setPhotoModal({
+                            src: photoHref(h.photoUrl)!,
+                            title: `${h.plateNumber} · ${h.kmAtChange} ${t('oilHistoryTableKm')}`,
+                          })
+                        }
+                      >
+                        <img
+                          src={photoHref(h.photoUrl)!}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      </button>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

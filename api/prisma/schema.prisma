@@ -53,6 +53,7 @@ model Driver {
   dailyKmReports    DailyKmReport[]
   tasks             Task[]
   oilChangeReports  OilChangeReport[]
+  gpsOffSegments    GpsOffSegment[]
 
   @@index([vehicleId])
 }
@@ -92,8 +93,23 @@ model Vehicle {
   tasks             Task[]
   expenses          Expense[]
   oilChangeReports  OilChangeReport[]
+  gpsOffSegments    GpsOffSegment[]
 
   @@index([categoryId])
+}
+
+model GpsOffSegment {
+  id         String   @id @default(cuid())
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId   String?
+  driver     Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  startedAt  DateTime
+  endedAt    DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([vehicleId, startedAt, endedAt])
+  @@index([vehicleId, startedAt])
 }
 
 model VehicleCategory {

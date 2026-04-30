@@ -251,6 +251,126 @@ export class DailyKmService {
   }
 
   /**
+   * Admin: oralig‘dagi har bir kunda haydovchisi biriktirilgan transportlar bo‘yicha
+   * kun boshlanishi (hisobot yozuvi) va kun tugashi (endKm) yuborilgan / kutilayotganlari.
+   */
+  async submissionOverview(params: { from: string; to: string }) {
+    const fromD = new Date(params.from);
+    const toD = new Date(params.to);
+    if (Number.isNaN(fromD.getTime()) || Number.isNaN(toD.getTime())) {
+      throw new BadRequestException('daily_km.invalid_report_date');
+    }
+    fromD.setUTCHours(0, 0, 0, 0);
+    toD.setUTCHours(0, 0, 0, 0);
+    if (fromD.getTime() > toD.getTime()) {
+      throw new BadRequestException('daily_km.range_invalid');
+    }
+    const spanDays = Math.floor((toD.getTime() - fromD.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    if (spanDays > 366) throw new BadRequestException('daily_km.range_too_wide');
+    const toExclusive = new Date(toD);
+    toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
+
+    const vehicles = await this.prisma.vehicle.findMany({
+      where: { drivers: { some: {} } },
+      select: {
+        id: true,
+        plateNumber: true,
+        drivers: { select: { id: true, fullName: true }, orderBy: { fullName: 'asc' } },
+      },
+      orderBy: { plateNumber: 'asc' },
+    });
+
+    type FleetRow = { vehicleId: string; plateNumber: string; driverName: string };
+    const fleet: FleetRow[] = vehicles.map((v) => ({
+      vehicleId: v.id,
+      plateNumber: v.plateNumber,
+      driverName: v.drivers[0]?.fullName ?? '—',
+    }));
+    const fleetTotal = fleet.length;
+    if (fleetTotal === 0) {
+      return { fleetTotal: 0, days: [] };
+    }
+
+    const fleetIds = fleet.map((f) => f.vehicleId);
+    const reports = await this.prisma.dailyKmReport.findMany({
+      where: {
+        reportDate: { gte: fromD, lt: toExclusive },
+        vehicleId: { in: fleetIds },
+      },
+      select: {
+        vehicleId: true,
+        reportDate: true,
+        endKm: true,
+        driver: { select: { fullName: true } },
+      },
+    });
+
+    type RepInfo = { endKm: (typeof reports)[number]['endKm']; driverName: string };
+    const reportByVehicleDay = new Map<string, RepInfo>();
+    for (const r of reports) {
+      const ymd = r.reportDate.toISOString().slice(0, 10);
+      reportByVehicleDay.set(`${r.vehicleId}:${ymd}`, {
+        endKm: r.endKm,
+        driverName: r.driver.fullName,
+      });
+    }
+
+    type ListRow = { vehicleId: string; plateNumber: string; driverName: string };
+    type DayRow = {
+      date: string;
+      startSubmitted: number;
+      startMissing: number;
+      endSubmitted: number;
+      endMissing: number;
+      startMissingList: ListRow[];
+      startSubmittedList: ListRow[];
+      endMissingList: ListRow[];
+      endSubmittedList: ListRow[];
+    };
+
+    const days: DayRow[] = [];
+    for (let d = new Date(fromD); d.getTime() < toExclusive.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
+      const ymd = d.toISOString().slice(0, 10);
+      const startMissingList: ListRow[] = [];
+      const startSubmittedList: ListRow[] = [];
+      const endMissingList: ListRow[] = [];
+      const endSubmittedList: ListRow[] = [];
+
+      for (const f of fleet) {
+        const rep = reportByVehicleDay.get(`${f.vehicleId}:${ymd}`);
+        const hasStart = Boolean(rep);
+        const driverName = rep?.driverName ?? f.driverName;
+        if (hasStart) {
+          startSubmittedList.push({ vehicleId: f.vehicleId, plateNumber: f.plateNumber, driverName });
+        } else {
+          startMissingList.push({ vehicleId: f.vehicleId, plateNumber: f.plateNumber, driverName: f.driverName });
+        }
+        const hasEnd = rep != null && rep.endKm != null;
+        if (hasEnd) {
+          endSubmittedList.push({ vehicleId: f.vehicleId, plateNumber: f.plateNumber, driverName });
+        } else {
+          endMissingList.push({ vehicleId: f.vehicleId, plateNumber: f.plateNumber, driverName });
+        }
+      }
+
+      days.push({
+        date: ymd,
+        startSubmitted: startSubmittedList.length,
+        startMissing: startMissingList.length,
+        endSubmitted: endSubmittedList.length,
+        endMissing: endMissingList.length,
+        startMissingList,
+        startSubmittedList,
+        endMissingList,
+        endSubmittedList,
+      });
+    }
+
+    days.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return { fleetTotal, days };
+  }
+
+  /**
    * Admin: sanalar oralig‘ida har bir kun uchun «oldingi yopilgan тугаш KM» → «shu kun бошланиш KM» farqi.
    * Oldingi kun yopilmagan bo‘lsa (endKm null), keyingi kun uchun farq hisoblanmaydi (null).
    */

@@ -3,6 +3,7 @@ package com.mashinalar.driver.di
 import android.content.Context
 import androidx.room.Room
 import com.mashinalar.driver.data.db.AppDatabase
+import com.mashinalar.driver.data.db.GpsOffSegmentDao
 import com.mashinalar.driver.data.db.LocationPointDao
 import dagger.Module
 import dagger.Provides
@@ -23,5 +24,8 @@ object DatabaseModule {
 
   @Provides
   fun locationDao(db: AppDatabase): LocationPointDao = db.locationPointDao()
+
+  @Provides
+  fun gpsOffSegmentDao(db: AppDatabase): GpsOffSegmentDao = db.gpsOffSegmentDao()
 }
 

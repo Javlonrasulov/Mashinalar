@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, forwardRef } from '@nestjs/com
 import { LocationPoint, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TrackingGateway } from './tracking.gateway';
+import { BatchGpsOffSegmentsDto } from './dto/batch-gps-off-segments.dto';
 import { BatchLocationDto } from './dto/batch-location.dto';
 
 /** GPS shovqinini kamaytirish: bundan yomonroq aniqlikdagi nuqtalar tahlildan chiqariladi. */
@@ -191,6 +192,7 @@ export class TrackingService {
         lastLatitude: true,
         lastLongitude: true,
         lastLocationAt: true,
+        category: { select: { id: true, name: true } },
         drivers: {
           take: 1,
           select: { fullName: true, id: true },
@@ -342,5 +344,56 @@ export class TrackingService {
       }
     }
     return clusters.sort((a, b) => b.totalStopSec - a.totalStopSec);
+  }
+
+  /** Haydovchi qurilmada GPS o‘chirilgan davrlar (lokal yozuvlar yuboriladi). */
+  async ingestGpsOffSegments(driverId: string, dto: BatchGpsOffSegmentsDto) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+      include: { vehicle: true },
+    });
+    if (!driver?.vehicleId) throw new BadRequestException('Driver has no vehicle assigned');
+
+    const vehicleId = driver.vehicleId;
+    const MAX_MS = 7 * 24 * 60 * 60 * 1000;
+    const rows: Prisma.GpsOffSegmentCreateManyInput[] = [];
+
+    for (const s of dto.segments ?? []) {
+      const a = new Date(s.startedAt).getTime();
+      const b = new Date(s.endedAt).getTime();
+      if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+      if (b <= a || b - a > MAX_MS) continue;
+      rows.push({
+        vehicleId,
+        driverId,
+        startedAt: new Date(a),
+        endedAt: new Date(b),
+      });
+    }
+
+    if (!rows.length) return { inserted: 0 };
+
+    const res = await this.prisma.gpsOffSegment.createMany({
+      data: rows,
+      skipDuplicates: true,
+    });
+    return { inserted: res.count };
+  }
+
+  gpsOffSegments(vehicleId: string, from: Date, to: Date) {
+    return this.prisma.gpsOffSegment.findMany({
+      where: {
+        vehicleId,
+        startedAt: { lt: to },
+        endedAt: { gt: from },
+      },
+      orderBy: { startedAt: 'asc' },
+      select: {
+        id: true,
+        startedAt: true,
+        endedAt: true,
+        driverId: true,
+      },
+    });
   }
 }

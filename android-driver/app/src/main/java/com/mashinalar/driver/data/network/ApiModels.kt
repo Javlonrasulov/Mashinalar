@@ -57,6 +57,17 @@ data class BatchLocationResponse(
 )
 
 @JsonClass(generateAdapter = true)
+data class GpsOffSegmentUploadDto(
+  val startedAt: String,
+  val endedAt: String,
+)
+
+@JsonClass(generateAdapter = true)
+data class BatchGpsOffSegmentsRequest(
+  val segments: List<GpsOffSegmentUploadDto>,
+)
+
+@JsonClass(generateAdapter = true)
 data class TaskDto(
   val id: String,
   val title: String,

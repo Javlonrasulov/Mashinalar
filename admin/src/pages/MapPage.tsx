@@ -114,6 +114,7 @@ type Live = {
   lastLatitude: string | null;
   lastLongitude: string | null;
   lastLocationAt: string | null;
+  category?: { id: string; name: string } | null;
   drivers: { fullName: string }[];
 };
 
@@ -201,12 +202,75 @@ function FlyToSelectedOnVehicleChange({
 function livePayloadEqual(a: Live[], b: Live[]): boolean {
   if (a.length !== b.length) return false;
   const sig = (x: Live) =>
-    `${x.id}|${x.lastLatitude ?? ''}|${x.lastLongitude ?? ''}|${x.lastLocationAt ?? ''}|${x.drivers?.[0]?.fullName ?? ''}`;
+    `${x.id}|${x.lastLatitude ?? ''}|${x.lastLongitude ?? ''}|${x.lastLocationAt ?? ''}|${x.drivers?.[0]?.fullName ?? ''}|${x.category?.id ?? ''}`;
   const ma = new Map(a.map((x) => [x.id, sig(x)]));
   for (const x of b) {
     if (ma.get(x.id) !== sig(x)) return false;
   }
   return true;
+}
+
+type GpsOffRow = { id: string; startedAt: string; endedAt: string };
+
+/** Tanlangan oraliqda GPS yoqilgan / o‘chiq bo‘lgan vaqtlar (serverdagi o‘chiq segmentlar + oralikdagi bo‘shliqlar = yoqilgan). */
+type GpsPowerSeg = { kind: 'off' | 'on'; start: Date; end: Date; durationSec: number };
+
+function clipToRange(start: Date, end: Date, rangeFrom: Date, rangeTo: Date): { start: Date; end: Date } | null {
+  const s = Math.max(start.getTime(), rangeFrom.getTime());
+  const e = Math.min(end.getTime(), rangeTo.getTime());
+  if (e <= s) return null;
+  return { start: new Date(s), end: new Date(e) };
+}
+
+function mergeOffIntervals(intervals: { start: Date; end: Date }[]): { start: Date; end: Date }[] {
+  if (intervals.length === 0) return [];
+  const sorted = [...intervals].sort((a, b) => a.start.getTime() - b.start.getTime());
+  const out: { start: Date; end: Date }[] = [];
+  for (const cur of sorted) {
+    const last = out[out.length - 1];
+    if (!last) {
+      out.push({ start: cur.start, end: cur.end });
+      continue;
+    }
+    if (cur.start.getTime() <= last.end.getTime()) {
+      last.end = new Date(Math.max(last.end.getTime(), cur.end.getTime()));
+    } else {
+      out.push({ start: cur.start, end: cur.end });
+    }
+  }
+  return out;
+}
+
+function buildGpsPowerTimeline(offRows: GpsOffRow[], rangeFrom: Date, rangeTo: Date): GpsPowerSeg[] {
+  const clipped: { start: Date; end: Date }[] = [];
+  for (const r of offRows) {
+    const a = new Date(r.startedAt);
+    const b = new Date(r.endedAt);
+    if (!Number.isFinite(a.getTime()) || !Number.isFinite(b.getTime()) || b.getTime() <= a.getTime()) continue;
+    const c = clipToRange(a, b, rangeFrom, rangeTo);
+    if (c) clipped.push(c);
+  }
+  const mergedOff = mergeOffIntervals(clipped);
+  const segs: GpsPowerSeg[] = [];
+  let t = rangeFrom.getTime();
+  const endT = rangeTo.getTime();
+  for (const off of mergedOff) {
+    const os = off.start.getTime();
+    const oe = off.end.getTime();
+    if (os > t) {
+      const dur = (os - t) / 1000;
+      if (dur > 0) segs.push({ kind: 'on', start: new Date(t), end: new Date(os), durationSec: dur });
+    }
+    const offStart = Math.max(t, os);
+    const offDur = (oe - offStart) / 1000;
+    if (offDur > 0) segs.push({ kind: 'off', start: new Date(offStart), end: new Date(oe), durationSec: offDur });
+    t = Math.max(t, oe);
+  }
+  if (t < endT) {
+    const dur = (endT - t) / 1000;
+    if (dur > 0) segs.push({ kind: 'on', start: new Date(t), end: new Date(endT), durationSec: dur });
+  }
+  return segs;
 }
 
 type RefreshUi = 'idle' | 'loading' | 'success';
@@ -237,6 +301,8 @@ export function MapPage() {
   const [analytics, setAnalytics] = useState<MapAnalytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [gpsOffRows, setGpsOffRows] = useState<GpsOffRow[]>([]);
+  const [gpsTimelineFilter, setGpsTimelineFilter] = useState<'all' | 'off' | 'on'>('all');
   /** «Кўп турган жойлар» dan tanlangan klaster — xaritada tegishli to‘xtashlar ajratiladi. */
   const [focusedCluster, setFocusedCluster] = useState<{ latitude: number; longitude: number } | null>(null);
   const [geoLabels, setGeoLabels] = useState<Record<string, string>>({});
@@ -259,6 +325,7 @@ export function MapPage() {
     if (!vehicleId) {
       setHistory([]);
       setAnalytics(null);
+      setGpsOffRows([]);
       setAnalyticsError(null);
       setAnalyticsLoading(false);
       return;
@@ -269,6 +336,7 @@ export function MapPage() {
       setAnalyticsError(t('mapRangeInvalid'));
       setHistory([]);
       setAnalytics(null);
+      setGpsOffRows([]);
       return;
     }
     setAnalyticsLoading(true);
@@ -277,21 +345,57 @@ export function MapPage() {
     const qTo = encodeURIComponent(endD.toISOString());
     const qV = encodeURIComponent(vehicleId);
     try {
-      const [hist, ana] = await Promise.all([
+      const [hist, ana, gpsOff] = await Promise.all([
         api<HistoryRow[]>(`/tracking/history?vehicleId=${qV}&from=${qFrom}&to=${qTo}`),
         api<MapAnalytics>(`/tracking/analytics?vehicleId=${qV}&from=${qFrom}&to=${qTo}`),
+        api<GpsOffRow[]>(`/tracking/gps-off-segments?vehicleId=${qV}&from=${qFrom}&to=${qTo}`).catch(() => [] as GpsOffRow[]),
       ]);
       const histFiltered = hist.filter((p) => p.accuracyM == null || p.accuracyM <= MAX_ACCURACY_M);
       setHistory(histFiltered.map((p) => [Number(p.latitude), Number(p.longitude)]));
       setAnalytics(ana);
+      setGpsOffRows(Array.isArray(gpsOff) ? gpsOff : []);
     } catch {
       setHistory([]);
       setAnalytics(null);
+      setGpsOffRows([]);
       setAnalyticsError(t('mapAnalyticsError'));
     } finally {
       setAnalyticsLoading(false);
     }
   }, [vehicleId, from, to, t]);
+
+  const gpsTimeline = useMemo(() => {
+    if (!vehicleId) return [] as GpsPowerSeg[];
+    const startD = new Date(from);
+    const endD = new Date(to);
+    if (Number.isNaN(startD.getTime()) || Number.isNaN(endD.getTime()) || startD > endD) return [];
+    return buildGpsPowerTimeline(gpsOffRows, startD, endD);
+  }, [vehicleId, from, to, gpsOffRows]);
+
+  const gpsPowerTotals = useMemo(() => {
+    let offSec = 0;
+    let onSec = 0;
+    for (const s of gpsTimeline) {
+      if (s.kind === 'off') offSec += Math.floor(s.durationSec);
+      else onSec += Math.floor(s.durationSec);
+    }
+    const startD = new Date(from);
+    const endD = new Date(to);
+    const rangeSec =
+      Number.isFinite(startD.getTime()) && Number.isFinite(endD.getTime()) && endD > startD
+        ? Math.max(0, (endD.getTime() - startD.getTime()) / 1000)
+        : 0;
+    return { offSec, onSec, rangeSec };
+  }, [gpsTimeline, from, to]);
+
+  const gpsTimelineFiltered = useMemo(() => {
+    if (gpsTimelineFilter === 'all') return gpsTimeline;
+    return gpsTimeline.filter((s) => s.kind === gpsTimelineFilter);
+  }, [gpsTimeline, gpsTimelineFilter]);
+
+  useEffect(() => {
+    setGpsTimelineFilter('all');
+  }, [vehicleId, from, to]);
 
   useEffect(() => {
     void loadRouteAnalytics();
@@ -388,13 +492,17 @@ export function MapPage() {
   const markers = useMemo(() => {
     return live
       .filter((v) => v.lastLatitude && v.lastLongitude)
-      .map((v) => ({
-        id: v.id,
-        pos: [Number(v.lastLatitude), Number(v.lastLongitude)] as [number, number],
-        title: `${v.plateNumber} — ${v.drivers[0]?.fullName ?? ''}`,
-        lastLocationAt: v.lastLocationAt,
-      }));
-  }, [live]);
+      .map((v) => {
+        const catFromList = vehicles.find((x) => x.id === v.id)?.category;
+        return {
+          id: v.id,
+          pos: [Number(v.lastLatitude), Number(v.lastLongitude)] as [number, number],
+          title: `${v.plateNumber} — ${v.drivers[0]?.fullName ?? ''}`,
+          lastLocationAt: v.lastLocationAt,
+          categoryId: v.category?.id ?? catFromList?.id ?? null,
+        };
+      });
+  }, [live, vehicles]);
 
   const selectedPos = useMemo(() => {
     if (!vehicleId) return null;
@@ -411,15 +519,6 @@ export function MapPage() {
     return s;
   }, [live, nowTick]);
 
-  const onlineCount = useMemo(() => vehicles.filter((v) => onlineIds.has(v.id)).length, [vehicles, onlineIds]);
-  const offlineCount = Math.max(0, vehicles.length - onlineCount);
-
-  const visibleMarkers = useMemo(() => {
-    if (presenceFilter === 'all') return markers;
-    if (presenceFilter === 'online') return markers.filter((m) => onlineIds.has(m.id));
-    return markers.filter((m) => !onlineIds.has(m.id));
-  }, [markers, onlineIds, presenceFilter]);
-
   const driverNameByVehicleId = useMemo(() => {
     const m = new Map<string, string>();
     for (const v of live) {
@@ -428,6 +527,50 @@ export function MapPage() {
     }
     return m;
   }, [live]);
+
+  const markersForFleetView = useMemo(() => {
+    let list = markers;
+    if (vehicleCategoryId) {
+      list = list.filter((m) => m.categoryId === vehicleCategoryId);
+    }
+    const q = vehicleQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((m) => {
+        const v = vehicles.find((x) => x.id === m.id);
+        if (!v) return false;
+        const driver = driverNameByVehicleId.get(m.id) ?? '';
+        const cat = v.category?.name ?? '';
+        const haystack = `${v.plateNumber} ${v.name} ${v.model ?? ''} ${driver} ${cat}`.toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+    return list;
+  }, [markers, vehicleCategoryId, vehicleQuery, vehicles, driverNameByVehicleId]);
+
+  /**
+   * Onlayn/Oflayn soni — xaritada chiziladigan markerlar bilan bir xil manba:
+   * faqat oxirgi GPS nuqtasi bor mashinalar (markersForFleetView).
+   * Aks holda oflayn soni katta, xaritada esa kam nuqta — foydalanuvchi chalkashadi.
+   */
+  const onlineCount = useMemo(
+    () => markersForFleetView.filter((m) => onlineIds.has(m.id)).length,
+    [markersForFleetView, onlineIds],
+  );
+  const offlineCount = useMemo(
+    () => markersForFleetView.filter((m) => !onlineIds.has(m.id)).length,
+    [markersForFleetView, onlineIds],
+  );
+
+  const visibleMarkers = useMemo(() => {
+    if (vehicleId) {
+      const sel = markers.find((m) => m.id === vehicleId);
+      return sel ? [sel] : [];
+    }
+    let list = markersForFleetView;
+    if (presenceFilter === 'online') return list.filter((m) => onlineIds.has(m.id));
+    if (presenceFilter === 'offline') return list.filter((m) => !onlineIds.has(m.id));
+    return list;
+  }, [markers, vehicleId, markersForFleetView, presenceFilter, onlineIds]);
 
   const vehicleCategoryOptions = useMemo(() => {
     const m = new Map<string, string>();
@@ -596,74 +739,87 @@ export function MapPage() {
 
       <div className="app-card-pad relative z-20 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
         <div ref={vehicleRef} className="relative min-w-0 sm:col-span-2 lg:col-span-1">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('mapVehicle')}</label>
-          <div className="flex min-w-0 flex-col gap-2">
-            <div className="relative min-w-0">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                aria-hidden
-              />
-              <input
-                type="search"
-                className="app-input w-full pl-9"
-                value={vehicleQuery}
-                onChange={(e) => setVehicleQuery(e.target.value)}
-                placeholder={t('mapVehicleSearchPlaceholder')}
-                aria-label={t('mapVehicleSearchAria')}
-                autoComplete="off"
-              />
+          <div className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">{t('mapVehicle')}</div>
+          <div className="flex min-w-0 flex-col gap-3">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-0">
+              <div className="min-w-0">
+                <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400" htmlFor="map-vehicle-search">
+                  {t('mapVehicleSearchShort')}
+                </label>
+                <div className="relative min-w-0">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                    aria-hidden
+                  />
+                  <input
+                    id="map-vehicle-search"
+                    type="search"
+                    className="app-input w-full pl-9"
+                    value={vehicleQuery}
+                    onChange={(e) => setVehicleQuery(e.target.value)}
+                    placeholder={t('mapVehicleSearchPlaceholder')}
+                    aria-label={t('mapVehicleSearchAria')}
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+              <div className="min-w-0">
+                <label
+                  className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400"
+                  htmlFor="map-vehicle-category"
+                >
+                  {t('mapVehicleCategory')}
+                </label>
+                <select
+                  id="map-vehicle-category"
+                  className="app-select w-full"
+                  value={vehicleCategoryId}
+                  onChange={(e) => setVehicleCategoryId(e.target.value)}
+                >
+                  <option value="">{t('all')}</option>
+                  {vehicleCategoryOptions.map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="min-w-0">
-              <label
-                className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
-                htmlFor="map-vehicle-category"
-              >
-                {t('mapVehicleCategory')}
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
+                {t('mapVehiclePick')}
               </label>
-              <select
-                id="map-vehicle-category"
-                className="app-select w-full"
-                value={vehicleCategoryId}
-                onChange={(e) => setVehicleCategoryId(e.target.value)}
-              >
-                <option value="">{t('all')}</option>
-                {vehicleCategoryOptions.map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex min-w-0 gap-1">
-              <button
-                type="button"
-                aria-haspopup="listbox"
-                aria-expanded={vehicleOpen}
-                onClick={() => setVehicleOpen((o) => !o)}
-                className={clsx(
-                  'app-input flex min-w-0 flex-1 items-center justify-between gap-2 text-left',
-                  !vehicleId && 'text-slate-500 dark:text-slate-400',
-                )}
-              >
-                <span className="truncate">{selectedVehicleLabel || t('mapVehicleSelectPlaceholder')}</span>
-                <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-              </button>
-              {vehicleId ? (
+              <div className="flex min-w-0 gap-1">
                 <button
                   type="button"
-                  className="app-btn-ghost shrink-0 rounded-lg border border-slate-200/90 px-2 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800/80"
-                  aria-label={t('mapClearVehicle')}
-                  title={t('mapClearVehicle')}
-                  onClick={() => {
-                    setVehicleId('');
-                    setVehicleQuery('');
-                    setVehicleCategoryId('');
-                    setVehicleOpen(false);
-                  }}
+                  aria-haspopup="listbox"
+                  aria-expanded={vehicleOpen}
+                  onClick={() => setVehicleOpen((o) => !o)}
+                  className={clsx(
+                    'app-input flex min-w-0 flex-1 items-center justify-between gap-2 text-left',
+                    !vehicleId && 'text-slate-500 dark:text-slate-400',
+                  )}
                 >
-                  <X className="h-4 w-4" aria-hidden />
+                  <span className="truncate">{selectedVehicleLabel || t('mapVehicleSelectPlaceholder')}</span>
+                  <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
                 </button>
-              ) : null}
+                {vehicleId ? (
+                  <button
+                    type="button"
+                    className="app-btn-ghost shrink-0 rounded-lg border border-slate-200/90 px-2 py-2 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800/80"
+                    aria-label={t('mapClearVehicle')}
+                    title={t('mapClearVehicle')}
+                    onClick={() => {
+                      setVehicleId('');
+                      setVehicleQuery('');
+                      setVehicleCategoryId('');
+                      setVehicleOpen(false);
+                    }}
+                  >
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -806,7 +962,7 @@ export function MapPage() {
             scrollWheelZoom
           >
             <MapBaseLayers />
-            <FitBounds points={fitBoundsPoints} />
+            <FitBounds key={`${presenceFilter}-${vehicleId}-${visibleMarkers.length}`} points={fitBoundsPoints} />
             <FlyToSelectedOnVehicleChange pos={selectedPos} vehicleId={vehicleId} />
             {showRoute && (
               <Polyline
@@ -905,6 +1061,21 @@ export function MapPage() {
                 >
                   {m.title}
                 </Tooltip>
+                <Popup>
+                  <div className="max-w-[14rem] text-xs">
+                    <div className="font-semibold text-slate-900">{m.title}</div>
+                    <div className="mt-1 text-slate-600">
+                      {onlineIds.has(m.id) ? t('mapOnline') : t('mapOffline')}
+                    </div>
+                    {m.lastLocationAt ? (
+                      <div className="mt-1 text-slate-500">
+                        {t('mapLastLocationAt')}: {new Date(m.lastLocationAt).toLocaleString()}
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-slate-500">{t('mapLastLocationUnknown')}</div>
+                    )}
+                  </div>
+                </Popup>
               </Marker>
             ))}
           </MapContainer>
@@ -965,6 +1136,75 @@ export function MapPage() {
                   raw: String(analytics.pointsCountRaw),
                 })}
               </p>
+              <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-2 dark:border-slate-700/90 dark:bg-slate-800/50">
+                <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  {t('mapGpsPowerTitle')}
+                </h3>
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {(['all', 'off', 'on'] as const).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setGpsTimelineFilter(f)}
+                      className={clsx(
+                        'rounded-lg border px-2 py-1 text-[11px] font-medium transition',
+                        gpsTimelineFilter === f
+                          ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
+                          : 'border-slate-200/90 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-800',
+                      )}
+                    >
+                      {f === 'all' ? t('mapGpsFilterAll') : f === 'off' ? t('mapGpsFilterOff') : t('mapGpsFilterOn')}
+                    </button>
+                  ))}
+                </div>
+                <div className="mb-2 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <div className="text-slate-500 dark:text-slate-400">{t('mapGpsPowerOffSum')}</div>
+                    <div className="font-semibold tabular-nums text-slate-900 dark:text-white">
+                      {formatDurationHms(Math.floor(gpsPowerTotals.offSec))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-slate-500 dark:text-slate-400">{t('mapGpsPowerOnSum')}</div>
+                    <div className="font-semibold tabular-nums text-slate-900 dark:text-white">
+                      {formatDurationHms(Math.floor(gpsPowerTotals.onSec))}
+                    </div>
+                  </div>
+                </div>
+                {gpsTimeline.length === 0 ? (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('mapGpsPowerEmpty')}</p>
+                ) : gpsTimelineFiltered.length === 0 ? (
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('mapGpsTimelineEmpty')}</p>
+                ) : (
+                  <ul className="max-h-52 space-y-2 overflow-y-auto text-[11px]">
+                    {gpsTimelineFiltered.map((seg, idx) => (
+                      <li
+                        key={`${seg.kind}-${seg.start.getTime()}-${seg.end.getTime()}-${idx}`}
+                        className="border-b border-slate-200/70 pb-2 last:border-0 dark:border-slate-700/70"
+                      >
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <span
+                            className={clsx(
+                              'inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide',
+                              seg.kind === 'off'
+                                ? 'bg-rose-100 text-rose-900 dark:bg-rose-950/70 dark:text-rose-100'
+                                : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-100',
+                            )}
+                          >
+                            {seg.kind === 'off' ? t('mapGpsStateOff') : t('mapGpsStateOn')}
+                          </span>
+                          <span className="font-semibold tabular-nums text-slate-900 dark:text-white">
+                            {formatDurationHms(Math.floor(seg.durationSec))}
+                          </span>
+                        </div>
+                        <div className="text-slate-600 dark:text-slate-300">
+                          {seg.start.toLocaleString()} → {seg.end.toLocaleString()}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               {history.length === 0 && (
                 <p className="text-sm text-amber-700 dark:text-amber-300/90">{t('mapNoHistoryInRange')}</p>
               )}

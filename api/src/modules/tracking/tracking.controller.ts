@@ -13,6 +13,7 @@ import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorat
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { BatchGpsOffSegmentsDto } from './dto/batch-gps-off-segments.dto';
 import { BatchLocationDto } from './dto/batch-location.dto';
 import { TrackingService } from './tracking.service';
 
@@ -26,6 +27,29 @@ export class TrackingController {
   batch(@Body() dto: BatchLocationDto, @CurrentUser() user: JwtUser) {
     if (!user.driverId) throw new BadRequestException('No driver profile');
     return this.tracking.ingest(user.driverId, dto);
+  }
+
+  @Post('tracking/gps-off-segments/batch')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.DRIVER)
+  batchGpsOff(@Body() dto: BatchGpsOffSegmentsDto, @CurrentUser() user: JwtUser) {
+    if (!user.driverId) throw new BadRequestException('No driver profile');
+    return this.tracking.ingestGpsOffSegments(user.driverId, dto);
+  }
+
+  @Get('tracking/gps-off-segments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('MAP')
+  gpsOffSegments(
+    @Query('vehicleId') vehicleId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    if (!vehicleId || !from || !to) throw new BadRequestException('vehicleId, from, to required');
+    const f = new Date(from);
+    const t = new Date(to);
+    return this.tracking.gpsOffSegments(vehicleId, f, t);
   }
 
   @Get('tracking/history')

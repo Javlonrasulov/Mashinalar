@@ -24,6 +24,9 @@ interface ApiService {
   @POST("api/tracking/locations/batch")
   suspend fun sendLocations(@Body body: BatchLocationRequest): BatchLocationResponse
 
+  @POST("api/tracking/gps-off-segments/batch")
+  suspend fun sendGpsOffSegments(@Body body: BatchGpsOffSegmentsRequest): BatchLocationResponse
+
   @GET("api/fuel-reports/mine")
   suspend fun myFuelReports(@Query("limit") limit: Int = 50): List<FuelHistoryDto>
 

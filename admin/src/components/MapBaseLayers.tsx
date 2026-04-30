@@ -1,15 +1,19 @@
 import { LayersControl, TileLayer } from 'react-leaflet';
 import { useI18n } from '@/i18n/I18nContext';
 
-/** Esri World Imagery — kalitsiz, Leaflet uchun mos. */
+/** Esri World Imagery — kalitsiz; `services` domeni CDN uchun barqarorroq. */
 const ESRI_IMAGERY =
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const ESRI_ATTRIBUTION =
   'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
 
-/** Esri ko‘p hududlarda z19+ da bo‘sh / «Map data not yet available» plitka qaytaradi — shu darajadan yuqori zoomda plitka kattalashtiriladi. */
+/**
+ * Esri O‘rta Osiyo / qishloq joylarda z17+ da ko‘p bo‘sh «Map data not yet available» plitkalar beradi.
+ * maxNativeZoom past — yuqori zoomda oxirgi mavjud daraja kattalashtiriladi.
+ * detectRetina=false: Retina ekranlarda Leaflet zoom+1 so‘rab bo‘sh plitka olish ehtimolini kamaytiradi.
+ */
 const OSM_MAX_NATIVE_ZOOM = 19;
-const ESRI_MAX_NATIVE_ZOOM = 18;
+const ESRI_MAX_NATIVE_ZOOM = 16;
 
 /** Xarita konteyneri bilan bir xil qo‘ying — zoom chegarasi bir tekis bo‘lsin. */
 export const LEAFLET_MAP_MAX_ZOOM = 19;
@@ -29,6 +33,7 @@ export function MapBaseLayers({ position = 'topleft' }: MapBaseLayersProps) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           maxZoom={LEAFLET_MAP_MAX_ZOOM}
           maxNativeZoom={OSM_MAX_NATIVE_ZOOM}
+          detectRetina={false}
         />
       </LayersControl.BaseLayer>
       <LayersControl.BaseLayer name={t('mapLayerSatellite')}>
@@ -37,6 +42,7 @@ export function MapBaseLayers({ position = 'topleft' }: MapBaseLayersProps) {
           url={ESRI_IMAGERY}
           maxZoom={LEAFLET_MAP_MAX_ZOOM}
           maxNativeZoom={ESRI_MAX_NATIVE_ZOOM}
+          detectRetina={false}
         />
       </LayersControl.BaseLayer>
     </LayersControl>

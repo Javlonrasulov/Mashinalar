@@ -10,6 +10,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.mashinalar.driver.data.local.LanguageStore
 import com.mashinalar.driver.notifications.OilReminderWorker
+import com.mashinalar.driver.tracking.NetworkUploadTrigger
 import com.mashinalar.driver.util.LocaleManager
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.TimeUnit
@@ -28,6 +29,7 @@ class MashinalarDriverApp : Application() {
     // Avtomatik WorkManager initializer o‘chirilgan — Hilt [HiltWorkerFactory] bilan shu yerda init qilamiz.
     val wmConfig = Configuration.Builder().setWorkerFactory(workerFactory).build()
     WorkManager.initialize(this, wmConfig)
+    NetworkUploadTrigger.register(this)
 
     // Apply saved locale before UI renders (default uz-Cyrl).
     runBlocking {

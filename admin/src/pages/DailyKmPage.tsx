@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { api, apiUrl } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
-import { useI18n } from '@/i18n/I18nContext';
+import { useI18n, type Lang } from '@/i18n/I18nContext';
+import { ChevronDown } from 'lucide-react';
 import { MapContainer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -81,6 +82,22 @@ type GapAuditRow = {
   gapKm: string | null;
 };
 
+type SubmissionListRow = { vehicleId: string; plateNumber: string; driverName: string };
+
+type SubmissionOverviewDay = {
+  date: string;
+  startSubmitted: number;
+  startMissing: number;
+  endSubmitted: number;
+  endMissing: number;
+  startMissingList: SubmissionListRow[];
+  startSubmittedList: SubmissionListRow[];
+  endMissingList: SubmissionListRow[];
+  endSubmittedList: SubmissionListRow[];
+};
+
+type SubmissionOverviewResponse = { fleetTotal: number; days: SubmissionOverviewDay[] };
+
 type GapTier = 'unknown' | 'ok' | 'low' | 'mid' | 'high';
 
 function formatDateOnly(iso: string | null | undefined) {
@@ -88,6 +105,18 @@ function formatDateOnly(iso: string | null | undefined) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString();
+}
+
+function formatYmdLocal(ymd: string, lang: Lang): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  if (!m) return ymd;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const dt = new Date(y, mo - 1, d);
+  if (Number.isNaN(dt.getTime())) return ymd;
+  const loc = lang === 'ru' ? 'ru-RU' : lang === 'uzCyrl' ? 'ru-RU' : 'uz-Latn-UZ';
+  return new Intl.DateTimeFormat(loc, { day: '2-digit', month: 'short', year: 'numeric' }).format(dt);
 }
 
 function gapTier(gap: number | null): GapTier {
@@ -154,7 +183,7 @@ function LocBtn({
 }
 
 export function DailyKmPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const [view, setView] = useState<'table' | 'gaps'>('table');
@@ -183,6 +212,9 @@ export function DailyKmPage() {
   const gapsRangeSeededRef = useRef(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [mapPoint, setMapPoint] = useState<{ lat: number; lon: number; title: string } | null>(null);
+  const [submissionOverview, setSubmissionOverview] = useState<SubmissionOverviewResponse | null>(null);
+  const [overviewDayFilter, setOverviewDayFilter] = useState<'all' | 'startPending' | 'endPending' | 'complete'>('all');
+  const [expandedOverviewDay, setExpandedOverviewDay] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAdmin && view === 'gaps') setView('table');
@@ -211,6 +243,30 @@ export function DailyKmPage() {
     const q = `from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
     api<DailyKmRow[]>(`/daily-km-reports?${q}`).then(setRows).catch(() => {});
   }, [tableFromValue, tableToValue]);
+
+  useEffect(() => {
+    if (!isAdmin || view !== 'table') return;
+    const a = toDateInputValueLocal(new Date(tableFromValue));
+    const b = toDateInputValueLocal(new Date(tableToValue));
+    const fromStr = a <= b ? a : b;
+    const toStr = a <= b ? b : a;
+    const q = `from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
+    let cancelled = false;
+    api<SubmissionOverviewResponse>(`/daily-km-reports/submission-overview?${q}`)
+      .then((d) => {
+        if (!cancelled) setSubmissionOverview(d);
+      })
+      .catch(() => {
+        if (!cancelled) setSubmissionOverview(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, view, tableFromValue, tableToValue]);
+
+  useEffect(() => {
+    setExpandedOverviewDay(null);
+  }, [tableFromValue, tableToValue, overviewDayFilter]);
 
   useEffect(() => {
     if (view !== 'gaps' || !isAdmin) return;
@@ -256,6 +312,25 @@ export function DailyKmPage() {
       ],
     [t],
   );
+
+  const overviewDayFilterOptions = useMemo(
+    () =>
+      [
+        { value: 'all' as const, label: t('dailyKmOverviewFilterAll') },
+        { value: 'startPending' as const, label: t('dailyKmOverviewFilterStartPending') },
+        { value: 'endPending' as const, label: t('dailyKmOverviewFilterEndPending') },
+        { value: 'complete' as const, label: t('dailyKmOverviewFilterComplete') },
+      ],
+    [t],
+  );
+
+  const filteredSubmissionDays = useMemo(() => {
+    const days = submissionOverview?.days ?? [];
+    if (overviewDayFilter === 'all') return days;
+    if (overviewDayFilter === 'startPending') return days.filter((d) => d.startMissing > 0);
+    if (overviewDayFilter === 'endPending') return days.filter((d) => d.endMissing > 0);
+    return days.filter((d) => d.startMissing === 0 && d.endMissing === 0);
+  }, [submissionOverview, overviewDayFilter]);
 
   const gapDriverSummaries = useMemo(() => {
     const m = new Map<string, GapAuditRow[]>();
@@ -367,6 +442,175 @@ export function DailyKmPage() {
         <p className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-2 text-xs leading-relaxed text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 sm:text-sm">
           {t('dailyKmLayoutExplain')}
         </p>
+      )}
+
+      {view === 'table' && isAdmin && submissionOverview && submissionOverview.fleetTotal > 0 && (
+        <div className="app-card min-w-0 overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-slate-200/90 bg-slate-50/80 px-4 py-3 dark:border-slate-700/90 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('dailyKmOverviewTitle')}</h2>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{t('dailyKmOverviewHint')}</p>
+              <p className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">
+                {t('dailyKmOverviewFleet')}:{' '}
+                <span className="tabular-nums text-blue-700 dark:text-blue-300">{submissionOverview.fleetTotal}</span>
+              </p>
+            </div>
+            <div className="w-full shrink-0 sm:w-[220px]">
+              <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmFilterLabel')}</span>
+              <SelectField value={overviewDayFilter} onChange={setOverviewDayFilter} options={overviewDayFilterOptions} />
+            </div>
+          </div>
+          <div className="app-table-wrap overflow-x-auto">
+            <table className="app-table-inner min-w-[720px] text-sm">
+              <thead className="app-table-head">
+                <tr>
+                  <th className="w-10 p-2" aria-hidden />
+                  <th className="p-3 text-left">{t('dailyKmOverviewColDate')}</th>
+                  <th className="p-3 text-center">{t('dailyKmOverviewColStartOk')}</th>
+                  <th className="p-3 text-center">{t('dailyKmOverviewColStartMissing')}</th>
+                  <th className="p-3 text-center">{t('dailyKmOverviewColEndOk')}</th>
+                  <th className="p-3 text-center">{t('dailyKmOverviewColEndMissing')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSubmissionDays.length === 0 && (submissionOverview.days?.length ?? 0) > 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                      {t('dailyKmOverviewNoDaysInFilter')}
+                    </td>
+                  </tr>
+                )}
+                {filteredSubmissionDays.map((d) => {
+                  const open = expandedOverviewDay === d.date;
+                  return (
+                    <Fragment key={d.date}>
+                      <tr
+                        className="app-table-row cursor-pointer transition hover:bg-slate-50/90 dark:hover:bg-slate-800/50"
+                        onClick={() => setExpandedOverviewDay((v) => (v === d.date ? null : d.date))}
+                      >
+                        <td className="p-2 align-middle">
+                          <ChevronDown
+                            className={`mx-auto h-4 w-4 shrink-0 text-slate-500 transition-transform dark:text-slate-400 ${open ? 'rotate-180' : ''}`}
+                            aria-hidden
+                          />
+                        </td>
+                        <td className="p-3 font-medium text-slate-900 dark:text-slate-100">{formatYmdLocal(d.date, lang)}</td>
+                        <td className="p-3 text-center">
+                          <span className="inline-flex min-w-[2rem] justify-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-emerald-900 dark:bg-emerald-950/45 dark:text-emerald-100">
+                            {d.startSubmitted}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span
+                            className={`inline-flex min-w-[2rem] justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums ${
+                              d.startMissing > 0
+                                ? 'bg-amber-100 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100'
+                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                            }`}
+                          >
+                            {d.startMissing}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className="inline-flex min-w-[2rem] justify-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-emerald-900 dark:bg-emerald-950/45 dark:text-emerald-100">
+                            {d.endSubmitted}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span
+                            className={`inline-flex min-w-[2rem] justify-center rounded-full px-2.5 py-0.5 text-xs font-semibold tabular-nums ${
+                              d.endMissing > 0
+                                ? 'bg-amber-100 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100'
+                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                            }`}
+                          >
+                            {d.endMissing}
+                          </span>
+                        </td>
+                      </tr>
+                      {open && (
+                        <tr className="bg-slate-50/95 dark:bg-slate-950/40">
+                          <td colSpan={6} className="p-4">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="overflow-hidden rounded-xl border border-amber-200/90 dark:border-amber-900/50">
+                                <div className="border-b border-amber-200/80 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                                  {t('dailyKmOverviewPanelStartMissing')} ({d.startMissing})
+                                </div>
+                                <ul className="max-h-48 divide-y divide-slate-200/80 overflow-y-auto dark:divide-slate-700/80">
+                                  {d.startMissingList.length === 0 ? (
+                                    <li className="px-3 py-3 text-center text-xs text-slate-500 dark:text-slate-400">{t('dailyKmOverviewEmptyList')}</li>
+                                  ) : (
+                                    d.startMissingList.map((row) => (
+                                      <li key={row.vehicleId} className="flex items-start justify-between gap-2 px-3 py-2 text-xs">
+                                        <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">{row.plateNumber}</span>
+                                        <span className="min-w-0 flex-1 text-right text-slate-600 dark:text-slate-300">{row.driverName}</span>
+                                      </li>
+                                    ))
+                                  )}
+                                </ul>
+                              </div>
+                              <div className="overflow-hidden rounded-xl border border-emerald-200/90 dark:border-emerald-900/50">
+                                <div className="border-b border-emerald-200/80 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-950 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+                                  {t('dailyKmOverviewPanelStartOk')} ({d.startSubmitted})
+                                </div>
+                                <ul className="max-h-48 divide-y divide-slate-200/80 overflow-y-auto dark:divide-slate-700/80">
+                                  {d.startSubmittedList.length === 0 ? (
+                                    <li className="px-3 py-3 text-center text-xs text-slate-500 dark:text-slate-400">{t('dailyKmOverviewEmptyList')}</li>
+                                  ) : (
+                                    d.startSubmittedList.map((row) => (
+                                      <li key={row.vehicleId} className="flex items-start justify-between gap-2 px-3 py-2 text-xs">
+                                        <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">{row.plateNumber}</span>
+                                        <span className="min-w-0 flex-1 text-right text-slate-600 dark:text-slate-300">{row.driverName}</span>
+                                      </li>
+                                    ))
+                                  )}
+                                </ul>
+                              </div>
+                              <div className="overflow-hidden rounded-xl border border-amber-200/90 dark:border-amber-900/50">
+                                <div className="border-b border-amber-200/80 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                                  {t('dailyKmOverviewPanelEndMissing')} ({d.endMissing})
+                                </div>
+                                <ul className="max-h-48 divide-y divide-slate-200/80 overflow-y-auto dark:divide-slate-700/80">
+                                  {d.endMissingList.length === 0 ? (
+                                    <li className="px-3 py-3 text-center text-xs text-slate-500 dark:text-slate-400">{t('dailyKmOverviewEmptyList')}</li>
+                                  ) : (
+                                    d.endMissingList.map((row) => (
+                                      <li key={row.vehicleId} className="flex items-start justify-between gap-2 px-3 py-2 text-xs">
+                                        <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">{row.plateNumber}</span>
+                                        <span className="min-w-0 flex-1 text-right text-slate-600 dark:text-slate-300">{row.driverName}</span>
+                                      </li>
+                                    ))
+                                  )}
+                                </ul>
+                              </div>
+                              <div className="overflow-hidden rounded-xl border border-emerald-200/90 dark:border-emerald-900/50">
+                                <div className="border-b border-emerald-200/80 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-950 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+                                  {t('dailyKmOverviewPanelEndOk')} ({d.endSubmitted})
+                                </div>
+                                <ul className="max-h-48 divide-y divide-slate-200/80 overflow-y-auto dark:divide-slate-700/80">
+                                  {d.endSubmittedList.length === 0 ? (
+                                    <li className="px-3 py-3 text-center text-xs text-slate-500 dark:text-slate-400">{t('dailyKmOverviewEmptyList')}</li>
+                                  ) : (
+                                    d.endSubmittedList.map((row) => (
+                                      <li key={row.vehicleId} className="flex items-start justify-between gap-2 px-3 py-2 text-xs">
+                                        <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">{row.plateNumber}</span>
+                                        <span className="min-w-0 flex-1 text-right text-slate-600 dark:text-slate-300">{row.driverName}</span>
+                                      </li>
+                                    ))
+                                  )}
+                                </ul>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {view === 'gaps' && isAdmin && (

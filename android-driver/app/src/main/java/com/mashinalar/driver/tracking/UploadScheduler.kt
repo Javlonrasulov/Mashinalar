@@ -25,7 +25,7 @@ object UploadScheduler {
 
     WorkManager.getInstance(context).enqueueUniqueWork(
       "upload_locations_now",
-      ExistingWorkPolicy.KEEP,
+      ExistingWorkPolicy.REPLACE,
       req,
     )
   }

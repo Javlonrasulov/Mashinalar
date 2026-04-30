@@ -16,6 +16,8 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.mashinalar.driver.R
+import com.mashinalar.driver.data.db.GpsOffSegmentDao
+import com.mashinalar.driver.data.db.GpsOffSegmentEntity
 import com.mashinalar.driver.data.db.LocationPointDao
 import com.mashinalar.driver.data.db.LocationPointEntity
 import com.mashinalar.driver.notifications.AlertNotifier
@@ -25,16 +27,21 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 @AndroidEntryPoint
 class TrackingForegroundService : Service() {
   @Inject lateinit var dao: LocationPointDao
+  @Inject lateinit var gpsDao: GpsOffSegmentDao
 
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val channelId = "tracking"
   private val client by lazy { LocationServices.getFusedLocationProviderClient(this) }
   private var callback: LocationCallback? = null
+  private var lastGpsOn: Boolean? = null
 
   override fun onCreate() {
     super.onCreate()
@@ -49,7 +56,7 @@ class TrackingForegroundService : Service() {
       }
     ServiceCompat.startForeground(this, 1001, notification, fgsType)
     startUpdates()
-    startAlertLoop()
+    startBackgroundLoop()
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -58,6 +65,14 @@ class TrackingForegroundService : Service() {
 
   override fun onDestroy() {
     stopUpdates()
+    runBlocking(Dispatchers.IO) {
+      runCatching {
+        if (gpsDao.getOpen() != null) {
+          gpsDao.closeAllOpen(System.currentTimeMillis())
+        }
+      }
+    }
+    UploadScheduler.enqueueNow(this)
     scope.cancel()
     super.onDestroy()
   }
@@ -108,7 +123,6 @@ class TrackingForegroundService : Service() {
             ),
           )
 
-          // If internet is available, trigger an immediate upload.
           if (Connectivity.isOnline(this@TrackingForegroundService)) {
             UploadScheduler.enqueueNow(this@TrackingForegroundService)
           }
@@ -125,18 +139,69 @@ class TrackingForegroundService : Service() {
     runCatching { client.removeLocationUpdates(cb) }
   }
 
-  private fun startAlertLoop() {
+  private fun startBackgroundLoop() {
     scope.launch {
-      while (true) {
+      runGpsStartupCleanup()
+      while (isActive) {
+        recordGpsTransitions()
         val gpsOn = Gps.isEnabled(this@TrackingForegroundService)
         val online = Connectivity.isOnline(this@TrackingForegroundService)
 
         if (!gpsOn) AlertNotifier.showGpsOff(this@TrackingForegroundService) else AlertNotifier.hideGpsOff(this@TrackingForegroundService)
         if (!online) AlertNotifier.showInternetOff(this@TrackingForegroundService) else AlertNotifier.hideInternetOff(this@TrackingForegroundService)
 
-        kotlinx.coroutines.delay(20_000L)
+        // 5 s — qisqa GPS o‘chiq/yoniq oralig‘i 20 s tsiklda yo‘qolib qolmasin.
+        delay(5_000L)
       }
     }
   }
-}
 
+  private suspend fun runGpsStartupCleanup() {
+    if (Gps.isEnabled(this@TrackingForegroundService)) {
+      gpsDao.deleteAllOpen()
+    }
+    lastGpsOn = Gps.isEnabled(this@TrackingForegroundService)
+  }
+
+  private suspend fun recordGpsTransitions() {
+    val on = Gps.isEnabled(this@TrackingForegroundService)
+    val prev = lastGpsOn
+    val now = System.currentTimeMillis()
+    when {
+      prev == true && !on -> {
+        if (gpsDao.getOpen() == null) {
+          gpsDao.insert(
+            GpsOffSegmentEntity(
+              startMs = now,
+              endMs = null,
+              status = "OPEN",
+              createdAtMs = now,
+            ),
+          )
+          if (Connectivity.isOnline(this@TrackingForegroundService)) {
+            UploadScheduler.enqueueNow(this@TrackingForegroundService)
+          }
+        }
+      }
+      prev == false && on -> {
+        val closed = gpsDao.closeAllOpen(now) > 0
+        if (closed && Connectivity.isOnline(this@TrackingForegroundService)) {
+          UploadScheduler.enqueueNow(this@TrackingForegroundService)
+        }
+      }
+      prev == null && !on -> {
+        if (gpsDao.getOpen() == null) {
+          gpsDao.insert(
+            GpsOffSegmentEntity(
+              startMs = now,
+              endMs = null,
+              status = "OPEN",
+              createdAtMs = now,
+            ),
+          )
+        }
+      }
+    }
+    lastGpsOn = on
+  }
+}
