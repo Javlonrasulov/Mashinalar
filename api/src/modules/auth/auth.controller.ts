@@ -1,5 +1,8 @@
 import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
-import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtUser,
+} from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -22,7 +25,10 @@ export class AuthController {
 
   @Patch('credentials')
   @UseGuards(JwtAuthGuard)
-  updateCredentials(@CurrentUser() user: JwtUser, @Body() dto: UpdateCredentialsDto) {
+  updateCredentials(
+    @CurrentUser() user: JwtUser,
+    @Body() dto: UpdateCredentialsDto,
+  ) {
     return this.auth.updateCredentials(user.userId, dto);
   }
 }

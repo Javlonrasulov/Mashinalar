@@ -14,7 +14,10 @@ import { UserRole } from '@prisma/client';
 import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
 import { extname, join } from 'path';
-import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtUser,
+} from '../../common/decorators/current-user.decorator';
 import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -27,7 +30,11 @@ function ensureUploadDir() {
   if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
 }
 
-function fileName(_req: unknown, file: Express.Multer.File, cb: (e: Error | null, name: string) => void) {
+function fileName(
+  _req: unknown,
+  file: Express.Multer.File,
+  cb: (e: Error | null, name: string) => void,
+) {
   const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
   cb(null, name);
 }
@@ -48,7 +55,11 @@ export class FuelController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @AdminRoutePage('FUEL')
-  findAll(@Query('date') date?: string, @Query('from') from?: string, @Query('to') to?: string) {
+  findAll(
+    @Query('date') date?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
     return this.fuel.findAll({ date, from, to });
   }
 
@@ -84,11 +95,16 @@ export class FuelController {
   ) {
     if (!user.driverId) throw new BadRequestException('No driver');
     const amount = body.amount ? Number(body.amount) : NaN;
-    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Invalid amount');
+    if (!Number.isFinite(amount) || amount <= 0)
+      throw new BadRequestException('Invalid amount');
 
     const base = '/uploads';
-    const vehiclePhotoUrl = files?.vehiclePhoto?.[0] ? `${base}/${files.vehiclePhoto[0].filename}` : undefined;
-    const receiptPhotoUrl = files?.receiptPhoto?.[0] ? `${base}/${files.receiptPhoto[0].filename}` : undefined;
+    const vehiclePhotoUrl = files?.vehiclePhoto?.[0]
+      ? `${base}/${files.vehiclePhoto[0].filename}`
+      : undefined;
+    const receiptPhotoUrl = files?.receiptPhoto?.[0]
+      ? `${base}/${files.receiptPhoto[0].filename}`
+      : undefined;
 
     return this.fuel.createFromDriver({
       driverId: user.driverId,
@@ -96,7 +112,8 @@ export class FuelController {
       vehiclePhotoUrl,
       receiptPhotoUrl,
       latitude: body.latitude !== undefined ? Number(body.latitude) : undefined,
-      longitude: body.longitude !== undefined ? Number(body.longitude) : undefined,
+      longitude:
+        body.longitude !== undefined ? Number(body.longitude) : undefined,
       actorUserId: user.userId,
     });
   }

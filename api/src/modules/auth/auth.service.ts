@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserRole } from '@prisma/client';
@@ -17,7 +21,8 @@ export class AuthService {
   async login(dto: LoginDto) {
     const rawLogin = dto.login;
     const normalizedLogin = rawLogin.trim();
-    if (!normalizedLogin) throw new UnauthorizedException('Invalid credentials');
+    if (!normalizedLogin)
+      throw new UnauthorizedException('Invalid credentials');
 
     let user = await this.prisma.user.findUnique({
       where: { login: rawLogin },
@@ -48,7 +53,10 @@ export class AuthService {
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Invalid credentials');
 
-    if (user.role === UserRole.OPERATOR && (!user.allowedPages || user.allowedPages.length === 0)) {
+    if (
+      user.role === UserRole.OPERATOR &&
+      (!user.allowedPages || user.allowedPages.length === 0)
+    ) {
       throw new UnauthorizedException('operator_no_pages');
     }
 
@@ -84,7 +92,10 @@ export class AuthService {
       include: { driver: true },
     });
     if (!user) throw new UnauthorizedException();
-    if (user.role === UserRole.OPERATOR && (!user.allowedPages || user.allowedPages.length === 0)) {
+    if (
+      user.role === UserRole.OPERATOR &&
+      (!user.allowedPages || user.allowedPages.length === 0)
+    ) {
       throw new UnauthorizedException('operator_no_pages');
     }
     return {
@@ -128,7 +139,9 @@ export class AuthService {
     const data: { login?: string; passwordHash?: string } = {};
 
     if (dto.login && dto.login !== user.login) {
-      const exists = await this.prisma.user.findUnique({ where: { login: dto.login } });
+      const exists = await this.prisma.user.findUnique({
+        where: { login: dto.login },
+      });
       if (exists) throw new BadRequestException('Login already exists');
       data.login = dto.login;
     }

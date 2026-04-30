@@ -28,7 +28,9 @@ export class ExpenseCategoriesService {
     let n = 0;
     for (;;) {
       const candidate = n === 0 ? slug : `${slug}_${n}`;
-      const hit = await this.prisma.expenseCategory.findUnique({ where: { slug: candidate } });
+      const hit = await this.prisma.expenseCategory.findUnique({
+        where: { slug: candidate },
+      });
       if (!hit) {
         slug = candidate;
         break;

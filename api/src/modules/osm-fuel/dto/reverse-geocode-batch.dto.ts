@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsNumber, Max, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsNumber,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 export class ReverseGeocodePointDto {
   @Type(() => Number)

@@ -9,7 +9,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
 function isPrismaUniqueViolation(e: unknown): boolean {
-  return Boolean(e && typeof e === 'object' && 'code' in e && (e as { code: string }).code === 'P2002');
+  return Boolean(
+    e &&
+    typeof e === 'object' &&
+    'code' in e &&
+    (e as { code: string }).code === 'P2002',
+  );
 }
 
 /**
@@ -90,10 +95,14 @@ export class DailyKmService {
     if (hasRange) {
       const a = parseDayUtc(params!.from!);
       const b = parseDayUtc(params!.to!);
-      if (!a || !b) throw new BadRequestException('daily_km.invalid_report_date');
-      if (a.getTime() > b.getTime()) throw new BadRequestException('daily_km.range_invalid');
-      const spanDays = Math.floor((b.getTime() - a.getTime()) / (24 * 60 * 60 * 1000)) + 1;
-      if (spanDays > 366) throw new BadRequestException('daily_km.range_too_wide');
+      if (!a || !b)
+        throw new BadRequestException('daily_km.invalid_report_date');
+      if (a.getTime() > b.getTime())
+        throw new BadRequestException('daily_km.range_invalid');
+      const spanDays =
+        Math.floor((b.getTime() - a.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+      if (spanDays > 366)
+        throw new BadRequestException('daily_km.range_too_wide');
       fromD = a;
       toExclusive = new Date(b);
       toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
@@ -120,7 +129,7 @@ export class DailyKmService {
       endLongitude: true,
       vehicleId: true,
       vehicle: { select: { plateNumber: true } },
-      driver: { select: { fullName: true } },
+      driver: { select: { fullName: true, phone: true } },
     } as const;
 
     if (fromD == null || toExclusive == null) {
@@ -139,7 +148,8 @@ export class DailyKmService {
         startRecordedAt: r.startRecordedAt?.toISOString() ?? null,
         endRecordedAt: r.endRecordedAt?.toISOString() ?? null,
         startLatitude: r.startLatitude == null ? null : String(r.startLatitude),
-        startLongitude: r.startLongitude == null ? null : String(r.startLongitude),
+        startLongitude:
+          r.startLongitude == null ? null : String(r.startLongitude),
         endLatitude: r.endLatitude == null ? null : String(r.endLatitude),
         endLongitude: r.endLongitude == null ? null : String(r.endLongitude),
         vehicle: r.vehicle,
@@ -163,8 +173,17 @@ export class DailyKmService {
     const beforeRows =
       vehicleIds.length > 0
         ? await this.prisma.dailyKmReport.findMany({
-            where: { vehicleId: { in: vehicleIds }, reportDate: { gte: lookback, lt: fromD } },
-            select: { id: true, vehicleId: true, reportDate: true, startKm: true, endKm: true },
+            where: {
+              vehicleId: { in: vehicleIds },
+              reportDate: { gte: lookback, lt: fromD },
+            },
+            select: {
+              id: true,
+              vehicleId: true,
+              reportDate: true,
+              startKm: true,
+              endKm: true,
+            },
             orderBy: [{ vehicleId: 'asc' }, { reportDate: 'asc' }],
           })
         : [];
@@ -194,10 +213,19 @@ export class DailyKmService {
       byVehicle.get(r.vehicleId)!.push(r);
     }
 
-    const gapMeta = new Map<string, { gapKm: string | null; gapFromReportDate: string | null; gapFromEndKm: string | null }>();
+    const gapMeta = new Map<
+      string,
+      {
+        gapKm: string | null;
+        gapFromReportDate: string | null;
+        gapFromEndKm: string | null;
+      }
+    >();
 
     for (const vid of vehicleIds) {
-      const hist = (byVehicle.get(vid) ?? []).sort((a, b) => a.reportDate.getTime() - b.reportDate.getTime());
+      const hist = (byVehicle.get(vid) ?? []).sort(
+        (a, b) => a.reportDate.getTime() - b.reportDate.getTime(),
+      );
       let prevClosedEnd: number | null = null;
       let prevReportDate: Date | null = null;
       let prevEndKmStr: string | null = null;
@@ -211,7 +239,9 @@ export class DailyKmService {
         if (inWindow) {
           gapMeta.set(r.id, {
             gapKm: gapNum == null ? null : String(gapNum),
-            gapFromReportDate: prevReportDate ? prevReportDate.toISOString() : null,
+            gapFromReportDate: prevReportDate
+              ? prevReportDate.toISOString()
+              : null,
             gapFromEndKm: prevEndKmStr,
           });
         }
@@ -238,7 +268,8 @@ export class DailyKmService {
         startRecordedAt: r.startRecordedAt?.toISOString() ?? null,
         endRecordedAt: r.endRecordedAt?.toISOString() ?? null,
         startLatitude: r.startLatitude == null ? null : String(r.startLatitude),
-        startLongitude: r.startLongitude == null ? null : String(r.startLongitude),
+        startLongitude:
+          r.startLongitude == null ? null : String(r.startLongitude),
         endLatitude: r.endLatitude == null ? null : String(r.endLatitude),
         endLongitude: r.endLongitude == null ? null : String(r.endLongitude),
         vehicle: r.vehicle,
@@ -265,8 +296,10 @@ export class DailyKmService {
     if (fromD.getTime() > toD.getTime()) {
       throw new BadRequestException('daily_km.range_invalid');
     }
-    const spanDays = Math.floor((toD.getTime() - fromD.getTime()) / (24 * 60 * 60 * 1000)) + 1;
-    if (spanDays > 366) throw new BadRequestException('daily_km.range_too_wide');
+    const spanDays =
+      Math.floor((toD.getTime() - fromD.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    if (spanDays > 366)
+      throw new BadRequestException('daily_km.range_too_wide');
     const toExclusive = new Date(toD);
     toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
 
@@ -275,16 +308,25 @@ export class DailyKmService {
       select: {
         id: true,
         plateNumber: true,
-        drivers: { select: { id: true, fullName: true }, orderBy: { fullName: 'asc' } },
+        drivers: {
+          select: { id: true, fullName: true, phone: true },
+          orderBy: { fullName: 'asc' },
+        },
       },
       orderBy: { plateNumber: 'asc' },
     });
 
-    type FleetRow = { vehicleId: string; plateNumber: string; driverName: string };
+    type FleetRow = {
+      vehicleId: string;
+      plateNumber: string;
+      driverName: string;
+      driverPhone: string;
+    };
     const fleet: FleetRow[] = vehicles.map((v) => ({
       vehicleId: v.id,
       plateNumber: v.plateNumber,
       driverName: v.drivers[0]?.fullName ?? '—',
+      driverPhone: v.drivers[0]?.phone ?? '',
     }));
     const fleetTotal = fleet.length;
     if (fleetTotal === 0) {
@@ -301,21 +343,31 @@ export class DailyKmService {
         vehicleId: true,
         reportDate: true,
         endKm: true,
-        driver: { select: { fullName: true } },
+        driver: { select: { fullName: true, phone: true } },
       },
     });
 
-    type RepInfo = { endKm: (typeof reports)[number]['endKm']; driverName: string };
+    type RepInfo = {
+      endKm: (typeof reports)[number]['endKm'];
+      driverName: string;
+      driverPhone: string;
+    };
     const reportByVehicleDay = new Map<string, RepInfo>();
     for (const r of reports) {
       const ymd = r.reportDate.toISOString().slice(0, 10);
       reportByVehicleDay.set(`${r.vehicleId}:${ymd}`, {
         endKm: r.endKm,
         driverName: r.driver.fullName,
+        driverPhone: r.driver.phone ?? '',
       });
     }
 
-    type ListRow = { vehicleId: string; plateNumber: string; driverName: string };
+    type ListRow = {
+      vehicleId: string;
+      plateNumber: string;
+      driverName: string;
+      driverPhone: string;
+    };
     type DayRow = {
       date: string;
       startSubmitted: number;
@@ -329,7 +381,11 @@ export class DailyKmService {
     };
 
     const days: DayRow[] = [];
-    for (let d = new Date(fromD); d.getTime() < toExclusive.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
+    for (
+      let d = new Date(fromD);
+      d.getTime() < toExclusive.getTime();
+      d.setUTCDate(d.getUTCDate() + 1)
+    ) {
       const ymd = d.toISOString().slice(0, 10);
       const startMissingList: ListRow[] = [];
       const startSubmittedList: ListRow[] = [];
@@ -340,16 +396,37 @@ export class DailyKmService {
         const rep = reportByVehicleDay.get(`${f.vehicleId}:${ymd}`);
         const hasStart = Boolean(rep);
         const driverName = rep?.driverName ?? f.driverName;
+        const driverPhone = rep?.driverPhone ?? f.driverPhone;
         if (hasStart) {
-          startSubmittedList.push({ vehicleId: f.vehicleId, plateNumber: f.plateNumber, driverName });
+          startSubmittedList.push({
+            vehicleId: f.vehicleId,
+            plateNumber: f.plateNumber,
+            driverName,
+            driverPhone,
+          });
         } else {
-          startMissingList.push({ vehicleId: f.vehicleId, plateNumber: f.plateNumber, driverName: f.driverName });
+          startMissingList.push({
+            vehicleId: f.vehicleId,
+            plateNumber: f.plateNumber,
+            driverName: f.driverName,
+            driverPhone: f.driverPhone,
+          });
         }
         const hasEnd = rep != null && rep.endKm != null;
         if (hasEnd) {
-          endSubmittedList.push({ vehicleId: f.vehicleId, plateNumber: f.plateNumber, driverName });
+          endSubmittedList.push({
+            vehicleId: f.vehicleId,
+            plateNumber: f.plateNumber,
+            driverName,
+            driverPhone,
+          });
         } else {
-          endMissingList.push({ vehicleId: f.vehicleId, plateNumber: f.plateNumber, driverName });
+          endMissingList.push({
+            vehicleId: f.vehicleId,
+            plateNumber: f.plateNumber,
+            driverName,
+            driverPhone,
+          });
         }
       }
 
@@ -392,7 +469,7 @@ export class DailyKmService {
       where: { reportDate: { gte: fromD, lt: toExclusive } },
       include: {
         vehicle: { select: { plateNumber: true } },
-        driver: { select: { fullName: true } },
+        driver: { select: { fullName: true, phone: true } },
       },
       orderBy: [{ vehicleId: 'asc' }, { reportDate: 'asc' }],
     });
@@ -404,10 +481,13 @@ export class DailyKmService {
     lookback.setUTCDate(lookback.getUTCDate() - 400);
 
     const beforeRows = await this.prisma.dailyKmReport.findMany({
-      where: { vehicleId: { in: vehicleIds }, reportDate: { gte: lookback, lt: fromD } },
+      where: {
+        vehicleId: { in: vehicleIds },
+        reportDate: { gte: lookback, lt: fromD },
+      },
       include: {
         vehicle: { select: { plateNumber: true } },
-        driver: { select: { fullName: true } },
+        driver: { select: { fullName: true, phone: true } },
       },
       orderBy: [{ vehicleId: 'asc' }, { reportDate: 'asc' }],
     });
@@ -433,7 +513,9 @@ export class DailyKmService {
     }> = [];
 
     for (const vid of vehicleIds) {
-      const hist = (byVehicle.get(vid) ?? []).sort((a, b) => a.reportDate.getTime() - b.reportDate.getTime());
+      const hist = (byVehicle.get(vid) ?? []).sort(
+        (a, b) => a.reportDate.getTime() - b.reportDate.getTime(),
+      );
       let prevClosedEnd: number | null = null;
       let prevReportId: string | null = null;
       let prevReportDate: Date | null = null;
@@ -454,7 +536,9 @@ export class DailyKmService {
             startKm: String(r.startKm),
             endKm: r.endKm == null ? null : String(r.endKm),
             prevReportId,
-            prevReportDate: prevReportDate ? prevReportDate.toISOString() : null,
+            prevReportDate: prevReportDate
+              ? prevReportDate.toISOString()
+              : null,
             prevEndKm: prevClosedEnd == null ? null : String(prevClosedEnd),
             gapKm: gapNum == null ? null : String(gapNum),
           });
@@ -474,7 +558,9 @@ export class DailyKmService {
       const ga = a.gapKm == null ? -1 : Number(a.gapKm);
       const gb = b.gapKm == null ? -1 : Number(b.gapKm);
       if (gb !== ga) return gb - ga;
-      return new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime();
+      return (
+        new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
+      );
     });
     return out;
   }
@@ -493,26 +579,40 @@ export class DailyKmService {
       where: { id: params.driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId || !driver.vehicle) throw new BadRequestException('daily_km.no_vehicle');
+    if (!driver?.vehicleId || !driver.vehicle)
+      throw new BadRequestException('daily_km.no_vehicle');
     const minKm = Number(driver.vehicle.initialKm);
-    if (!Number.isFinite(minKm)) throw new BadRequestException('daily_km.invalid_vehicle_baseline');
+    if (!Number.isFinite(minKm))
+      throw new BadRequestException('daily_km.invalid_vehicle_baseline');
     if (params.startKm < minKm) {
       throw new BadRequestException(`daily_km.start_below_initial|${minKm}`);
     }
-    if (!params.startOdometerUrl) throw new BadRequestException('daily_km.start_odo_required');
+    if (!params.startOdometerUrl)
+      throw new BadRequestException('daily_km.start_odo_required');
 
     const reportDate = new Date(params.reportDate);
     reportDate.setUTCHours(0, 0, 0, 0);
-    if (Number.isNaN(reportDate.getTime())) throw new BadRequestException('daily_km.invalid_report_date');
+    if (Number.isNaN(reportDate.getTime()))
+      throw new BadRequestException('daily_km.invalid_report_date');
 
-    const startRecordedAt = params.recordedAtIso ? new Date(params.recordedAtIso) : new Date();
-    if (Number.isNaN(startRecordedAt.getTime())) throw new BadRequestException('daily_km.invalid_recorded_at_start');
+    const startRecordedAt = params.recordedAtIso
+      ? new Date(params.recordedAtIso)
+      : new Date();
+    if (Number.isNaN(startRecordedAt.getTime()))
+      throw new BadRequestException('daily_km.invalid_recorded_at_start');
 
     const existing = await this.prisma.dailyKmReport.findUnique({
-      where: { vehicleId_reportDate: { vehicleId: driver.vehicleId, reportDate } },
+      where: {
+        vehicleId_reportDate: { vehicleId: driver.vehicleId, reportDate },
+      },
     });
 
-    const minFromChain = await minStartKmFromChain(this.prisma, driver.vehicleId, reportDate, minKm);
+    const minFromChain = await minStartKmFromChain(
+      this.prisma,
+      driver.vehicleId,
+      reportDate,
+      minKm,
+    );
     if (params.startKm < minFromChain) {
       throw new BadRequestException(`daily_km.start_below_max|${minFromChain}`);
     }
@@ -564,7 +664,9 @@ export class DailyKmService {
     } catch (e: unknown) {
       if (!isPrismaUniqueViolation(e)) throw e;
       const again = await this.prisma.dailyKmReport.findUnique({
-        where: { vehicleId_reportDate: { vehicleId: driver.vehicleId, reportDate } },
+        where: {
+          vehicleId_reportDate: { vehicleId: driver.vehicleId, reportDate },
+        },
       });
       if (again?.endKm != null) {
         throw new ConflictException('daily_km.report_day_closed');
@@ -597,18 +699,25 @@ export class DailyKmService {
       include: { vehicle: true },
     });
     if (!row) throw new NotFoundException('daily_km.not_found');
-    if (row.driverId !== params.driverId) throw new ForbiddenException('daily_km.forbidden_not_owner');
-    if (row.endKm != null) throw new ConflictException('daily_km.end_already_submitted');
+    if (row.driverId !== params.driverId)
+      throw new ForbiddenException('daily_km.forbidden_not_owner');
+    if (row.endKm != null)
+      throw new ConflictException('daily_km.end_already_submitted');
     const minKm = Number(row.vehicle.initialKm);
-    if (!Number.isFinite(minKm)) throw new BadRequestException('daily_km.invalid_vehicle_baseline');
+    if (!Number.isFinite(minKm))
+      throw new BadRequestException('daily_km.invalid_vehicle_baseline');
     const minEndAllowed = Math.max(minKm, Number(row.startKm));
     if (params.endKm < minEndAllowed) {
       throw new BadRequestException(`daily_km.end_below_min|${minEndAllowed}`);
     }
-    if (!params.endOdometerUrl) throw new BadRequestException('daily_km.end_odo_required');
+    if (!params.endOdometerUrl)
+      throw new BadRequestException('daily_km.end_odo_required');
 
-    const endRecordedAt = params.recordedAtIso ? new Date(params.recordedAtIso) : new Date();
-    if (Number.isNaN(endRecordedAt.getTime())) throw new BadRequestException('daily_km.invalid_recorded_at_end');
+    const endRecordedAt = params.recordedAtIso
+      ? new Date(params.recordedAtIso)
+      : new Date();
+    if (Number.isNaN(endRecordedAt.getTime()))
+      throw new BadRequestException('daily_km.invalid_recorded_at_end');
 
     const updated = await this.prisma.dailyKmReport.update({
       where: { id: params.reportId },

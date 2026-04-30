@@ -45,7 +45,11 @@ export class FuelService {
     if (fromRaw && toRaw) {
       const gte = new Date(fromRaw);
       const lt = new Date(toRaw);
-      if (Number.isFinite(gte.getTime()) && Number.isFinite(lt.getTime()) && lt > gte) {
+      if (
+        Number.isFinite(gte.getTime()) &&
+        Number.isFinite(lt.getTime()) &&
+        lt > gte
+      ) {
         createdAt = { gte, lt };
       }
     }
@@ -84,7 +88,8 @@ export class FuelService {
       where: { id: params.driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId) throw new BadRequestException('No vehicle assigned');
+    if (!driver?.vehicleId)
+      throw new BadRequestException('No vehicle assigned');
 
     const row = await this.prisma.fuelReport.create({
       data: {
@@ -99,8 +104,11 @@ export class FuelService {
       include: { vehicle: true, driver: true },
     });
 
-    const fuelCategory = await this.prisma.expenseCategory.findUnique({ where: { slug: 'FUEL' } });
-    if (!fuelCategory) throw new BadRequestException('FUEL expense category missing');
+    const fuelCategory = await this.prisma.expenseCategory.findUnique({
+      where: { slug: 'FUEL' },
+    });
+    if (!fuelCategory)
+      throw new BadRequestException('FUEL expense category missing');
     await this.prisma.expense.create({
       data: {
         vehicleId: driver.vehicleId,

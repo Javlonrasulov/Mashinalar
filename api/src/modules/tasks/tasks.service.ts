@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { TaskStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -68,7 +73,8 @@ export class TasksService {
     if (task.driverId !== driverId) throw new ForbiddenException();
     const canSubmit =
       task.status === TaskStatus.PENDING || task.status === TaskStatus.REJECTED;
-    if (!canSubmit) throw new BadRequestException('Already submitted or closed');
+    if (!canSubmit)
+      throw new BadRequestException('Already submitted or closed');
 
     const updated = await this.prisma.task.update({
       where: { id },
@@ -90,10 +96,15 @@ export class TasksService {
     return updated;
   }
 
-  async review(id: string, status: 'APPROVED' | 'REJECTED', actorUserId: string) {
+  async review(
+    id: string,
+    status: 'APPROVED' | 'REJECTED',
+    actorUserId: string,
+  ) {
     const task = await this.prisma.task.findUnique({ where: { id } });
     if (!task) throw new NotFoundException('Task not found');
-    if (task.status !== TaskStatus.SUBMITTED) throw new BadRequestException('Task not in submitted state');
+    if (task.status !== TaskStatus.SUBMITTED)
+      throw new BadRequestException('Task not in submitted state');
 
     const updated = await this.prisma.task.update({
       where: { id },

@@ -7,4 +7,3 @@ import { VehicleCategoriesService } from './vehicle-categories.service';
   providers: [VehicleCategoriesService],
 })
 export class VehicleCategoriesModule {}
-

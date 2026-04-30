@@ -1,6 +1,18 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
-import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtUser,
+} from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -25,7 +37,11 @@ export class AdminUsersController {
   }
 
   @Patch(':id')
-  update(@CurrentUser() user: JwtUser, @Param('id') id: string, @Body() dto: UpdateAdminOperatorDto) {
+  update(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateAdminOperatorDto,
+  ) {
     return this.adminUsers.update(user.userId, id, dto);
   }
 

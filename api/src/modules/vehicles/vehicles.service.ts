@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -46,10 +50,13 @@ export class VehiclesService {
     const lastOilKm = v.lastOilChangeKm ? Number(v.lastOilChangeKm) : null;
     const interval = v.oilChangeIntervalKm ?? null;
     const nextOilKm =
-      lastOilKm !== null && interval !== null && interval > 0 ? lastOilKm + interval : null;
+      lastOilKm !== null && interval !== null && interval > 0
+        ? lastOilKm + interval
+        : null;
 
     const estimatedCurrentKm = await this.oilChange.estimateOdometerKm(v.id);
-    const kmRemainingToNext = nextOilKm != null ? nextOilKm - estimatedCurrentKm : null;
+    const kmRemainingToNext =
+      nextOilKm != null ? nextOilKm - estimatedCurrentKm : null;
     const oilUrgency = OilChangeService.urgency(kmRemainingToNext, interval);
 
     const insuranceEnd = v.insuranceEndDate;
@@ -67,7 +74,9 @@ export class VehiclesService {
       },
       oil: {
         lastOilChangeKm: lastOilKm,
-        lastOilChangeAt: v.lastOilChangeAt ? v.lastOilChangeAt.toISOString() : null,
+        lastOilChangeAt: v.lastOilChangeAt
+          ? v.lastOilChangeAt.toISOString()
+          : null,
         oilChangeIntervalKm: interval,
         nextOilChangeKm: nextOilKm,
         estimatedCurrentKm,
@@ -75,7 +84,9 @@ export class VehiclesService {
         oilUrgency,
       },
       insurance: {
-        insuranceStartDate: v.insuranceStartDate ? v.insuranceStartDate.toISOString() : null,
+        insuranceStartDate: v.insuranceStartDate
+          ? v.insuranceStartDate.toISOString()
+          : null,
         insuranceEndDate: insuranceEnd ? insuranceEnd.toISOString() : null,
         daysToEnd: daysToInsuranceEnd,
         warnWithinDays: 3,
@@ -86,24 +97,44 @@ export class VehiclesService {
 
   async create(dto: CreateVehicleDto, actorUserId: string) {
     const data: Prisma.VehicleCreateInput = {
-      category: dto.categoryId ? { connect: { id: dto.categoryId } } : undefined,
+      category: dto.categoryId
+        ? { connect: { id: dto.categoryId } }
+        : undefined,
       name: dto.name,
       model: dto.model,
       plateNumber: dto.plateNumber,
       initialKm: dto.initialKm,
       lastOilChangeKm: dto.lastOilChangeKm,
-      lastOilChangeAt: dto.lastOilChangeAt ? new Date(dto.lastOilChangeAt) : undefined,
+      lastOilChangeAt: dto.lastOilChangeAt
+        ? new Date(dto.lastOilChangeAt)
+        : undefined,
       oilChangeIntervalKm: dto.oilChangeIntervalKm,
-      insuranceStartDate: dto.insuranceStartDate ? new Date(dto.insuranceStartDate) : undefined,
-      insuranceEndDate: dto.insuranceEndDate ? new Date(dto.insuranceEndDate) : undefined,
-      inspectionStartDate: dto.inspectionStartDate ? new Date(dto.inspectionStartDate) : undefined,
-      inspectionEndDate: dto.inspectionEndDate ? new Date(dto.inspectionEndDate) : undefined,
-      inspectionLastChangedAt: dto.inspectionLastChangedAt ? new Date(dto.inspectionLastChangedAt) : undefined,
-      inspectionNextChangeAt: dto.inspectionNextChangeAt ? new Date(dto.inspectionNextChangeAt) : undefined,
+      insuranceStartDate: dto.insuranceStartDate
+        ? new Date(dto.insuranceStartDate)
+        : undefined,
+      insuranceEndDate: dto.insuranceEndDate
+        ? new Date(dto.insuranceEndDate)
+        : undefined,
+      inspectionStartDate: dto.inspectionStartDate
+        ? new Date(dto.inspectionStartDate)
+        : undefined,
+      inspectionEndDate: dto.inspectionEndDate
+        ? new Date(dto.inspectionEndDate)
+        : undefined,
+      inspectionLastChangedAt: dto.inspectionLastChangedAt
+        ? new Date(dto.inspectionLastChangedAt)
+        : undefined,
+      inspectionNextChangeAt: dto.inspectionNextChangeAt
+        ? new Date(dto.inspectionNextChangeAt)
+        : undefined,
       gasStartDate: dto.gasStartDate ? new Date(dto.gasStartDate) : undefined,
       gasEndDate: dto.gasEndDate ? new Date(dto.gasEndDate) : undefined,
-      gasBalloonLastChangedAt: dto.gasBalloonLastChangedAt ? new Date(dto.gasBalloonLastChangedAt) : undefined,
-      gasBalloonNextChangeAt: dto.gasBalloonNextChangeAt ? new Date(dto.gasBalloonNextChangeAt) : undefined,
+      gasBalloonLastChangedAt: dto.gasBalloonLastChangedAt
+        ? new Date(dto.gasBalloonLastChangedAt)
+        : undefined,
+      gasBalloonNextChangeAt: dto.gasBalloonNextChangeAt
+        ? new Date(dto.gasBalloonNextChangeAt)
+        : undefined,
     };
     const created = await this.prisma.vehicle.create({ data });
     await this.audit.log({
@@ -120,38 +151,58 @@ export class VehiclesService {
     await this.findOne(id);
     const data: Prisma.VehicleUpdateInput = {};
     if (dto.categoryId !== undefined) {
-      data.category = dto.categoryId ? { connect: { id: dto.categoryId } } : { disconnect: true };
+      data.category = dto.categoryId
+        ? { connect: { id: dto.categoryId } }
+        : { disconnect: true };
     }
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.model !== undefined) data.model = dto.model;
     if (dto.plateNumber !== undefined) data.plateNumber = dto.plateNumber;
     if (dto.initialKm !== undefined) data.initialKm = dto.initialKm;
-    if (dto.lastOilChangeKm !== undefined) data.lastOilChangeKm = dto.lastOilChangeKm;
+    if (dto.lastOilChangeKm !== undefined)
+      data.lastOilChangeKm = dto.lastOilChangeKm;
     if (dto.lastOilChangeAt !== undefined)
-      data.lastOilChangeAt = dto.lastOilChangeAt ? new Date(dto.lastOilChangeAt) : null;
-    if (dto.oilChangeIntervalKm !== undefined) data.oilChangeIntervalKm = dto.oilChangeIntervalKm;
+      data.lastOilChangeAt = dto.lastOilChangeAt
+        ? new Date(dto.lastOilChangeAt)
+        : null;
+    if (dto.oilChangeIntervalKm !== undefined)
+      data.oilChangeIntervalKm = dto.oilChangeIntervalKm;
     if (dto.insuranceStartDate !== undefined)
-      data.insuranceStartDate = dto.insuranceStartDate ? new Date(dto.insuranceStartDate) : null;
+      data.insuranceStartDate = dto.insuranceStartDate
+        ? new Date(dto.insuranceStartDate)
+        : null;
     if (dto.insuranceEndDate !== undefined)
-      data.insuranceEndDate = dto.insuranceEndDate ? new Date(dto.insuranceEndDate) : null;
+      data.insuranceEndDate = dto.insuranceEndDate
+        ? new Date(dto.insuranceEndDate)
+        : null;
     if (dto.inspectionStartDate !== undefined)
-      data.inspectionStartDate = dto.inspectionStartDate ? new Date(dto.inspectionStartDate) : null;
+      data.inspectionStartDate = dto.inspectionStartDate
+        ? new Date(dto.inspectionStartDate)
+        : null;
     if (dto.inspectionEndDate !== undefined)
-      data.inspectionEndDate = dto.inspectionEndDate ? new Date(dto.inspectionEndDate) : null;
-    if (dto.gasStartDate !== undefined) data.gasStartDate = dto.gasStartDate ? new Date(dto.gasStartDate) : null;
-    if (dto.gasEndDate !== undefined) data.gasEndDate = dto.gasEndDate ? new Date(dto.gasEndDate) : null;
+      data.inspectionEndDate = dto.inspectionEndDate
+        ? new Date(dto.inspectionEndDate)
+        : null;
+    if (dto.gasStartDate !== undefined)
+      data.gasStartDate = dto.gasStartDate ? new Date(dto.gasStartDate) : null;
+    if (dto.gasEndDate !== undefined)
+      data.gasEndDate = dto.gasEndDate ? new Date(dto.gasEndDate) : null;
     if (dto.inspectionLastChangedAt !== undefined)
       data.inspectionLastChangedAt = dto.inspectionLastChangedAt
         ? new Date(dto.inspectionLastChangedAt)
         : null;
     if (dto.inspectionNextChangeAt !== undefined)
-      data.inspectionNextChangeAt = dto.inspectionNextChangeAt ? new Date(dto.inspectionNextChangeAt) : null;
+      data.inspectionNextChangeAt = dto.inspectionNextChangeAt
+        ? new Date(dto.inspectionNextChangeAt)
+        : null;
     if (dto.gasBalloonLastChangedAt !== undefined)
       data.gasBalloonLastChangedAt = dto.gasBalloonLastChangedAt
         ? new Date(dto.gasBalloonLastChangedAt)
         : null;
     if (dto.gasBalloonNextChangeAt !== undefined)
-      data.gasBalloonNextChangeAt = dto.gasBalloonNextChangeAt ? new Date(dto.gasBalloonNextChangeAt) : null;
+      data.gasBalloonNextChangeAt = dto.gasBalloonNextChangeAt
+        ? new Date(dto.gasBalloonNextChangeAt)
+        : null;
 
     const updated = await this.prisma.vehicle.update({ where: { id }, data });
     await this.audit.log({
@@ -181,7 +232,14 @@ export class VehiclesService {
       where: { vehicleId },
       orderBy: { startAt: 'desc' },
       include: {
-        driver: { select: { id: true, fullName: true, phone: true, user: { select: { login: true } } } },
+        driver: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            user: { select: { login: true } },
+          },
+        },
       },
     });
   }
@@ -192,8 +250,17 @@ export class VehiclesService {
       orderBy: { startAt: 'desc' },
       take: 3000,
       include: {
-        driver: { select: { id: true, fullName: true, phone: true, user: { select: { login: true } } } },
-        vehicle: { select: { id: true, plateNumber: true, name: true, model: true } },
+        driver: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            user: { select: { login: true } },
+          },
+        },
+        vehicle: {
+          select: { id: true, plateNumber: true, name: true, model: true },
+        },
       },
     });
   }
@@ -208,7 +275,8 @@ export class VehiclesService {
   ) {
     await this.findOne(vehicleId);
     const startAt = dto.startAt ? new Date(dto.startAt) : new Date();
-    if (!Number.isFinite(startAt.getTime())) throw new BadRequestException('Invalid startAt');
+    if (!Number.isFinite(startAt.getTime()))
+      throw new BadRequestException('Invalid startAt');
 
     return this.prisma.$transaction(async (tx) => {
       // End any current assignment for this vehicle
@@ -234,7 +302,9 @@ export class VehiclesService {
         return { ok: true };
       }
 
-      const driver = await tx.driver.findUnique({ where: { id: dto.driverId } });
+      const driver = await tx.driver.findUnique({
+        where: { id: dto.driverId },
+      });
       if (!driver) throw new NotFoundException('Driver not found');
 
       // End any current assignment for this driver
@@ -258,7 +328,11 @@ export class VehiclesService {
         action: 'vehicle.assignDriver',
         entity: 'Vehicle',
         entityId: vehicleId,
-        meta: { driverId: dto.driverId, startAt: startAt.toISOString(), assignmentId: row.id },
+        meta: {
+          driverId: dto.driverId,
+          startAt: startAt.toISOString(),
+          assignmentId: row.id,
+        },
       });
 
       return { ok: true, assignmentId: row.id };

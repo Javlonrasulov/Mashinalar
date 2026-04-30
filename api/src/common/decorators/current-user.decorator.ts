@@ -6,7 +6,9 @@ export type JwtUser = {
   driverId?: string;
 };
 
-export const CurrentUser = createParamDecorator((data: unknown, ctx: ExecutionContext): JwtUser => {
-  const request = ctx.switchToHttp().getRequest();
-  return request.user as JwtUser;
-});
+export const CurrentUser = createParamDecorator(
+  (data: unknown, ctx: ExecutionContext): JwtUser => {
+    const request = ctx.switchToHttp().getRequest();
+    return request.user as JwtUser;
+  },
+);

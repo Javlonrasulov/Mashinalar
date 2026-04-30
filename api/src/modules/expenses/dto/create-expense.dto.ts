@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import {
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class CreateExpenseDto {
   @IsString()

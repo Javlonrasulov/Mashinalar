@@ -12,11 +12,15 @@ export class VehicleCategoriesService {
   ) {}
 
   findAll() {
-    return this.prisma.vehicleCategory.findMany({ orderBy: { createdAt: 'desc' } });
+    return this.prisma.vehicleCategory.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async create(dto: CreateVehicleCategoryDto, actorUserId: string) {
-    const created = await this.prisma.vehicleCategory.create({ data: { name: dto.name } });
+    const created = await this.prisma.vehicleCategory.create({
+      data: { name: dto.name },
+    });
     await this.audit.log({
       actorUserId,
       action: 'vehicleCategory.create',
@@ -27,7 +31,9 @@ export class VehicleCategoriesService {
   }
 
   async update(id: string, dto: UpdateVehicleCategoryDto, actorUserId: string) {
-    const exists = await this.prisma.vehicleCategory.findUnique({ where: { id } });
+    const exists = await this.prisma.vehicleCategory.findUnique({
+      where: { id },
+    });
     if (!exists) throw new NotFoundException('VehicleCategory not found');
     const updated = await this.prisma.vehicleCategory.update({
       where: { id },
@@ -43,7 +49,9 @@ export class VehicleCategoriesService {
   }
 
   async remove(id: string, actorUserId: string) {
-    const exists = await this.prisma.vehicleCategory.findUnique({ where: { id } });
+    const exists = await this.prisma.vehicleCategory.findUnique({
+      where: { id },
+    });
     if (!exists) throw new NotFoundException('VehicleCategory not found');
     await this.prisma.vehicleCategory.delete({ where: { id } });
     await this.audit.log({
@@ -55,4 +63,3 @@ export class VehicleCategoriesService {
     return { ok: true };
   }
 }
-

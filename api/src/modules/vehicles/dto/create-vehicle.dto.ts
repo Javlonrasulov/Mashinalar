@@ -83,5 +83,4 @@ export class CreateVehicleDto {
   @IsOptional()
   @IsDateString()
   gasBalloonNextChangeAt?: string;
-
 }

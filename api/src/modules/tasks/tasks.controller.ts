@@ -16,7 +16,10 @@ import { UserRole } from '@prisma/client';
 import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
 import { extname, join } from 'path';
-import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtUser,
+} from '../../common/decorators/current-user.decorator';
 import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -31,7 +34,11 @@ function ensureUploadDir() {
   if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
 }
 
-function fileName(_req: unknown, file: Express.Multer.File, cb: (e: Error | null, name: string) => void) {
+function fileName(
+  _req: unknown,
+  file: Express.Multer.File,
+  cb: (e: Error | null, name: string) => void,
+) {
   const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
   cb(null, name);
 }
@@ -95,15 +102,26 @@ export class TasksController {
     @CurrentUser() user: JwtUser,
   ) {
     if (!user.driverId) throw new BadRequestException('No driver');
-    const proofPhotoUrl = proofPhoto ? `/uploads/${proofPhoto.filename}` : undefined;
-    return this.tasks.submit(id, user.driverId, { proofText: body.proofText, proofPhotoUrl }, user.userId);
+    const proofPhotoUrl = proofPhoto
+      ? `/uploads/${proofPhoto.filename}`
+      : undefined;
+    return this.tasks.submit(
+      id,
+      user.driverId,
+      { proofText: body.proofText, proofPhotoUrl },
+      user.userId,
+    );
   }
 
   @Patch(':id/review')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @AdminRoutePage('TASKS')
-  review(@Param('id') id: string, @Body() dto: ReviewTaskDto, @CurrentUser() user: JwtUser) {
+  review(
+    @Param('id') id: string,
+    @Body() dto: ReviewTaskDto,
+    @CurrentUser() user: JwtUser,
+  ) {
     return this.tasks.review(id, dto.status, user.userId);
   }
 

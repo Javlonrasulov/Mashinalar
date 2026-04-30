@@ -11,8 +11,11 @@ export class StatsService {
       throw new BadRequestException('Invalid days');
     }
 
-    const driver = await this.prisma.driver.findUnique({ where: { id: driverId } });
-    if (!driver?.vehicleId) throw new BadRequestException('No vehicle assigned');
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+    });
+    if (!driver?.vehicleId)
+      throw new BadRequestException('No vehicle assigned');
 
     const vehicleId = driver.vehicleId;
 

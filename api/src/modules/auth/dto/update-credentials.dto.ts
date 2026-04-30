@@ -13,4 +13,3 @@ export class UpdateCredentialsDto {
   @MinLength(6)
   newPassword?: string;
 }
-

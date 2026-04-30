@@ -11,7 +11,12 @@ export class ExpensesService {
     private readonly audit: AuditService,
   ) {}
 
-  findAll(filters?: { vehicleId?: string; categoryId?: string; spentFrom?: Date; spentTo?: Date }) {
+  findAll(filters?: {
+    vehicleId?: string;
+    categoryId?: string;
+    spentFrom?: Date;
+    spentTo?: Date;
+  }) {
     const spentAt =
       filters?.spentFrom || filters?.spentTo
         ? {
@@ -73,7 +78,11 @@ export class ExpensesService {
   /**
    * Total expense amount per vehicle (admin “who spends most” = which plate / car).
    */
-  async totalsByVehicle(filters?: { categoryId?: string; spentFrom?: Date; spentTo?: Date }) {
+  async totalsByVehicle(filters?: {
+    categoryId?: string;
+    spentFrom?: Date;
+    spentTo?: Date;
+  }) {
     const spentAt =
       filters?.spentFrom || filters?.spentTo
         ? {
@@ -108,7 +117,9 @@ export class ExpensesService {
     }));
 
     rows.sort((a, b) =>
-      new Prisma.Decimal(b.totalAmount).comparedTo(new Prisma.Decimal(a.totalAmount)),
+      new Prisma.Decimal(b.totalAmount).comparedTo(
+        new Prisma.Decimal(a.totalAmount),
+      ),
     );
 
     return rows;

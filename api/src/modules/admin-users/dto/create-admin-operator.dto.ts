@@ -1,4 +1,10 @@
-import { ArrayMinSize, IsArray, IsIn, IsString, MinLength } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsIn,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { ADMIN_PAGE_KEYS } from '../../../common/admin-page-keys';
 
 const PAGE_CHOICES = [...ADMIN_PAGE_KEYS];

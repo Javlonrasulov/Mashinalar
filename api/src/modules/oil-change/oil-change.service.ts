@@ -13,7 +13,9 @@ export class OilChangeService {
 
   /** Kunlik KM yozuvlaridan taxminiy joriy odometr (oxirgi endKm / startKm). */
   async estimateOdometerKm(vehicleId: string): Promise<number> {
-    const v = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    const v = await this.prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+    });
     if (!v) return 0;
     let max = Number(v.initialKm);
     const reports = await this.prisma.dailyKmReport.findMany({
@@ -28,7 +30,10 @@ export class OilChangeService {
     return max;
   }
 
-  static urgency(kmRemaining: number | null, intervalKm: number | null): OilUrgency {
+  static urgency(
+    kmRemaining: number | null,
+    intervalKm: number | null,
+  ): OilUrgency {
     if (kmRemaining === null) return 'unknown';
     if (kmRemaining < 0) return 'overdue';
     const warn =
@@ -58,7 +63,8 @@ export class OilChangeService {
       throw new BadRequestException('oil_change.no_vehicle');
     }
     const vehicle = driver.vehicle;
-    const prevLast = vehicle.lastOilChangeKm != null ? Number(vehicle.lastOilChangeKm) : null;
+    const prevLast =
+      vehicle.lastOilChangeKm != null ? Number(vehicle.lastOilChangeKm) : null;
 
     const row = await this.prisma.oilChangeReport.create({
       data: {
@@ -101,7 +107,9 @@ export class OilChangeService {
   }
 
   async findMine(driverId: string, limitRaw?: string) {
-    const driver = await this.prisma.driver.findUnique({ where: { id: driverId } });
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+    });
     if (!driver?.vehicleId) return [];
     const n = limitRaw != null && limitRaw !== '' ? Number(limitRaw) : 50;
     const take = Number.isFinite(n) && n > 0 && n <= 100 ? Math.floor(n) : 50;
@@ -131,10 +139,13 @@ export class OilChangeService {
     const out = [];
     for (const v of vehicles) {
       const est = await this.estimateOdometerKm(v.id);
-      const lastOil = v.lastOilChangeKm != null ? Number(v.lastOilChangeKm) : null;
+      const lastOil =
+        v.lastOilChangeKm != null ? Number(v.lastOilChangeKm) : null;
       const interval = v.oilChangeIntervalKm ?? null;
       const nextOilKm =
-        lastOil !== null && interval != null && interval > 0 ? lastOil + interval : null;
+        lastOil !== null && interval != null && interval > 0
+          ? lastOil + interval
+          : null;
       const kmRemaining = nextOilKm != null ? nextOilKm - est : null;
       const urgency = OilChangeService.urgency(kmRemaining, interval);
       const driverLogin = v.drivers[0]?.user?.login ?? null;
@@ -144,7 +155,9 @@ export class OilChangeService {
         plateNumber: v.plateNumber,
         driverLogin,
         lastOilChangeKm: lastOil,
-        lastOilChangeAt: v.lastOilChangeAt ? v.lastOilChangeAt.toISOString() : null,
+        lastOilChangeAt: v.lastOilChangeAt
+          ? v.lastOilChangeAt.toISOString()
+          : null,
         oilChangeIntervalKm: interval,
         nextOilChangeKm: nextOilKm,
         estimatedCurrentKm: est,
@@ -176,5 +189,4 @@ export class OilChangeService {
       driverLogin: r.driver.user.login,
     }));
   }
-
 }

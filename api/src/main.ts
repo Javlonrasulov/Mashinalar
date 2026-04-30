@@ -7,7 +7,8 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  const origin = process.env.CORS_ORIGIN?.split(',').map((s) => s.trim()) ?? true;
+  const origin =
+    process.env.CORS_ORIGIN?.split(',').map((s) => s.trim()) ?? true;
   app.enableCors({ origin, credentials: true });
 
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });

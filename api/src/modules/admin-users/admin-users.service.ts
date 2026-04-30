@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -81,7 +86,8 @@ export class AdminUsersService {
       data.allowedPages = [...new Set(dto.allowedPages)];
     }
 
-    if (!Object.keys(data).length) throw new BadRequestException('Nothing to update');
+    if (!Object.keys(data).length)
+      throw new BadRequestException('Nothing to update');
 
     return this.prisma.user.update({
       where: { id },

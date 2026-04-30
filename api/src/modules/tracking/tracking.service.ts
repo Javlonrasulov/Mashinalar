@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  forwardRef,
+} from '@nestjs/common';
 import { LocationPoint, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TrackingGateway } from './tracking.gateway';
@@ -65,7 +70,8 @@ export class TrackingService {
       where: { id: driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId) throw new BadRequestException('Driver has no vehicle assigned');
+    if (!driver?.vehicleId)
+      throw new BadRequestException('Driver has no vehicle assigned');
 
     const vehicleId = driver.vehicleId;
     const rows: Prisma.LocationPointCreateManyInput[] = dto.points.map((p) => ({
@@ -135,7 +141,10 @@ export class TrackingService {
       const dLon = toRad(Number(b.longitude) - Number(a.longitude));
       const x =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        Math.cos(lat1) *
+          Math.cos(lat2) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
       const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
       meters += R * c;
     }
@@ -145,11 +154,16 @@ export class TrackingService {
   /**
    * Xarita tahlili: filtrlangan GPS masofa, Kun KM odometr, uzoq to‘xtashlar va klasterlar.
    */
-  async mapAnalytics(vehicleId: string, from: Date, to: Date): Promise<TrackingMapAnalytics> {
+  async mapAnalytics(
+    vehicleId: string,
+    from: Date,
+    to: Date,
+  ): Promise<TrackingMapAnalytics> {
     const raw = await this.history(vehicleId, from, to);
     const filtered = this.filterPointsForAnalytics(raw);
     const gpsKm = this.gpsPathKmInternal(filtered);
-    const { km: odometerKm, daysCount: odometerDays } = await this.odometerKmInRange(vehicleId, from, to);
+    const { km: odometerKm, daysCount: odometerDays } =
+      await this.odometerKmInRange(vehicleId, from, to);
     const internal = this.toInternalPoints(filtered);
     const stopSegments = this.detectStopSegments(internal);
     const visitedClusters = this.clusterStopVisits(stopSegments);
@@ -158,8 +172,14 @@ export class TrackingService {
     let stoppedDurationSec = 0;
     if (internal.length >= 2) {
       const spanMs = internal[internal.length - 1].t - internal[0].t;
-      stoppedDurationSec = stopSegments.reduce((s, seg) => s + seg.durationSec, 0);
-      movingDurationSec = Math.max(0, Math.floor(spanMs / 1000) - stoppedDurationSec);
+      stoppedDurationSec = stopSegments.reduce(
+        (s, seg) => s + seg.durationSec,
+        0,
+      );
+      movingDurationSec = Math.max(
+        0,
+        Math.floor(spanMs / 1000) - stoppedDurationSec,
+      );
     }
 
     const startPoint = this.toMapPoint(filtered[0]);
@@ -202,11 +222,15 @@ export class TrackingService {
   }
 
   private utcDayStart(d: Date): Date {
-    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+    return new Date(
+      Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0),
+    );
   }
 
   private filterPointsForAnalytics(rows: LocationPoint[]): LocationPoint[] {
-    return rows.filter((p) => p.accuracyM == null || p.accuracyM <= MAX_ACCURACY_M);
+    return rows.filter(
+      (p) => p.accuracyM == null || p.accuracyM <= MAX_ACCURACY_M,
+    );
   }
 
   private toInternalPoints(rows: LocationPoint[]): InternalPt[] {
@@ -226,7 +250,12 @@ export class TrackingService {
     };
   }
 
-  private haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  private haversineMeters(
+    aLat: number,
+    aLng: number,
+    bLat: number,
+    bLng: number,
+  ): number {
     const R = 6371000;
     const toRad = (d: number) => (d * Math.PI) / 180;
     const lat1 = toRad(aLat);
@@ -246,7 +275,12 @@ export class TrackingService {
     for (let i = 1; i < rows.length; i++) {
       const a = rows[i - 1];
       const b = rows[i];
-      meters += this.haversineMeters(Number(a.latitude), Number(a.longitude), Number(b.latitude), Number(b.longitude));
+      meters += this.haversineMeters(
+        Number(a.latitude),
+        Number(a.longitude),
+        Number(b.latitude),
+        Number(b.longitude),
+      );
     }
     return meters / 1000;
   }
@@ -284,7 +318,11 @@ export class TrackingService {
     let i = 0;
     while (i < pts.length) {
       let j = i;
-      while (j < pts.length && this.haversineMeters(pts[j].lat, pts[j].lng, pts[i].lat, pts[i].lng) <= DWELL_RADIUS_M) {
+      while (
+        j < pts.length &&
+        this.haversineMeters(pts[j].lat, pts[j].lng, pts[i].lat, pts[i].lng) <=
+          DWELL_RADIUS_M
+      ) {
         j++;
       }
       j--;
@@ -314,12 +352,19 @@ export class TrackingService {
     return out;
   }
 
-  private clusterStopVisits(segments: TrackingStopSegment[]): TrackingVisitedCluster[] {
+  private clusterStopVisits(
+    segments: TrackingStopSegment[],
+  ): TrackingVisitedCluster[] {
     const clusters: TrackingVisitedCluster[] = [];
     for (const seg of segments) {
       let merged = false;
       for (const c of clusters) {
-        const dM = this.haversineMeters(seg.latitude, seg.longitude, c.latitude, c.longitude);
+        const dM = this.haversineMeters(
+          seg.latitude,
+          seg.longitude,
+          c.latitude,
+          c.longitude,
+        );
         if (dM <= VISIT_CLUSTER_RADIUS_M) {
           const wOld = c.totalStopSec;
           const wNew = seg.durationSec;
@@ -352,7 +397,8 @@ export class TrackingService {
       where: { id: driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId) throw new BadRequestException('Driver has no vehicle assigned');
+    if (!driver?.vehicleId)
+      throw new BadRequestException('Driver has no vehicle assigned');
 
     const vehicleId = driver.vehicleId;
     const MAX_MS = 7 * 24 * 60 * 60 * 1000;

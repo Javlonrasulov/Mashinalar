@@ -14,7 +14,9 @@ import { JwtPayload } from '../auth/strategies/jwt.strategy';
   namespace: '/tracking',
   cors: { origin: true, credentials: true },
 })
-export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class TrackingGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server!: Server;
 
@@ -25,7 +27,9 @@ export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect
   async handleConnection(client: Socket) {
     const token =
       (client.handshake.auth as { token?: string })?.token ??
-      (typeof client.handshake.query.token === 'string' ? client.handshake.query.token : undefined);
+      (typeof client.handshake.query.token === 'string'
+        ? client.handshake.query.token
+        : undefined);
     if (!token) {
       client.disconnect(true);
       return;

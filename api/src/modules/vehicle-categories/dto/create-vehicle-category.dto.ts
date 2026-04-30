@@ -5,4 +5,3 @@ export class CreateVehicleCategoryDto {
   @MinLength(1)
   name!: string;
 }
-

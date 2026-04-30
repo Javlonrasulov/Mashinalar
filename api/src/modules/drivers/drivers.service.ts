@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -17,7 +21,9 @@ export class DriversService {
     return this.prisma.driver.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
-        user: { select: { id: true, login: true, role: true, createdAt: true } },
+        user: {
+          select: { id: true, login: true, role: true, createdAt: true },
+        },
         vehicle: true,
       },
     });
@@ -36,7 +42,9 @@ export class DriversService {
   }
 
   async create(dto: CreateDriverDto, actorUserId: string) {
-    const exists = await this.prisma.user.findUnique({ where: { login: dto.login } });
+    const exists = await this.prisma.user.findUnique({
+      where: { login: dto.login },
+    });
     if (exists) throw new ConflictException('Login already taken');
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
@@ -74,7 +82,9 @@ export class DriversService {
 
   async update(id: string, dto: UpdateDriverDto, actorUserId: string) {
     await this.findOne(id);
-    const driver = await this.prisma.driver.findUniqueOrThrow({ where: { id } });
+    const driver = await this.prisma.driver.findUniqueOrThrow({
+      where: { id },
+    });
 
     if (dto.password) {
       const passwordHash = await bcrypt.hash(dto.password, 10);

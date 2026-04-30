@@ -16,7 +16,10 @@ import { UserRole } from '@prisma/client';
 import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
 import { extname, join } from 'path';
-import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtUser,
+} from '../../common/decorators/current-user.decorator';
 import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -29,7 +32,11 @@ function ensureUploadDir() {
   if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
 }
 
-function fileName(_req: unknown, file: Express.Multer.File, cb: (e: Error | null, name: string) => void) {
+function fileName(
+  _req: unknown,
+  file: Express.Multer.File,
+  cb: (e: Error | null, name: string) => void,
+) {
   const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
   cb(null, name);
 }
@@ -56,7 +63,11 @@ export class DailyKmController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @AdminRoutePage('DAILY_KM')
-  async findAll(@Query('date') date?: string, @Query('from') from?: string, @Query('to') to?: string) {
+  async findAll(
+    @Query('date') date?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
     const hasRange = from != null && from !== '' && to != null && to !== '';
     return await this.dailyKm.findAll(hasRange ? { from, to } : { date });
   }
@@ -84,19 +95,16 @@ export class DailyKmController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.DRIVER)
   @UseInterceptors(
-    FileFieldsInterceptor(
-      [{ name: 'startOdometer', maxCount: 1 }],
-      {
-        storage: diskStorage({
-          destination: (_req, _file, cb) => {
-            ensureUploadDir();
-            cb(null, uploadDir);
-          },
-          filename: fileName,
-        }),
-        limits: { fileSize: 8 * 1024 * 1024 },
-      },
-    ),
+    FileFieldsInterceptor([{ name: 'startOdometer', maxCount: 1 }], {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          ensureUploadDir();
+          cb(null, uploadDir);
+        },
+        filename: fileName,
+      }),
+      limits: { fileSize: 8 * 1024 * 1024 },
+    }),
   )
   async startDay(
     @UploadedFiles() files: { startOdometer?: Express.Multer.File[] },
@@ -111,12 +119,16 @@ export class DailyKmController {
     @CurrentUser() user: JwtUser,
   ) {
     if (!user.driverId) throw new BadRequestException('daily_km.no_driver');
-    if (!body.reportDate) throw new BadRequestException('daily_km.report_date_required');
+    if (!body.reportDate)
+      throw new BadRequestException('daily_km.report_date_required');
     const startKm = body.startKm ? Number(body.startKm) : NaN;
-    if (!Number.isFinite(startKm)) throw new BadRequestException('daily_km.invalid_start_km_number');
+    if (!Number.isFinite(startKm))
+      throw new BadRequestException('daily_km.invalid_start_km_number');
 
     const base = '/uploads';
-    const startOdometerUrl = files?.startOdometer?.[0] ? `${base}/${files.startOdometer[0].filename}` : undefined;
+    const startOdometerUrl = files?.startOdometer?.[0]
+      ? `${base}/${files.startOdometer[0].filename}`
+      : undefined;
 
     return this.dailyKm.submitDayStart({
       driverId: user.driverId,
@@ -135,19 +147,16 @@ export class DailyKmController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.DRIVER)
   @UseInterceptors(
-    FileFieldsInterceptor(
-      [{ name: 'endOdometer', maxCount: 1 }],
-      {
-        storage: diskStorage({
-          destination: (_req, _file, cb) => {
-            ensureUploadDir();
-            cb(null, uploadDir);
-          },
-          filename: fileName,
-        }),
-        limits: { fileSize: 8 * 1024 * 1024 },
-      },
-    ),
+    FileFieldsInterceptor([{ name: 'endOdometer', maxCount: 1 }], {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          ensureUploadDir();
+          cb(null, uploadDir);
+        },
+        filename: fileName,
+      }),
+      limits: { fileSize: 8 * 1024 * 1024 },
+    }),
   )
   async endDay(
     @Param('id') id: string,
@@ -163,10 +172,13 @@ export class DailyKmController {
   ) {
     if (!user.driverId) throw new BadRequestException('daily_km.no_driver');
     const endKm = body.endKm ? Number(body.endKm) : NaN;
-    if (!Number.isFinite(endKm)) throw new BadRequestException('daily_km.invalid_end_km_number');
+    if (!Number.isFinite(endKm))
+      throw new BadRequestException('daily_km.invalid_end_km_number');
 
     const base = '/uploads';
-    const endOdometerUrl = files?.endOdometer?.[0] ? `${base}/${files.endOdometer[0].filename}` : undefined;
+    const endOdometerUrl = files?.endOdometer?.[0]
+      ? `${base}/${files.endOdometer[0].filename}`
+      : undefined;
 
     return this.dailyKm.submitDayEnd({
       reportId: id,

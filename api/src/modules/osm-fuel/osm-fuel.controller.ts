@@ -1,4 +1,12 @@
-import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -59,7 +67,8 @@ export class OsmFuelController {
   async nearest(@Query('lat') latQ?: string, @Query('lon') lonQ?: string) {
     const lat = Number(latQ);
     const lon = Number(lonQ);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new BadRequestException('Invalid coordinates');
+    if (!Number.isFinite(lat) || !Number.isFinite(lon))
+      throw new BadRequestException('Invalid coordinates');
     return this.osmFuel.nearestFuelStation(lat, lon);
   }
 }

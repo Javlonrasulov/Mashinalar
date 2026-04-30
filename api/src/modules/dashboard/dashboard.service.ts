@@ -30,16 +30,17 @@ export class DashboardService {
 
   async summary() {
     const now = new Date();
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(now);
-    endOfDay.setHours(23, 59, 59, 999);
+    // `DailyKmReport.reportDate` is a DATE (UTC). Use UTC day boundaries to avoid timezone drift.
+    const startOfDayUtc = new Date(now);
+    startOfDayUtc.setUTCHours(0, 0, 0, 0);
+    const nextDayUtc = new Date(startOfDayUtc);
+    nextDayUtc.setUTCDate(nextDayUtc.getUTCDate() + 1);
 
     const dailyReports = await this.prisma.dailyKmReport.findMany({
       where: {
         reportDate: {
-          gte: startOfDay,
-          lte: endOfDay,
+          gte: startOfDayUtc,
+          lt: nextDayUtc,
         },
       },
     });
@@ -114,7 +115,13 @@ export class DashboardService {
       throw new BadRequestException('Invalid date range');
     }
 
-    const [dailyRows, expenseGroups, fuelGroups, openByDriver, overdueOpenByDriver] = await Promise.all([
+    const [
+      dailyRows,
+      expenseGroups,
+      fuelGroups,
+      openByDriver,
+      overdueOpenByDriver,
+    ] = await Promise.all([
       this.prisma.dailyKmReport.findMany({
         where: {
           reportDate: { gte: from, lte: to },
@@ -202,8 +209,12 @@ export class DashboardService {
     for (const r of openByDriver) driverIds.add(r.driverId);
     for (const r of overdueOpenByDriver) driverIds.add(r.driverId);
 
-    const openCount = new Map(openByDriver.map((r) => [r.driverId, r._count._all]));
-    const overdueCount = new Map(overdueOpenByDriver.map((r) => [r.driverId, r._count._all]));
+    const openCount = new Map(
+      openByDriver.map((r) => [r.driverId, r._count._all]),
+    );
+    const overdueCount = new Map(
+      overdueOpenByDriver.map((r) => [r.driverId, r._count._all]),
+    );
 
     const drivers = driverIds.size
       ? await this.prisma.driver.findMany({

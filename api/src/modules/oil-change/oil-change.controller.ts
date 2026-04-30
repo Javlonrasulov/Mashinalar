@@ -14,7 +14,10 @@ import { UserRole } from '@prisma/client';
 import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
 import { extname, join } from 'path';
-import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtUser,
+} from '../../common/decorators/current-user.decorator';
 import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -27,7 +30,11 @@ function ensureUploadDir() {
   if (!existsSync(uploadDir)) mkdirSync(uploadDir, { recursive: true });
 }
 
-function fileName(_req: unknown, file: Express.Multer.File, cb: (e: Error | null, name: string) => void) {
+function fileName(
+  _req: unknown,
+  file: Express.Multer.File,
+  cb: (e: Error | null, name: string) => void,
+) {
   const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
   cb(null, name);
 }
@@ -66,7 +73,8 @@ export class OilChangeController {
     if (!user.driverId) throw new BadRequestException('No driver');
     const kmRaw = body?.kmAtChange;
     const km = kmRaw != null && kmRaw !== '' ? Number(kmRaw) : NaN;
-    if (!Number.isFinite(km) || km <= 0) throw new BadRequestException('Invalid kmAtChange');
+    if (!Number.isFinite(km) || km <= 0)
+      throw new BadRequestException('Invalid kmAtChange');
     const base = '/uploads';
     const photoUrl = file ? `${base}/${file.filename}` : undefined;
     return this.oil.createFromDriver({

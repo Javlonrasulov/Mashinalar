@@ -97,7 +97,8 @@ function defaultBboxFromEnv(): FuelStationBbox | null {
   return { south, west, north, east };
 }
 
-const DEFAULT_BBOX: FuelStationBbox = defaultBboxFromEnv() ?? DEFAULT_BBOX_NAVOIY_VILOYAT;
+const DEFAULT_BBOX: FuelStationBbox =
+  defaultBboxFromEnv() ?? DEFAULT_BBOX_NAVOIY_VILOYAT;
 
 const FUEL_LABEL: Record<string, string> = {
   diesel: 'Diesel',
@@ -138,11 +139,18 @@ function collectFuels(tags: Record<string, string>): string[] {
 @Injectable()
 export class OsmFuelService {
   private readonly logger = new Logger(OsmFuelService.name);
-  private cache: { key: string; at: number; data: FuelStationDto[] } | null = null;
+  private cache: { key: string; at: number; data: FuelStationDto[] } | null =
+    null;
   private readonly ttlMs = 60 * 60 * 1000;
 
-  private readonly geoLabelCache = new Map<string, { at: number; label: string }>();
-  private readonly nearestCache = new Map<string, { at: number; data: { label: string | null; distanceM: number | null } }>();
+  private readonly geoLabelCache = new Map<
+    string,
+    { at: number; label: string }
+  >();
+  private readonly nearestCache = new Map<
+    string,
+    { at: number; data: { label: string | null; distanceM: number | null } }
+  >();
   private lastNominatimRequestAt = 0;
 
   private async nominatimThrottle(): Promise<void> {
@@ -156,7 +164,9 @@ export class OsmFuelService {
    * OSM Nominatim reverse (1 so‘rov/s siyosatiga rioya).
    * Kalit: `geoLabelKey` — yaqin nuqtalar bitta manzil bilan keshlanadi.
    */
-  async reverseGeocodeBatch(points: { latitude: number; longitude: number }[]): Promise<Record<string, string>> {
+  async reverseGeocodeBatch(
+    points: { latitude: number; longitude: number }[],
+  ): Promise<Record<string, string>> {
     const out: Record<string, string> = {};
     const byKey = new Map<string, { lat: number; lon: number }>();
     for (const p of points) {
@@ -164,8 +174,12 @@ export class OsmFuelService {
       if (!byKey.has(k)) byKey.set(k, { lat: p.latitude, lon: p.longitude });
     }
 
-    const ua = process.env.NOMINATIM_USER_AGENT ?? 'MashinalarFleet/1.0 (+https://github.com)';
-    const base = (process.env.NOMINATIM_URL ?? 'https://nominatim.openstreetmap.org').replace(/\/$/, '');
+    const ua =
+      process.env.NOMINATIM_USER_AGENT ??
+      'MashinalarFleet/1.0 (+https://github.com)';
+    const base = (
+      process.env.NOMINATIM_URL ?? 'https://nominatim.openstreetmap.org'
+    ).replace(/\/$/, '');
 
     for (const [key, { lat, lon }] of byKey) {
       const hit = this.geoLabelCache.get(key);
@@ -200,7 +214,11 @@ export class OsmFuelService {
   async listFuelStations(bbox: FuelStationBbox): Promise<FuelStationDto[]> {
     const { south, west, north, east } = bbox;
     const key = `${south},${west},${north},${east}`;
-    if (this.cache && this.cache.key === key && Date.now() - this.cache.at < this.ttlMs) {
+    if (
+      this.cache &&
+      this.cache.key === key &&
+      Date.now() - this.cache.at < this.ttlMs
+    ) {
       return this.cache.data;
     }
 
@@ -216,9 +234,12 @@ export class OsmFuelService {
 );
 out center tags;`;
 
-    const url = process.env.OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter';
+    const url =
+      process.env.OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter';
     // Overpass returns 406 if no User-Agent (Node fetch omits it by default).
-    const ua = process.env.OVERPASS_USER_AGENT ?? 'MashinalarFleet/1.0 (+https://github.com)';
+    const ua =
+      process.env.OVERPASS_USER_AGENT ??
+      'MashinalarFleet/1.0 (+https://github.com)';
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -275,7 +296,10 @@ out center tags;`;
     return { ...DEFAULT_BBOX };
   }
 
-  private static haversineM(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  private static haversineM(
+    a: { lat: number; lon: number },
+    b: { lat: number; lon: number },
+  ): number {
     const R = 6371000;
     const toRad = (x: number) => (x * Math.PI) / 180;
     const dLat = toRad(b.lat - a.lat);
@@ -293,7 +317,11 @@ out center tags;`;
    * Koordinata atrofida (radius) eng yaqin zapravka nomini qaytaradi.
    * Topilmasa: `{ label: null }`.
    */
-  async nearestFuelStation(lat: number, lon: number, radiusM = 450): Promise<{ label: string | null; distanceM: number | null }> {
+  async nearestFuelStation(
+    lat: number,
+    lon: number,
+    radiusM = 450,
+  ): Promise<{ label: string | null; distanceM: number | null }> {
     const key = geoLabelKey(lat, lon);
     const hit = this.nearestCache.get(key);
     if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.data;
@@ -302,16 +330,30 @@ out center tags;`;
     // Convert meters to degrees (rough): 1 deg lat ~ 111km, lon depends on latitude.
     const padLat = radiusM / 111000;
     const padLon = radiusM / (111000 * Math.cos((lat * Math.PI) / 180));
-    const bbox: FuelStationBbox = { south: lat - padLat, west: lon - padLon, north: lat + padLat, east: lon + padLon };
+    const bbox: FuelStationBbox = {
+      south: lat - padLat,
+      west: lon - padLon,
+      north: lat + padLat,
+      east: lon + padLon,
+    };
 
     const stations = await this.listFuelStations(bbox);
-    let best: { label: string | null; distanceM: number | null } = { label: null, distanceM: null };
+    let best: { label: string | null; distanceM: number | null } = {
+      label: null,
+      distanceM: null,
+    };
     let bestD = Infinity;
     for (const s of stations) {
-      const d = OsmFuelService.haversineM({ lat, lon }, { lat: s.lat, lon: s.lon });
+      const d = OsmFuelService.haversineM(
+        { lat, lon },
+        { lat: s.lat, lon: s.lon },
+      );
       if (d < bestD) {
         bestD = d;
-        best = { label: s.label ?? null, distanceM: Number.isFinite(d) ? Math.round(d) : null };
+        best = {
+          label: s.label ?? null,
+          distanceM: Number.isFinite(d) ? Math.round(d) : null,
+        };
       }
     }
     // Accept only reasonably close stations.

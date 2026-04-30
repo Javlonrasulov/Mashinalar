@@ -1,6 +1,19 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
-import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtUser,
+} from '../../common/decorators/current-user.decorator';
 import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -48,7 +61,11 @@ export class VehiclesController {
 
   @Patch(':id')
   @Roles(UserRole.ADMIN)
-  update(@Param('id') id: string, @Body() dto: UpdateVehicleDto, @CurrentUser() user: JwtUser) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateVehicleDto,
+    @CurrentUser() user: JwtUser,
+  ) {
     return this.vehicles.update(id, dto, user.userId);
   }
 

@@ -1,6 +1,18 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
-import { CurrentUser, JwtUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtUser,
+} from '../../common/decorators/current-user.decorator';
 import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -27,7 +39,11 @@ export class VehicleCategoriesController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateVehicleCategoryDto, @CurrentUser() user: JwtUser) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateVehicleCategoryDto,
+    @CurrentUser() user: JwtUser,
+  ) {
     return this.cats.update(id, dto, user.userId);
   }
 
@@ -36,4 +52,3 @@ export class VehicleCategoriesController {
     return this.cats.remove(id, user.userId);
   }
 }
-
