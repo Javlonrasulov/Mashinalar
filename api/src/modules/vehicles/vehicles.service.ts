@@ -135,6 +135,12 @@ export class VehiclesService {
       gasBalloonNextChangeAt: dto.gasBalloonNextChangeAt
         ? new Date(dto.gasBalloonNextChangeAt)
         : undefined,
+      gasPricePerM3:
+        dto.gasPricePerM3 === undefined
+          ? undefined
+          : dto.gasPricePerM3 === null
+            ? null
+            : dto.gasPricePerM3,
     };
     const created = await this.prisma.vehicle.create({ data });
     await this.audit.log({
@@ -203,6 +209,9 @@ export class VehiclesService {
       data.gasBalloonNextChangeAt = dto.gasBalloonNextChangeAt
         ? new Date(dto.gasBalloonNextChangeAt)
         : null;
+    if (dto.gasPricePerM3 !== undefined)
+      data.gasPricePerM3 =
+        dto.gasPricePerM3 === null ? null : dto.gasPricePerM3;
 
     const updated = await this.prisma.vehicle.update({ where: { id }, data });
     await this.audit.log({

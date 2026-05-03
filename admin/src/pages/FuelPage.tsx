@@ -24,6 +24,8 @@ const DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
+const FLEET_GAS_PRICE_LS_KEY = 'mashinalar.fleetGasPricePerM3';
+
 type Row = {
   id: string;
   amount: string;
@@ -56,7 +58,13 @@ export function FuelPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [allVehicles, setAllVehicles] = useState<VehicleRow[]>([]);
   const [vehiclesErr, setVehiclesErr] = useState<string | null>(null);
-  const [globalGasPrice, setGlobalGasPrice] = useState('');
+  const [globalGasPrice, setGlobalGasPrice] = useState(() => {
+    try {
+      return localStorage.getItem(FLEET_GAS_PRICE_LS_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
   const [globalGasSaving, setGlobalGasSaving] = useState(false);
   const [gasSaveErr, setGasSaveErr] = useState<string | null>(null);
   const [gasSaveOk, setGasSaveOk] = useState(false);
@@ -100,7 +108,25 @@ export function FuelPage() {
 
         const prices = mapped.map((v) => (v.gasPricePerM3 == null ? '' : String(v.gasPricePerM3)));
         const uniq = Array.from(new Set(prices.filter((p) => p !== '')));
-        if (uniq.length === 1) setGlobalGasPrice(uniq[0] ?? '');
+        if (uniq.length === 1) {
+          const v = uniq[0] ?? '';
+          setGlobalGasPrice(v);
+          try {
+            if (v) localStorage.setItem(FLEET_GAS_PRICE_LS_KEY, v);
+            else localStorage.removeItem(FLEET_GAS_PRICE_LS_KEY);
+          } catch {
+            /* ignore */
+          }
+        } else if (uniq.length === 0) {
+          setGlobalGasPrice((prev) => {
+            if (prev.trim() !== '') return prev;
+            try {
+              return localStorage.getItem(FLEET_GAS_PRICE_LS_KEY) ?? '';
+            } catch {
+              return '';
+            }
+          });
+        }
       })
       .catch((e: unknown) => {
         setAllVehicles([]);
@@ -230,6 +256,12 @@ export function FuelPage() {
         })),
       );
       setGasSaveOk(true);
+      try {
+        if (raw === '') localStorage.removeItem(FLEET_GAS_PRICE_LS_KEY);
+        else localStorage.setItem(FLEET_GAS_PRICE_LS_KEY, String(n));
+      } catch {
+        /* ignore */
+      }
       if (gasSaveOkTimerRef.current != null) window.clearTimeout(gasSaveOkTimerRef.current);
       gasSaveOkTimerRef.current = window.setTimeout(() => setGasSaveOk(false), 2000);
     } catch (e: unknown) {

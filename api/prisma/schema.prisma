@@ -79,6 +79,8 @@ model Vehicle {
   gasEndDate           DateTime?
   gasBalloonLastChangedAt DateTime?
   gasBalloonNextChangeAt  DateTime?
+  /// Газ (1 м³) нархи (заправка суммасидан m³ hisoblash)
+  gasPricePerM3        Decimal?  @db.Decimal(14, 2)
   lastLatitude         Decimal?  @db.Decimal(10, 7)
   lastLongitude        Decimal?  @db.Decimal(10, 7)
   lastLocationAt       DateTime?

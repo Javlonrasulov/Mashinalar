@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateVehicleDto {
@@ -83,4 +84,11 @@ export class CreateVehicleDto {
   @IsOptional()
   @IsDateString()
   gasBalloonNextChangeAt?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v != null)
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  gasPricePerM3?: number | null;
 }
