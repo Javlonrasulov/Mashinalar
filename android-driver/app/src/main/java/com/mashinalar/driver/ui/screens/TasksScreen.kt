@@ -31,7 +31,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.mashinalar.driver.R
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.mashinalar.driver.ui.util.formatIsoToDmy
+import com.mashinalar.driver.ui.util.formatIsoToDmyHm
 import java.time.temporal.ChronoUnit
 
 @Composable
@@ -120,21 +121,11 @@ private fun kvRow(label: String, value: String) {
 }
 
 private fun formatIsoDateOnly(iso: String?): String {
-  if (iso.isNullOrBlank()) return "—"
-  return runCatching {
-    val i = Instant.parse(iso)
-    val z = ZoneId.systemDefault()
-    DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(z).format(i)
-  }.getOrElse { "—" }
+  return formatIsoToDmy(iso)
 }
 
 private fun formatIsoDateTime(iso: String?): String {
-  if (iso.isNullOrBlank()) return "—"
-  return runCatching {
-    val i = Instant.parse(iso)
-    val z = ZoneId.systemDefault()
-    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(z).format(i)
-  }.getOrElse { "—" }
+  return formatIsoToDmyHm(iso)
 }
 
 @Composable

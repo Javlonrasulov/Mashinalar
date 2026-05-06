@@ -61,6 +61,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.mashinalar.driver.ui.components.PhotoAttachmentRow
 import com.mashinalar.driver.R
 import com.mashinalar.driver.ui.components.ButtonSendProgressContent
+import com.mashinalar.driver.ui.util.formatIsoToDmy
 import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -232,7 +233,7 @@ fun DailyKmScreen(
           Text(
             stringResource(
               R.string.daily_km_resume_banner,
-              state.reportDate.toString(),
+              formatIsoToDmy(state.reportDate.toString()),
               dailyKmKmDisplay(raw),
             ),
             style = MaterialTheme.typography.bodyMedium,
@@ -469,9 +470,7 @@ private fun dailyKmParseKm(raw: String?): Double? {
 }
 
 private fun dailyKmHistoryDateLabel(iso: String): String {
-  val t = iso.trim()
-  if (t.length >= 10) return t.take(10)
-  return t
+  return formatIsoToDmy(iso)
 }
 
 private fun dailyKmKmDisplay(raw: String?): String {

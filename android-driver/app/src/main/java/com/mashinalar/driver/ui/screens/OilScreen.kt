@@ -40,6 +40,7 @@ import com.mashinalar.driver.R
 import com.mashinalar.driver.ui.components.ButtonSendProgressContent
 import com.mashinalar.driver.ui.camera.CameraCapture
 import com.mashinalar.driver.ui.components.PhotoAttachmentRow
+import com.mashinalar.driver.ui.util.formatIsoToDmy
 import com.mashinalar.driver.ui.permissions.PermissionGate
 import com.mashinalar.driver.util.absoluteUploadUrl
 import java.time.Instant
@@ -259,8 +260,4 @@ private fun urgencyColor(raw: String?): Color =
   }
 
 private fun formatHistoryDate(iso: String): String =
-  runCatching {
-    val z = ZoneId.systemDefault()
-    val d = Instant.parse(iso).atZone(z).toLocalDate()
-    DateTimeFormatter.ofPattern("yyyy-MM-dd").format(d)
-  }.getOrElse { iso }
+  formatIsoToDmy(iso)

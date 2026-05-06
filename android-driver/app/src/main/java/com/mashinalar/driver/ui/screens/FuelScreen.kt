@@ -59,7 +59,7 @@ import com.mashinalar.driver.ui.components.ButtonSendProgressContent
 import com.mashinalar.driver.ui.components.PhotoAttachmentRow
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.mashinalar.driver.ui.util.formatIsoToDmyHm
 import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -383,9 +383,5 @@ private fun formatHistoryAmountFromApi(amount: String): String {
 }
 
 private fun formatFuelHistoryInstant(iso: String): String =
-  runCatching {
-    val i = Instant.parse(iso)
-    val z = ZoneId.systemDefault()
-    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(z).format(i)
-  }.getOrDefault("—")
+  formatIsoToDmyHm(iso)
 

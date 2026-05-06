@@ -37,7 +37,7 @@ import com.mashinalar.driver.R
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.mashinalar.driver.ui.util.formatIsoToDmy
 import java.time.temporal.ChronoUnit
 
 @Composable
@@ -199,12 +199,7 @@ private fun kvRow(label: String, value: String) {
 }
 
 private fun formatIsoDate(iso: String?): String {
-  if (iso.isNullOrBlank()) return "—"
-  return runCatching {
-    val i = Instant.parse(iso)
-    val z = ZoneId.systemDefault()
-    DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(z).format(i)
-  }.getOrDefault("—")
+  return formatIsoToDmy(iso)
 }
 
 private fun formatKm(value: Double?): String {
