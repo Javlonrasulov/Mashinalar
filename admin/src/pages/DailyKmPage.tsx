@@ -68,6 +68,17 @@ function isDailyKmEndMissing(r: DailyKmRow): boolean {
   return false;
 }
 
+/** Hisobot kuni (UTC sana) va yakun yuborilgan vaqt o‘rtasidagi kun farqi (0 = shu kalendar kuni). */
+function endLateCalendarDays(reportDate: string, endRecordedAt: string | null | undefined): number | null {
+  if (!endRecordedAt) return null;
+  const rd = new Date(reportDate);
+  const ed = new Date(endRecordedAt);
+  if (Number.isNaN(rd.getTime()) || Number.isNaN(ed.getTime())) return null;
+  const rDay = Date.UTC(rd.getUTCFullYear(), rd.getUTCMonth(), rd.getUTCDate());
+  const eDay = Date.UTC(ed.getUTCFullYear(), ed.getUTCMonth(), ed.getUTCDate());
+  return Math.max(0, Math.round((eDay - rDay) / 86400000));
+}
+
 type GapAuditRow = {
   reportId: string;
   reportDate: string;
@@ -651,7 +662,7 @@ export function DailyKmPage() {
       {view === 'table' && (
       <div className="app-card min-w-0 overflow-hidden">
         <div className="app-table-wrap overflow-x-auto">
-          <table className="app-table-inner min-w-[1040px] text-sm">
+          <table className="app-table-inner min-w-[1140px] text-sm">
             <thead className="app-table-head">
               <tr>
                 <th rowSpan={2} className="p-3 align-bottom">
@@ -666,7 +677,7 @@ export function DailyKmPage() {
                 <th colSpan={4} className="border-s border-slate-200 p-3 text-center dark:border-slate-700">
                   {t('dailyKmGroupStart')}
                 </th>
-                <th colSpan={4} className="border-s border-slate-200 p-3 text-center dark:border-slate-700">
+                <th colSpan={5} className="border-s border-slate-200 p-3 text-center dark:border-slate-700">
                   {t('dailyKmGroupEnd')}
                 </th>
               </tr>
@@ -679,12 +690,14 @@ export function DailyKmPage() {
                 <th className="p-3">{t('dailyKmColEndTime')}</th>
                 <th className="p-3">{t('dailyKmColEndLoc')}</th>
                 <th className="p-3">{t('dailyKmColEndPhoto')}</th>
+                <th className="p-3 whitespace-nowrap">{t('dailyKmColEndLateDays')}</th>
               </tr>
             </thead>
             <tbody>
               {visibleRows.map((r) => {
                 const endPending = isDailyKmEndMissing(r);
-                /** Jadval: 2 + сана + 4 бошланиш + 4 тугаш. Иккинчи `tr`да `colSpan` 4 — бошланиш блоки ости. */
+                const lateDays = endLateCalendarDays(r.reportDate, r.endRecordedAt);
+                /** Jadval: 2 + сана + 4 бошланиш + 5 тугаш. Иккинчи `tr`да `colSpan` 4 — бошланиш блоки ости. */
                 const pendingEndCell =
                   'border-t border-red-100 bg-red-50 dark:border-red-900/55 dark:bg-red-950/50';
                 const row2FillerWhenPending =
@@ -756,7 +769,7 @@ export function DailyKmPage() {
                         )}
                       </td>
                       <td
-                        colSpan={4}
+                        colSpan={5}
                         className="border-s border-slate-100 p-2 align-middle text-center text-xs dark:border-slate-800"
                       >
                         {endPending ? (
@@ -829,6 +842,19 @@ export function DailyKmPage() {
                           </a>
                         ) : (
                           '—'
+                        )}
+                      </td>
+                      <td
+                        className={`p-3 whitespace-nowrap ${endPending ? `${pendingEndCell} text-red-700 dark:text-red-200` : 'border-t border-slate-100 dark:border-slate-800'}`}
+                      >
+                        {endPending ? (
+                          '—'
+                        ) : lateDays != null && lateDays > 0 ? (
+                          <span className="font-medium tabular-nums text-amber-900 dark:text-amber-100">
+                            {t('dailyKmEndLateDays', { n: String(lateDays) })}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-500">—</span>
                         )}
                       </td>
                     </tr>

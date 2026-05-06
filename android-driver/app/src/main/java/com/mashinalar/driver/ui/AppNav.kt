@@ -44,6 +44,8 @@ fun AppNav(
   onLogin: (String, String) -> Unit,
   onLogout: () -> Unit,
   onSetLanguageTag: (String) -> Unit,
+  startRoute: String? = null,
+  onStartRouteConsumed: () -> Unit = {},
   navController: NavHostController = rememberNavController(),
 ) {
   val taskBellVm: TaskBellViewModel = hiltViewModel()
@@ -60,6 +62,23 @@ fun AppNav(
       onLogin = onLogin,
     )
     return
+  }
+
+  LaunchedEffect(state.hasToken, startRoute) {
+    if (!state.hasToken) return@LaunchedEffect
+    val r = startRoute ?: return@LaunchedEffect
+    // Only navigate to known main tabs (for now we only use it for DailyKm reminders).
+    val okRoutes = setOf(
+      NavItem.Home.route,
+      NavItem.Fuel.route,
+      NavItem.DailyKm.route,
+      NavItem.Tasks.route,
+      NavItem.Oil.route,
+    )
+    if (r in okRoutes) {
+      navController.navigate(r) { launchSingleTop = true }
+    }
+    onStartRouteConsumed()
   }
 
   val route = navBackStackEntry?.destination?.route

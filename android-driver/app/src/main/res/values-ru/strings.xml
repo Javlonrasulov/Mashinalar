@@ -67,6 +67,13 @@
   <string name="daily_km_history_delta">От предыдущего закрытого дня: %1$s км</string>
   <string name="daily_km_history_status_open">Не завершено</string>
   <string name="daily_km_history_status_done">Завершено</string>
+  <string name="daily_km_resume_end">Отправить окончание</string>
+  <string name="daily_km_resume_banner">Дата отчёта: %1$s · Начало км: %2$s</string>
+  <string name="daily_km_cancel_resume">Отмена</string>
+  <string name="daily_km_notif_start_title">Км за день</string>
+  <string name="daily_km_notif_start_body">07:00 — внесите начальный км за день.</string>
+  <string name="daily_km_notif_end_title">Км за день</string>
+  <string name="daily_km_notif_end_body">20:00 — отправьте конечный км за день.</string>
   <string name="tasks_title">Задачи</string>
   <string name="task_status_pending">К выполнению</string>
   <string name="task_status_submitted">Отправлена</string>

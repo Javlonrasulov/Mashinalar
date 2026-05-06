@@ -28,6 +28,11 @@ data class DailyKmUiState(
   val endKm: String = "",
   val startPhoto: File? = null,
   val endPhoto: File? = null,
+  /**
+   * Tarixdan «якунни юбориш» — serverdagi boshlash KM matni (validatsiya uchun).
+   * `null` bo‘lsa, joriy kun oqimi: [startKm] ishlatiladi.
+   */
+  val resumeStartKmRaw: String? = null,
   /** 1-bosqich serverga yuborilgach: faqat yakuniy KM / end rasm */
   val endSectionVisible: Boolean = false,
   val reportId: String? = null,
@@ -112,10 +117,42 @@ class DailyKmViewModel @Inject constructor(
     _state.value = _state.value.copy(message = null)
   }
 
+  /** Ochiq (yakunisiz) kunni tanlash — faqat 2-bosqich (yakun KM + rasm). */
+  fun resumeIncompleteDay(item: DailyKmHistoryDto) {
+    if (!item.endKm.isNullOrBlank()) return
+    val day = runCatching { LocalDate.parse(item.reportDate.trim().take(10)) }.getOrNull() ?: return
+    val cur = _state.value
+    _state.value =
+      cur.copy(
+        reportDate = day,
+        reportId = item.id,
+        startKm = "",
+        resumeStartKmRaw = item.startKm.trim(),
+        endSectionVisible = true,
+        endKm = "",
+        endPhoto = null,
+        startPhoto = null,
+        message = null,
+      )
+  }
+
+  /** Tanlangan ochiq kunni bekor qilib, bugungi yangi boshlashga qaytish. */
+  fun cancelIncompleteDayResume() {
+    val cur = _state.value
+    _state.value =
+      DailyKmUiState(
+        minOdometerKm = cur.minOdometerKm,
+        historyItems = cur.historyItems,
+        historyLoading = cur.historyLoading,
+        historyError = cur.historyError,
+      )
+  }
+
   /** 1-bosqich: boshlang‘ich KM + start rasm → server (lokatsiya + vaqt) */
   fun submitStart() {
     val s = _state.value
     if (s.loading) return
+    if (s.resumeStartKmRaw != null) return
     when {
       s.startKm.trim().isEmpty() ->
         _state.value = s.copy(message = context.getString(R.string.msg_daily_km_start_km_required))
@@ -187,7 +224,8 @@ class DailyKmViewModel @Inject constructor(
       _state.value = s.copy(message = context.getString(R.string.msg_daily_km_invalid_number))
       return
     }
-    val startVal = s.startKm.trim().replace(',', '.').toDoubleOrNull()
+    val startVal =
+      (s.resumeStartKmRaw ?: s.startKm).trim().replace(',', '.').toDoubleOrNull()
     val minEnd = listOfNotNull(s.minOdometerKm, startVal).maxOrNull()
     if (minEnd != null && endVal < minEnd) {
       if (startVal != null && endVal < startVal) {

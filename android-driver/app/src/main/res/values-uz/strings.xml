@@ -67,6 +67,13 @@
   <string name="daily_km_history_delta">Oldingi yopilgan kundan: %1$s km</string>
   <string name="daily_km_history_status_open">Yakunlanmagan</string>
   <string name="daily_km_history_status_done">Yopilgan</string>
+  <string name="daily_km_resume_end">Yakunni yuborish</string>
+  <string name="daily_km_resume_banner">Hisobot sanasi: %1$s · Boshlash KM: %2$s</string>
+  <string name="daily_km_cancel_resume">Bekor qilish</string>
+  <string name="daily_km_notif_start_title">Kun KM</string>
+  <string name="daily_km_notif_start_body">Soat 07:00 — kun boshlanish KM’ni kiriting.</string>
+  <string name="daily_km_notif_end_title">Kun KM</string>
+  <string name="daily_km_notif_end_body">Soat 20:00 — kun tugash KM’ni yuboring.</string>
   <string name="tasks_title">Vazifalar</string>
   <string name="task_status_pending">Kutilmoqda</string>
   <string name="task_status_submitted">Yuborilgan</string>

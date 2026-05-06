@@ -35,6 +35,8 @@ class MainActivity : AppCompatActivity() {
 
   /** Must be a Compose snapshot state so LaunchedEffect restarts when permission result arrives. */
   private val locationPermissionOk = mutableStateOf(false)
+  /** Set from notification intent extra (e.g. open DailyKm tab). */
+  private val pendingRoute = mutableStateOf<String?>(null)
 
   private fun refreshLocationPermission() {
     val fine =
@@ -58,6 +60,7 @@ class MainActivity : AppCompatActivity() {
     // Hilt injects @Inject fields during super.onCreate — do not touch languageStore before this.
     super.onCreate(savedInstanceState)
     refreshLocationPermission()
+    pendingRoute.value = intent?.getStringExtra(EXTRA_OPEN_ROUTE)
     runBlocking {
       LocaleManager.applyLanguageTag(languageStore.languageTagFlow.first())
     }
@@ -72,6 +75,7 @@ class MainActivity : AppCompatActivity() {
       val vm: RootViewModel = hiltViewModel()
       val state by vm.state.collectAsState()
       val locOk by locationPermissionOk
+      val startRoute by pendingRoute
 
       MashinalarTheme {
         GpsRequiredGate {
@@ -81,6 +85,8 @@ class MainActivity : AppCompatActivity() {
               onLogin = vm::login,
               onLogout = vm::logout,
               onSetLanguageTag = vm::setLanguageTag,
+              startRoute = startRoute,
+              onStartRouteConsumed = { pendingRoute.value = null },
             )
           }
         }
@@ -109,6 +115,16 @@ class MainActivity : AppCompatActivity() {
   override fun onResume() {
     super.onResume()
     refreshLocationPermission()
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    pendingRoute.value = intent.getStringExtra(EXTRA_OPEN_ROUTE)
+  }
+
+  companion object {
+    const val EXTRA_OPEN_ROUTE = "open_route"
   }
 }
 

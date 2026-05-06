@@ -54,8 +54,28 @@ class FuelViewModel @Inject constructor(
   }
 
   fun setAmount(v: String) {
-    val digits = v.filter { it.isDigit() }.take(14)
-    _state.value = _state.value.copy(amount = formatAmountWithSpaces(digits), message = null)
+    // IMPORTANT: Don't auto-reformat while typing.
+    // Auto-inserting spaces causes cursor jumps and can reorder digits on some keyboards.
+    // We only need digits for the API; keeping user's input stable is more important.
+    var digitCount = 0
+    val out = StringBuilder()
+    var prevWasSpace = false
+    for (ch in v) {
+      if (ch.isDigit()) {
+        if (digitCount >= 14) continue
+        digitCount += 1
+        out.append(ch)
+        prevWasSpace = false
+      } else if (ch == ' ' || ch == '\u00A0') {
+        if (out.isEmpty()) continue
+        if (prevWasSpace) continue
+        out.append(' ')
+        prevWasSpace = true
+      }
+    }
+    // Trim trailing space (cosmetic)
+    val normalized = out.toString().trimEnd()
+    _state.value = _state.value.copy(amount = normalized, message = null)
   }
 
   fun setVehiclePhoto(f: File) {
@@ -123,11 +143,4 @@ class FuelViewModel @Inject constructor(
       }
     }
   }
-}
-
-/** O‘ngdan 3 ta guruh: "48000" → "48 000" */
-private fun formatAmountWithSpaces(digits: String): String {
-  if (digits.isEmpty()) return ""
-  val revChunks = digits.reversed().chunked(3)
-  return revChunks.map { it.reversed() }.reversed().joinToString(" ")
 }

@@ -79,6 +79,13 @@
   <string name="daily_km_history_delta">Oldingi yopilgan kundan: %1$s km</string>
   <string name="daily_km_history_status_open">Yakunlanmagan</string>
   <string name="daily_km_history_status_done">Yopilgan</string>
+  <string name="daily_km_resume_end">Yakunni yuborish</string>
+  <string name="daily_km_resume_banner">Hisobot sanasi: %1$s · Boshlash KM: %2$s</string>
+  <string name="daily_km_cancel_resume">Bekor qilish</string>
+  <string name="daily_km_notif_start_title">Kun KM</string>
+  <string name="daily_km_notif_start_body">Soat 07:00 — kun boshlanish KM’ni kiriting.</string>
+  <string name="daily_km_notif_end_title">Kun KM</string>
+  <string name="daily_km_notif_end_body">Soat 20:00 — kun tugash KM’ni yuboring.</string>
 
   <!-- Tasks -->
   <string name="tasks_title">Vazifalar</string>
@@ -107,6 +114,9 @@
   <string name="alert_gps_off_body">Lokatsiyani yuborish uchun GPS’ni yoqing.</string>
   <string name="alert_net_off_title">Internet yo‘q</string>
   <string name="alert_net_off_body">Ma’lumotlar queue’da saqlanadi va internet kelganda yuboriladi.</string>
+  <string name="task_notif_new_title">Yangi vazifa</string>
+  <string name="task_notif_new_one">Sizga yangi vazifa berildi. Ilovani oching.</string>
+  <string name="task_notif_new_many">Sizga %1$d ta yangi vazifa berildi. Ilovani oching.</string>
 
   <!-- Profile -->
   <string name="profile_title">Profil</string>

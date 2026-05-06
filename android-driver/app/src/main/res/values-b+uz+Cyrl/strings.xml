@@ -67,6 +67,13 @@
   <string name="daily_km_history_delta">Олдинги ёпилган кундан: %1$s км</string>
   <string name="daily_km_history_status_open">Якунланмаган</string>
   <string name="daily_km_history_status_done">Ёпилган</string>
+  <string name="daily_km_resume_end">Якунни юбориш</string>
+  <string name="daily_km_resume_banner">Ҳисобот санаси: %1$s · Бошланғич КМ: %2$s</string>
+  <string name="daily_km_cancel_resume">Бекор қилиш</string>
+  <string name="daily_km_notif_start_title">Кун КМ</string>
+  <string name="daily_km_notif_start_body">Соат 07:00 — кун бошланиш КМ’ни киритинг.</string>
+  <string name="daily_km_notif_end_title">Кун КМ</string>
+  <string name="daily_km_notif_end_body">Соат 20:00 — кун тугаш КМ’ни юборинг.</string>
   <string name="tasks_title">Вазифалар</string>
   <string name="task_status_pending">Кутилмоқда</string>
   <string name="task_status_submitted">Юборилган</string>

@@ -216,6 +216,35 @@ fun DailyKmScreen(
         .fillMaxWidth()
         .navigationBarsPadding(),
   ) {
+    state.resumeStartKmRaw?.let { raw ->
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors =
+          CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+          ),
+      ) {
+        Row(
+          modifier = Modifier.padding(12.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(
+            stringResource(
+              R.string.daily_km_resume_banner,
+              state.reportDate.toString(),
+              dailyKmKmDisplay(raw),
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+          )
+          TextButton(onClick = { vm.cancelIncompleteDayResume() }) {
+            Text(stringResource(R.string.daily_km_cancel_resume))
+          }
+        }
+      }
+      Spacer(Modifier.height(12.dp))
+    }
     if (!state.endSectionVisible) {
       OutlinedTextField(
         modifier = Modifier.fillMaxWidth(),
@@ -355,6 +384,7 @@ fun DailyKmScreen(
       DailyKmHistoryCard(
         item = item,
         deltaFromPrevKm = dailyKmDeltaLabelFromPrev(state.historyItems, index),
+        onResumeEnd = { vm.resumeIncompleteDay(item) },
       )
     }
 
@@ -366,6 +396,7 @@ fun DailyKmScreen(
 private fun DailyKmHistoryCard(
   item: DailyKmHistoryDto,
   deltaFromPrevKm: String? = null,
+  onResumeEnd: () -> Unit,
 ) {
   val done = !item.endKm.isNullOrBlank()
   Card(
@@ -406,6 +437,12 @@ private fun DailyKmHistoryCard(
         style = MaterialTheme.typography.labelMedium,
         color = if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
       )
+      if (!done) {
+        Spacer(Modifier.height(8.dp))
+        TextButton(modifier = Modifier.fillMaxWidth(), onClick = onResumeEnd) {
+          Text(stringResource(R.string.daily_km_resume_end))
+        }
+      }
     }
   }
 }
