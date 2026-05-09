@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { dirname, join, extname, basename } from 'path';
-import sharp from 'sharp';
+import sharp = require('sharp');
 
 export const IMAGE_MAX_DIMENSION = 1920;
 export const IMAGE_JPEG_QUALITY = 80;
