@@ -23,6 +23,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { FuelService } from './fuel.service';
+import { compressMulterFiles } from '../../common/upload/image-compress';
 
 const uploadDir = join(process.cwd(), 'uploads');
 
@@ -97,6 +98,8 @@ export class FuelController {
     const amount = body.amount ? Number(body.amount) : NaN;
     if (!Number.isFinite(amount) || amount <= 0)
       throw new BadRequestException('Invalid amount');
+
+    await compressMulterFiles(files);
 
     const base = '/uploads';
     const vehiclePhotoUrl = files?.vehiclePhoto?.[0]

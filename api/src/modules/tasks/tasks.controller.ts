@@ -27,6 +27,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ReviewTaskDto } from './dto/review-task.dto';
 import { TasksService } from './tasks.service';
+import { compressMulterFile } from '../../common/upload/image-compress';
 
 const uploadDir = join(process.cwd(), 'uploads');
 
@@ -95,13 +96,14 @@ export class TasksController {
       limits: { fileSize: 8 * 1024 * 1024 },
     }),
   )
-  submit(
+  async submit(
     @Param('id') id: string,
     @Body() body: { proofText?: string },
     @UploadedFile() proofPhoto: Express.Multer.File | undefined,
     @CurrentUser() user: JwtUser,
   ) {
     if (!user.driverId) throw new BadRequestException('No driver');
+    await compressMulterFile(proofPhoto);
     const proofPhotoUrl = proofPhoto
       ? `/uploads/${proofPhoto.filename}`
       : undefined;

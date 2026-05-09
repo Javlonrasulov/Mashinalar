@@ -23,6 +23,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { OilChangeService } from './oil-change.service';
+import { compressMulterFile } from '../../common/upload/image-compress';
 
 const uploadDir = join(process.cwd(), 'uploads');
 
@@ -75,6 +76,7 @@ export class OilChangeController {
     const km = kmRaw != null && kmRaw !== '' ? Number(kmRaw) : NaN;
     if (!Number.isFinite(km) || km <= 0)
       throw new BadRequestException('Invalid kmAtChange');
+    await compressMulterFile(file);
     const base = '/uploads';
     const photoUrl = file ? `${base}/${file.filename}` : undefined;
     return this.oil.createFromDriver({

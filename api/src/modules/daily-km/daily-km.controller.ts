@@ -25,6 +25,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { DailyKmService } from './daily-km.service';
+import { compressMulterFiles } from '../../common/upload/image-compress';
 
 const uploadDir = join(process.cwd(), 'uploads');
 
@@ -125,6 +126,8 @@ export class DailyKmController {
     if (!Number.isFinite(startKm))
       throw new BadRequestException('daily_km.invalid_start_km_number');
 
+    await compressMulterFiles(files);
+
     const base = '/uploads';
     const startOdometerUrl = files?.startOdometer?.[0]
       ? `${base}/${files.startOdometer[0].filename}`
@@ -174,6 +177,8 @@ export class DailyKmController {
     const endKm = body.endKm ? Number(body.endKm) : NaN;
     if (!Number.isFinite(endKm))
       throw new BadRequestException('daily_km.invalid_end_km_number');
+
+    await compressMulterFiles(files);
 
     const base = '/uploads';
     const endOdometerUrl = files?.endOdometer?.[0]
