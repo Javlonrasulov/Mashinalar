@@ -119,6 +119,8 @@
   <string name="camera_opening">Открывается камера…</string>
   <string name="camera_open_failed">Не удалось открыть камеру. Проверьте разрешения или настройте камеру в эмуляторе.</string>
   <string name="tracking_notif_text">Отправка геолокации активна</string>
+  <string name="tracking_notif_channel_name">Служба геолокации</string>
+  <string name="tracking_notif_text_minimal"> </string>
 
   <string name="msg_enter_amount">Введите сумму</string>
   <string name="msg_fuel_complete_all">Укажите сумму и фото машины.</string>

@@ -54,35 +54,9 @@ object AlertNotifier {
     )
   }
 
-  fun showGpsOff(context: Context) {
-    ensureChannels(context)
-    val nm = context.getSystemService(NotificationManager::class.java)
-    val n = NotificationCompat.Builder(context, CHANNEL_ID)
-      .setSmallIcon(android.R.drawable.ic_dialog_alert)
-      .setContentTitle(context.getString(R.string.alert_gps_off_title))
-      .setContentText(context.getString(R.string.alert_gps_off_body))
-      .setAutoCancel(false)
-      .setOngoing(true)
-      .build()
-    nm.notify(ID_GPS, n)
-  }
-
   fun hideGpsOff(context: Context) {
     val nm = context.getSystemService(NotificationManager::class.java)
     nm.cancel(ID_GPS)
-  }
-
-  fun showInternetOff(context: Context) {
-    ensureChannels(context)
-    val nm = context.getSystemService(NotificationManager::class.java)
-    val n = NotificationCompat.Builder(context, CHANNEL_ID)
-      .setSmallIcon(android.R.drawable.stat_notify_error)
-      .setContentTitle(context.getString(R.string.alert_net_off_title))
-      .setContentText(context.getString(R.string.alert_net_off_body))
-      .setAutoCancel(false)
-      .setOngoing(true)
-      .build()
-    nm.notify(ID_NET, n)
   }
 
   fun hideInternetOff(context: Context) {

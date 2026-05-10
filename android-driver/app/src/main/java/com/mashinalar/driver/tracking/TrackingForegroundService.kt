@@ -38,7 +38,8 @@ class TrackingForegroundService : Service() {
   @Inject lateinit var gpsDao: GpsOffSegmentDao
 
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-  private val channelId = "tracking"
+  /** Yangi kanal ID — eski `IMPORTANCE_LOW` kanali foydalanuvchi qurilmasida qolib ketgan bo‘lishi mumkin. */
+  private val channelId = "tracking_fg_v2"
   private val client by lazy { LocationServices.getFusedLocationProviderClient(this) }
   private var callback: LocationCallback? = null
   private var lastGpsOn: Boolean? = null
@@ -46,7 +47,6 @@ class TrackingForegroundService : Service() {
   override fun onCreate() {
     super.onCreate()
     ensureChannel()
-    AlertNotifier.ensureChannels(this)
     val notification = buildNotification()
     val fgsType =
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -82,7 +82,9 @@ class TrackingForegroundService : Service() {
   private fun ensureChannel() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
     val nm = getSystemService(NotificationManager::class.java)
-    val ch = NotificationChannel(channelId, "GPS Tracking", NotificationManager.IMPORTANCE_LOW)
+    val ch =
+      NotificationChannel(channelId, getString(R.string.tracking_notif_channel_name), NotificationManager.IMPORTANCE_MIN)
+    ch.setShowBadge(false)
     nm.createNotificationChannel(ch)
   }
 
@@ -90,8 +92,12 @@ class TrackingForegroundService : Service() {
     NotificationCompat.Builder(this, channelId)
       .setSmallIcon(android.R.drawable.ic_menu_mylocation)
       .setContentTitle(getString(R.string.app_name))
-      .setContentText(getString(R.string.tracking_notif_text))
+      .setContentText(getString(R.string.tracking_notif_text_minimal))
       .setOngoing(true)
+      .setSilent(true)
+      .setPriority(NotificationCompat.PRIORITY_MIN)
+      .setCategory(Notification.CATEGORY_SERVICE)
+      .setShowWhen(false)
       .build()
 
   @android.annotation.SuppressLint("MissingPermission")
@@ -147,8 +153,10 @@ class TrackingForegroundService : Service() {
         val gpsOn = Gps.isEnabled(this@TrackingForegroundService)
         val online = Connectivity.isOnline(this@TrackingForegroundService)
 
-        if (!gpsOn) AlertNotifier.showGpsOff(this@TrackingForegroundService) else AlertNotifier.hideGpsOff(this@TrackingForegroundService)
-        if (!online) AlertNotifier.showInternetOff(this@TrackingForegroundService) else AlertNotifier.hideInternetOff(this@TrackingForegroundService)
+        // GPS o‘chiq bo‘lsa ham alohida bildirishnoma chiqarilmaydi (foydalanuvchi so‘ragan).
+        AlertNotifier.hideGpsOff(this@TrackingForegroundService)
+        // Internet yo‘q haqida alohida bildirishnoma chiqarilmaydi.
+        AlertNotifier.hideInternetOff(this@TrackingForegroundService)
 
         // 5 s — qisqa GPS o‘chiq/yoniq oralig‘i 20 s tsiklda yo‘qolib qolmasin.
         delay(5_000L)

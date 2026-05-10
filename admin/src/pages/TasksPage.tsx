@@ -44,14 +44,25 @@ function taskStatusLabelKey(status: string): string {
     : status;
 }
 
+type TaskFormVehicle = { id: string; plateNumber: string; drivers: { id: string }[] };
+type TaskFormDriver = { id: string; fullName: string; vehicleId: string | null };
+
+/** If current driver is still assigned to this vehicle, keep them; else first assigned driver. */
+function driverIdForVehicleChoice(vehicle: TaskFormVehicle | undefined, currentDriverId: string): string {
+  const ids = vehicle?.drivers?.map((d) => d.id) ?? [];
+  if (ids.length === 0) return '';
+  if (currentDriverId && ids.includes(currentDriverId)) return currentDriverId;
+  return [...ids].sort()[0]!;
+}
+
 export function TasksPage() {
   const { t } = useI18n();
   const [rows, setRows] = useState<TaskRow[]>([]);
   const [proofPhoto, setProofPhoto] = useState<{ src: string; title: string } | null>(null);
   const [proofPhotoFs, setProofPhotoFs] = useState(false);
   const proofPhotoStageRef = useRef<HTMLDivElement>(null);
-  const [vehicles, setVehicles] = useState<{ id: string; plateNumber: string }[]>([]);
-  const [drivers, setDrivers] = useState<{ id: string; fullName: string }[]>([]);
+  const [vehicles, setVehicles] = useState<TaskFormVehicle[]>([]);
+  const [drivers, setDrivers] = useState<TaskFormDriver[]>([]);
   const [form, setForm] = useState({
     vehicleId: '',
     driverId: '',
@@ -62,12 +73,24 @@ export function TasksPage() {
   const load = async () => {
     const [tasks, v, d] = await Promise.all([
       api<TaskRow[]>('/tasks'),
-      api<{ id: string; plateNumber: string }[]>('/vehicles'),
-      api<{ id: string; fullName: string }[]>('/drivers'),
+      api<TaskFormVehicle[]>('/vehicles'),
+      api<TaskFormDriver[]>('/drivers'),
     ]);
     setRows(tasks);
-    setVehicles(v);
-    setDrivers(d);
+    setVehicles(
+      v.map((row) => ({
+        id: row.id,
+        plateNumber: row.plateNumber,
+        drivers: Array.isArray(row.drivers) ? row.drivers.map((x) => ({ id: x.id })) : [],
+      })),
+    );
+    setDrivers(
+      d.map((row) => ({
+        id: row.id,
+        fullName: row.fullName,
+        vehicleId: row.vehicleId ?? null,
+      })),
+    );
   };
 
   useEffect(() => {
@@ -175,7 +198,13 @@ export function TasksPage() {
           <SelectField
             id="task-form-vehicle"
             value={form.vehicleId}
-            onChange={(vehicleId) => setForm({ ...form, vehicleId })}
+            onChange={(vehicleId) =>
+              setForm((prev) => {
+                const vehicle = vehicles.find((x) => x.id === vehicleId);
+                const driverId = vehicleId ? driverIdForVehicleChoice(vehicle, prev.driverId) : '';
+                return { ...prev, vehicleId, driverId };
+              })
+            }
             options={vehicleOptions}
           />
         </div>
@@ -189,7 +218,13 @@ export function TasksPage() {
           <SelectField
             id="task-form-driver"
             value={form.driverId}
-            onChange={(driverId) => setForm({ ...form, driverId })}
+            onChange={(driverId) =>
+              setForm((prev) => {
+                if (!driverId) return { ...prev, driverId: '', vehicleId: '' };
+                const driver = drivers.find((x) => x.id === driverId);
+                return { ...prev, driverId, vehicleId: driver?.vehicleId ?? '' };
+              })
+            }
             options={driverOptions}
           />
         </div>

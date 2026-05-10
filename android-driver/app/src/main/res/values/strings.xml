@@ -145,6 +145,8 @@
   <string name="camera_opening">Kamera ochilmoqda…</string>
   <string name="camera_open_failed">Kamera ochilmadi. Emulatorda kamera yo‘qligini tekshiring yoki ruxsat bering.</string>
   <string name="tracking_notif_text">Lokatsiya yuborish faol</string>
+  <string name="tracking_notif_channel_name">Lokatsiya xizmati</string>
+  <string name="tracking_notif_text_minimal"> </string>
 
   <!-- Messages -->
   <string name="msg_enter_amount">Summa kiriting</string>
