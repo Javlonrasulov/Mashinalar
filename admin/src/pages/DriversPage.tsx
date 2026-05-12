@@ -20,6 +20,7 @@ type Session = {
   userAgent: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
+  revokedAt: string | null;
 };
 
 /** Server tomonidagi `ACTIVE_WINDOW_MS` bilan mos: oxirgi 10 daqiqada faol = "hozir online". */
@@ -145,6 +146,37 @@ export function DriversPage() {
     try {
       const list = await api<Session[]>(`/drivers/${d.id}/sessions`);
       setSessions(list);
+    } catch (e) {
+      setSessionsErr(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function reloadSessions(driverId: string) {
+    try {
+      const list = await api<Session[]>(`/drivers/${driverId}/sessions`);
+      setSessions(list);
+    } catch (e) {
+      setSessionsErr(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function revokeSession(driverId: string, sessionId: string) {
+    if (!confirm(t('driversDevicesRevokeConfirm'))) return;
+    try {
+      await api(`/drivers/${driverId}/sessions/${sessionId}`, { method: 'DELETE' });
+      await reloadSessions(driverId);
+      await load();
+    } catch (e) {
+      setSessionsErr(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function revokeAllSessions(driverId: string) {
+    if (!confirm(t('driversDevicesRevokeAllConfirm'))) return;
+    try {
+      await api(`/drivers/${driverId}/sessions`, { method: 'DELETE' });
+      await reloadSessions(driverId);
+      await load();
     } catch (e) {
       setSessionsErr(e instanceof Error ? e.message : String(e));
     }
@@ -378,11 +410,12 @@ export function DriversPage() {
                       <th className="p-3">{t('driversDevicesUa')}</th>
                       <th className="p-3">{t('driversDevicesFirstSeen')}</th>
                       <th className="p-3">{t('driversDevicesLastSeen')}</th>
+                      <th className="p-3">{t('actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sessions.map((s) => {
-                      const active = Date.now() - new Date(s.lastSeenAt).getTime() < SESSION_ACTIVE_WINDOW_MS;
+                      const active = !s.revokedAt && Date.now() - new Date(s.lastSeenAt).getTime() < SESSION_ACTIVE_WINDOW_MS;
                       return (
                         <tr key={s.id} className="app-table-row">
                           <td className="p-3 font-mono text-xs">{s.ip ?? '—'}</td>
@@ -393,12 +426,29 @@ export function DriversPage() {
                           <td className="p-3 whitespace-nowrap text-xs">
                             <div className="flex flex-wrap items-center gap-2">
                               <span>{formatDateTime(s.lastSeenAt, lang)}</span>
-                              {active ? (
+                              {s.revokedAt ? (
+                                <span className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                  {t('driversDevicesRevokedBadge')}
+                                </span>
+                              ) : active ? (
                                 <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
                                   {t('driversDevicesActiveBadge')}
                                 </span>
                               ) : null}
                             </div>
+                          </td>
+                          <td className="p-3 whitespace-nowrap">
+                            {s.revokedAt ? (
+                              <span className="text-xs text-slate-400">—</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="app-link-danger text-xs"
+                                onClick={() => void revokeSession(sessionsFor.id, s.id)}
+                              >
+                                {t('driversDevicesRevoke')}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -408,7 +458,16 @@ export function DriversPage() {
               )}
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-200 px-4 py-3 dark:border-slate-700/70">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-4 py-3 dark:border-slate-700/70">
+              {sessions && sessions.some((s) => !s.revokedAt) ? (
+                <button
+                  type="button"
+                  className="app-btn-ghost border-red-300 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                  onClick={() => void revokeAllSessions(sessionsFor.id)}
+                >
+                  {t('driversDevicesRevokeAll')}
+                </button>
+              ) : null}
               <button type="button" className="app-btn-ghost" onClick={closeSessions}>
                 {t('close')}
               </button>

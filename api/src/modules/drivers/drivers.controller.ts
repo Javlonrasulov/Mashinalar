@@ -43,6 +43,20 @@ export class DriversController {
     return this.drivers.listSessions(id);
   }
 
+  @Delete(':id/sessions/:sessionId')
+  revokeSession(
+    @Param('id') id: string,
+    @Param('sessionId') sessionId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.drivers.revokeSession(id, sessionId, user.userId);
+  }
+
+  @Delete(':id/sessions')
+  revokeAllSessions(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.drivers.revokeAllSessions(id, user.userId);
+  }
+
   @Post()
   create(@Body() dto: CreateDriverDto, @CurrentUser() user: JwtUser) {
     return this.drivers.create(dto, user.userId);

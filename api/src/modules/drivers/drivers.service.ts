@@ -42,6 +42,35 @@ export class DriversService {
     return this.sessions.listForUser(d.userId);
   }
 
+  async revokeSession(
+    driverId: string,
+    sessionId: string,
+    actorUserId: string,
+  ) {
+    const d = await this.findOne(driverId);
+    await this.sessions.revokeOne(d.userId, sessionId);
+    await this.audit.log({
+      actorUserId,
+      action: 'driver.session.revoke',
+      entity: 'Driver',
+      entityId: driverId,
+      meta: { sessionId },
+    });
+    return { ok: true };
+  }
+
+  async revokeAllSessions(driverId: string, actorUserId: string) {
+    const d = await this.findOne(driverId);
+    await this.sessions.revokeAllForUser(d.userId);
+    await this.audit.log({
+      actorUserId,
+      action: 'driver.session.revokeAll',
+      entity: 'Driver',
+      entityId: driverId,
+    });
+    return { ok: true };
+  }
+
   async findOne(id: string) {
     const d = await this.prisma.driver.findUnique({
       where: { id },

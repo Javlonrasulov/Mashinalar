@@ -249,8 +249,9 @@ export function ShellLayout() {
   const asideClass = clsx(
     'flex shrink-0 flex-col border-slate-200/90 bg-white dark:border-slate-800 dark:bg-slate-900',
     'fixed inset-y-0 left-0 z-50 w-[min(100vw-1rem,280px)] max-w-[90vw] border-r shadow-xl transition-transform duration-200 ease-out',
+    /* Desktop: scroll qilinganda yuqoriga chiqib ketmasin — viewport balandligida joyida tursin */
     clsx(
-      'lg:static lg:z-auto lg:max-w-none lg:translate-x-0 lg:shadow-none',
+      'lg:static lg:z-auto lg:h-[100dvh] lg:max-w-none lg:translate-x-0 lg:shadow-none',
       sidebarCollapsed ? 'lg:w-[84px]' : 'lg:w-[260px]',
     ),
     sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
@@ -263,7 +264,7 @@ export function ShellLayout() {
   const roleTitle = user?.role === 'OPERATOR' ? user.position?.trim() || t('userLabelOperator') : t('userLabel');
 
   return (
-    <div className="flex min-h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-[#f4f6f9] text-slate-900 dark:bg-slate-950 dark:text-slate-50">
+    <div className="flex h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-[#f4f6f9] text-slate-900 dark:bg-slate-950 dark:text-slate-50">
       {sidebarOpen && (
         <button
           type="button"

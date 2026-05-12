@@ -60,6 +60,7 @@ export function ExpensesPage() {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [filter, setFilter] = useState<string>('');
   const [spentDateRange, setSpentDateRange] = useState<SpentDateRangeYmd | null>(null);
+  const [search, setSearch] = useState<string>('');
   const [vehicles, setVehicles] = useState<{ id: string; plateNumber: string }[]>([]);
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -155,14 +156,33 @@ export function ExpensesPage() {
     ...vehicles.map((v) => ({ value: v.id, label: v.plateNumber })),
   ];
 
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      const noteRaw = r.note ?? '';
+      const noteShown = formatExpenseNote(r.note, t);
+      const fields = [
+        r.vehicle.plateNumber,
+        r.category?.name ?? '',
+        r.category?.slug ?? '',
+        r.amount,
+        noteRaw,
+        noteShown,
+        formatSpentAt(r.spentAt, lang),
+      ];
+      return fields.some((f) => f.toLowerCase().includes(q));
+    });
+  }, [rows, search, t, lang]);
+
   const listTotalAmountStr = useMemo(() => {
     let sum = 0;
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const n = Number(r.amount);
       if (Number.isFinite(n)) sum += n;
     }
     return String(sum);
-  }, [rows]);
+  }, [filteredRows]);
 
   return (
     <div className="app-page">
@@ -182,6 +202,19 @@ export function ExpensesPage() {
             {t('expenseDateRange')}
           </label>
           <DateRangeField id="expenses-date-range" value={spentDateRange} onChange={setSpentDateRange} />
+        </div>
+        <div className="min-w-0 w-full sm:w-auto sm:min-w-[16rem] sm:flex-1">
+          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400" htmlFor="expenses-search">
+            {t('vehicleListSearch')}
+          </label>
+          <input
+            id="expenses-search"
+            type="search"
+            className="app-input"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('expenseSearchPlaceholder')}
+          />
         </div>
       </div>
 
@@ -274,7 +307,7 @@ export function ExpensesPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {filteredRows.map((r) => (
               <tr key={r.id} className="app-table-row">
                 <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
                 <td className="p-3">{r.category?.name ?? '—'}</td>
@@ -283,6 +316,13 @@ export function ExpensesPage() {
                 <td className="p-3">{formatExpenseNote(r.note, t)}</td>
               </tr>
             ))}
+            {filteredRows.length === 0 && (
+              <tr>
+                <td className="p-6 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={5}>
+                  {search.trim() ? t('expenseSearchEmpty') : t('expenseStatsEmpty')}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
         </div>

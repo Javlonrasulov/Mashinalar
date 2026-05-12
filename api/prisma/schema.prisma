@@ -29,6 +29,8 @@ model User {
   position     String?
   /// Admin panel sahifalari kalitlari (faqat OPERATOR)
   allowedPages String[] @default([])
+  /// Token "avlodi": adminda "Hammasini chiqarish" bossa oshiriladi va eski tokenlar ишламайди.
+  tokenEpoch   Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -47,6 +49,8 @@ model UserSession {
   userAgent   String?
   firstSeenAt DateTime @default(now())
   lastSeenAt  DateTime @default(now())
+  /// Admin tomonidan chiqarib yuborilgan vaqt; bu sessiya bilan request kelsa 401.
+  revokedAt   DateTime?
 
   @@unique([userId, fingerprint])
   @@index([userId, lastSeenAt])

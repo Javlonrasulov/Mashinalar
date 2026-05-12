@@ -69,10 +69,11 @@ export class AuthService {
       sub: user.id,
       role: user.role,
       driverId: user.driver?.id,
+      tokenEpoch: user.tokenEpoch,
     };
     const accessToken = await this.jwt.signAsync(payload);
     await this.sessions
-      .touch(user.id, ctx.ip ?? null, ctx.userAgent ?? null)
+      .touchOnLogin(user.id, ctx.ip ?? null, ctx.userAgent ?? null)
       .catch(() => undefined);
     return {
       accessToken,

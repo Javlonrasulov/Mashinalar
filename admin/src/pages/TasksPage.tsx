@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, X } from 'lucide-react';
+import { Maximize2, Search, X } from 'lucide-react';
 import { api, apiUrl } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import { DateTimeField } from '@/components/DateTimeField';
@@ -44,6 +44,27 @@ function taskStatusLabelKey(status: string): string {
     : status;
 }
 
+function normalizeForSearch(value: string): string {
+  return value.trim().toLocaleLowerCase();
+}
+
+function taskMatchesQuery(row: TaskRow, statusLabel: string, query: string): boolean {
+  if (!query) return true;
+  const haystack = [
+    row.title,
+    row.vehicle.plateNumber,
+    row.driver.fullName,
+    row.proofText ?? '',
+    statusLabel,
+  ]
+    .map(normalizeForSearch)
+    .join(' \u0001 ');
+  return query
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((part) => haystack.includes(part));
+}
+
 type TaskFormVehicle = { id: string; plateNumber: string; drivers: { id: string }[] };
 type TaskFormDriver = { id: string; fullName: string; vehicleId: string | null };
 
@@ -63,6 +84,7 @@ export function TasksPage() {
   const proofPhotoStageRef = useRef<HTMLDivElement>(null);
   const [vehicles, setVehicles] = useState<TaskFormVehicle[]>([]);
   const [drivers, setDrivers] = useState<TaskFormDriver[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [form, setForm] = useState({
     vehicleId: '',
     driverId: '',
@@ -135,6 +157,12 @@ export function TasksPage() {
     ],
     [drivers],
   );
+
+  const filteredRows = useMemo(() => {
+    const q = normalizeForSearch(searchQuery);
+    if (!q) return rows;
+    return rows.filter((r) => taskMatchesQuery(r, t(taskStatusLabelKey(r.status)), q));
+  }, [rows, searchQuery, t]);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -253,6 +281,32 @@ export function TasksPage() {
       </form>
 
       <div className="app-card min-w-0 overflow-hidden">
+        <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700/70">
+          <div className="w-full min-w-0 sm:max-w-xs">
+            <label
+              className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+              htmlFor="tasks-search"
+            >
+              {t('oilSearchLabel')}
+            </label>
+            <div className="relative min-w-0">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden
+              />
+              <input
+                id="tasks-search"
+                type="search"
+                className="app-input w-full pl-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('tasksSearchPlaceholder')}
+                aria-label={t('tasksSearchPlaceholder')}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+        </div>
         <div className="app-table-wrap">
           <table className="app-table-inner min-w-[920px] text-sm">
           <thead className="app-table-head">
@@ -267,7 +321,14 @@ export function TasksPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => {
+            {filteredRows.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                  {t('tasksSearchEmpty')}
+                </td>
+              </tr>
+            ) : null}
+            {filteredRows.map((r) => {
               const proofSrc = taskProofPhotoSrc(r.proofPhotoUrl);
               const proofNote = r.proofText?.trim() ?? '';
               return (

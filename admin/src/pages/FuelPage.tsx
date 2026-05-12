@@ -70,6 +70,7 @@ export function FuelPage() {
   const [gasSaveOk, setGasSaveOk] = useState(false);
   const gasSaveOkTimerRef = useRef<number | null>(null);
   const [vehicleGasDraft, setVehicleGasDraft] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState('');
   const [dateValue, setDateValue] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -212,6 +213,29 @@ export function FuelPage() {
     });
   }, [lang]);
 
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      const lat = r.latitude ? Number(r.latitude) : NaN;
+      const lon = r.longitude ? Number(r.longitude) : NaN;
+      const key =
+        Number.isFinite(lat) && Number.isFinite(lon)
+          ? `${lat.toFixed(5)}_${lon.toFixed(5)}`
+          : '';
+      const station = key ? stationByKey[key] ?? '' : '';
+      const hay = [
+        r.vehicle.plateNumber,
+        r.driver.fullName,
+        r.amount,
+        station ?? '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [rows, search, stationByKey]);
+
   function calcM3(amountRaw: string, vehicleId: string): string {
     const a = Number(String(amountRaw).replace(/[^\d.]/g, ''));
     const raw = vehicleGasDraft[vehicleId] ?? '';
@@ -319,16 +343,28 @@ export function FuelPage() {
     <div className="app-page">
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="app-page-title">{t('navFuel')}</h1>
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
-          <div className="w-[190px]">
-            <DateTimeField
-              value={dateValue}
-              onChange={setDateValue}
-              mode="date"
-              disabled={{ after: new Date() }}
-              align="right"
+        <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+          <div className="min-w-0 flex-1 sm:w-[260px] sm:flex-initial">
+            <input
+              type="search"
+              className="app-input w-full"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('oilSearchPlaceholder')}
+              aria-label={t('oilSearchLabel')}
             />
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-3 sm:justify-end">
+            <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
+            <div className="w-[190px]">
+              <DateTimeField
+                value={dateValue}
+                onChange={setDateValue}
+                mode="date"
+                disabled={{ after: new Date() }}
+                align="right"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -396,7 +432,14 @@ export function FuelPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {filteredRows.length === 0 && (
+              <tr>
+                <td className="p-6 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={10}>
+                  {search.trim() ? t('oilSearchNoResults') : '—'}
+                </td>
+              </tr>
+            )}
+            {filteredRows.map((r) => (
               <tr key={r.id} className="app-table-row">
                 <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
                 <td className="p-3">{r.driver.fullName}</td>
