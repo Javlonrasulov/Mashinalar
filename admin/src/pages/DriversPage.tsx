@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Pencil } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Pencil, Search, Smartphone, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
+import { formatDateTime } from '@/lib/assignmentDisplay';
 
 type Driver = {
   id: string;
@@ -10,14 +11,30 @@ type Driver = {
   vehicleId: string | null;
   user: { login: string };
   vehicle: { plateNumber: string } | null;
+  deviceCount?: number;
 };
 
+type Session = {
+  id: string;
+  ip: string | null;
+  userAgent: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+};
+
+/** Server tomonidagi `ACTIVE_WINDOW_MS` bilan mos: oxirgi 10 daqiqada faol = "hozir online". */
+const SESSION_ACTIVE_WINDOW_MS = 10 * 60 * 1000;
+
 export function DriversPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [rows, setRows] = useState<Driver[]>([]);
   const [vehicles, setVehicles] = useState<{ id: string; plateNumber: string }[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sessionsFor, setSessionsFor] = useState<Driver | null>(null);
+  const [sessions, setSessions] = useState<Session[] | null>(null);
+  const [sessionsErr, setSessionsErr] = useState<string | null>(null);
   const [form, setForm] = useState({
     login: '',
     password: '',
@@ -101,6 +118,15 @@ export function DriversPage() {
     }
   }
 
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((d) => {
+      const parts = [d.fullName, d.user.login, d.phone, d.vehicle?.plateNumber];
+      return parts.some((p) => (p ?? '').toLowerCase().includes(q));
+    });
+  }, [rows, searchQuery]);
+
   async function onDelete(id: string) {
     if (!confirm('Delete?')) return;
     try {
@@ -110,6 +136,24 @@ export function DriversPage() {
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
+  }
+
+  async function openSessions(d: Driver) {
+    setSessionsFor(d);
+    setSessions(null);
+    setSessionsErr(null);
+    try {
+      const list = await api<Session[]>(`/drivers/${d.id}/sessions`);
+      setSessions(list);
+    } catch (e) {
+      setSessionsErr(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  function closeSessions() {
+    setSessionsFor(null);
+    setSessions(null);
+    setSessionsErr(null);
   }
 
   return (
@@ -197,6 +241,26 @@ export function DriversPage() {
       </form>
 
       <div className="app-card min-w-0 overflow-hidden">
+        <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700/70">
+          <div className="w-full min-w-0 sm:max-w-xs">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('oilSearchLabel')}</label>
+            <div className="relative min-w-0">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden
+              />
+              <input
+                type="search"
+                className="app-input w-full pl-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('driversSearchPlaceholder')}
+                aria-label={t('driversSearchPlaceholder')}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+        </div>
         <div className="app-table-wrap">
           <table className="app-table-inner text-sm">
           <thead className="app-table-head">
@@ -205,38 +269,153 @@ export function DriversPage() {
               <th className="p-3">{t('loginLabel')}</th>
               <th className="p-3">{t('phone')}</th>
               <th className="p-3">{t('plate')}</th>
+              <th className="p-3">{t('driversDevicesCol')}</th>
               <th className="p-3">{t('actions')}</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((d) => (
-              <tr key={d.id} className="app-table-row">
-                <td className="p-3">{d.fullName}</td>
-                <td className="p-3 font-mono">{d.user.login}</td>
-                <td className="p-3">{d.phone}</td>
-                <td className="p-3">{d.vehicle?.plateNumber ?? '—'}</td>
-                <td className="p-3">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button
-                      type="button"
-                      className="inline-flex items-center rounded-md p-1 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50"
-                      onClick={() => startEdit(d)}
-                      title={t('edit')}
-                      aria-label={t('edit')}
-                    >
-                      <Pencil size={16} aria-hidden />
-                    </button>
-                    <button type="button" className="app-link-danger" onClick={() => void onDelete(d.id)}>
-                      {t('delete')}
-                    </button>
-                  </div>
+            {filteredRows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                  {t('oilSearchNoResults')}
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredRows.map((d) => {
+                const count = d.deviceCount ?? 0;
+                const multi = count > 1;
+                const badgeClass = multi
+                  ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'
+                  : count === 1
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'
+                    : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400';
+                return (
+                  <tr key={d.id} className="app-table-row">
+                    <td className="p-3">{d.fullName}</td>
+                    <td className="p-3 font-mono">{d.user.login}</td>
+                    <td className="p-3">{d.phone}</td>
+                    <td className="p-3">{d.vehicle?.plateNumber ?? '—'}</td>
+                    <td className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => void openSessions(d)}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${badgeClass}`}
+                        title={t('driversDevicesTitle')}
+                      >
+                        <Smartphone size={14} aria-hidden />
+                        {count}
+                      </button>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          className="inline-flex items-center rounded-md p-1 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50"
+                          onClick={() => startEdit(d)}
+                          title={t('edit')}
+                          aria-label={t('edit')}
+                        >
+                          <Pencil size={16} aria-hidden />
+                        </button>
+                        <button type="button" className="app-link-danger" onClick={() => void onDelete(d.id)}>
+                          {t('delete')}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
         </div>
       </div>
+
+      {sessionsFor ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-3 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          onClick={closeSessions}
+        >
+          <div
+            className="app-card flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700/70">
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-semibold text-slate-900 dark:text-white">
+                  {t('driversDevicesTitle')} — {sessionsFor.fullName}
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
+                  {sessionsFor.user.login}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeSessions}
+                className="inline-flex items-center rounded-md p-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                aria-label={t('close')}
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+
+            <div className="overflow-auto">
+              {sessionsErr ? (
+                <div className="px-4 py-3 text-sm text-red-700 dark:text-red-300">{sessionsErr}</div>
+              ) : sessions === null ? (
+                <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">…</div>
+              ) : sessions.length === 0 ? (
+                <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                  {t('driversDevicesEmpty')}
+                </div>
+              ) : (
+                <table className="app-table-inner text-sm">
+                  <thead className="app-table-head">
+                    <tr>
+                      <th className="p-3">{t('driversDevicesIp')}</th>
+                      <th className="p-3">{t('driversDevicesUa')}</th>
+                      <th className="p-3">{t('driversDevicesFirstSeen')}</th>
+                      <th className="p-3">{t('driversDevicesLastSeen')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessions.map((s) => {
+                      const active = Date.now() - new Date(s.lastSeenAt).getTime() < SESSION_ACTIVE_WINDOW_MS;
+                      return (
+                        <tr key={s.id} className="app-table-row">
+                          <td className="p-3 font-mono text-xs">{s.ip ?? '—'}</td>
+                          <td className="p-3 max-w-[24rem] truncate text-xs text-slate-600 dark:text-slate-300" title={s.userAgent ?? ''}>
+                            {s.userAgent ?? '—'}
+                          </td>
+                          <td className="p-3 whitespace-nowrap text-xs">{formatDateTime(s.firstSeenAt, lang)}</td>
+                          <td className="p-3 whitespace-nowrap text-xs">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>{formatDateTime(s.lastSeenAt, lang)}</span>
+                              {active ? (
+                                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                  {t('driversDevicesActiveBadge')}
+                                </span>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-4 py-3 dark:border-slate-700/70">
+              <button type="button" className="app-btn-ghost" onClick={closeSessions}>
+                {t('close')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

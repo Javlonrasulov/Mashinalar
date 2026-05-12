@@ -7,6 +7,7 @@ import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { SessionsService } from '../sessions/sessions.service';
 import { CreateDriverDto } from './dto/create-driver.dto';
 import { UpdateDriverDto } from './dto/update-driver.dto';
 
@@ -15,10 +16,11 @@ export class DriversService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly sessions: SessionsService,
   ) {}
 
-  findAll() {
-    return this.prisma.driver.findMany({
+  async findAll() {
+    const rows = await this.prisma.driver.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
         user: {
@@ -27,6 +29,17 @@ export class DriversService {
         vehicle: true,
       },
     });
+    const userIds = rows.map((r) => r.userId);
+    const counts = await this.sessions.countActiveByUserIds(userIds);
+    return rows.map((r) => ({
+      ...r,
+      deviceCount: counts.get(r.userId) ?? 0,
+    }));
+  }
+
+  async listSessions(driverId: string) {
+    const d = await this.findOne(driverId);
+    return this.sessions.listForUser(d.userId);
   }
 
   async findOne(id: string) {

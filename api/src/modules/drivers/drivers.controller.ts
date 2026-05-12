@@ -38,6 +38,11 @@ export class DriversController {
     return this.drivers.findOne(id);
   }
 
+  @Get(':id/sessions')
+  listSessions(@Param('id') id: string) {
+    return this.drivers.listSessions(id);
+  }
+
   @Post()
   create(@Body() dto: CreateDriverDto, @CurrentUser() user: JwtUser) {
     return this.drivers.create(dto, user.userId);

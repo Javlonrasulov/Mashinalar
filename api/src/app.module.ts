@@ -18,6 +18,7 @@ import { OilChangeModule } from './modules/oil-change/oil-change.module';
 import { VehicleCategoriesModule } from './modules/vehicle-categories/vehicle-categories.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
 import { StatsModule } from './modules/stats/stats.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -41,6 +42,7 @@ import { HealthController } from './health.controller';
     ExpensesModule,
     DashboardModule,
     AdminUsersModule,
+    SessionsModule,
   ],
   controllers: [HealthController],
 })

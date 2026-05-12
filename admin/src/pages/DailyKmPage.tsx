@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { api, apiUrl } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Search } from 'lucide-react';
 import { MapContainer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -226,6 +226,7 @@ export function DailyKmPage() {
   const [submissionOverview, setSubmissionOverview] = useState<SubmissionOverviewResponse | null>(null);
   const [overviewDayFilter, setOverviewDayFilter] = useState<'all' | 'startPending' | 'endPending' | 'complete'>('all');
   const [expandedOverviewDay, setExpandedOverviewDay] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (!isAdmin && view === 'gaps') setView('table');
@@ -277,7 +278,7 @@ export function DailyKmPage() {
 
   useEffect(() => {
     setExpandedOverviewDay(null);
-  }, [tableFromValue, tableToValue, overviewDayFilter]);
+  }, [tableFromValue, tableToValue, overviewDayFilter, searchQuery]);
 
   useEffect(() => {
     if (view !== 'gaps' || !isAdmin) return;
@@ -303,6 +304,12 @@ export function DailyKmPage() {
     return [mapPoint.lat, mapPoint.lon];
   }, [mapPoint]);
 
+  const searchTrim = searchQuery.trim().toLowerCase();
+  const matchesSearch = (parts: (string | null | undefined)[]): boolean => {
+    if (!searchTrim) return true;
+    return parts.some((p) => (p ?? '').toLowerCase().includes(searchTrim));
+  };
+
   const visibleRows = useMemo(() => {
     const withGapNum = (r: DailyKmRow) => {
       const n = r.gapKm == null ? NaN : Number(r.gapKm);
@@ -311,8 +318,19 @@ export function DailyKmPage() {
     let list = rows;
     if (filter === 'gapsOnly') list = rows.filter((r) => Math.abs(withGapNum(r)) > 0);
     if (filter === 'gapDesc') list = [...list].sort((a, b) => Math.abs(withGapNum(b)) - Math.abs(withGapNum(a)));
+    if (searchTrim) {
+      list = list.filter((r) =>
+        matchesSearch([
+          r.vehicle.plateNumber,
+          r.driver.fullName,
+          r.driver.phone,
+          formatDateOnly(r.reportDate),
+          r.reportDate.slice(0, 10),
+        ]),
+      );
+    }
     return list;
-  }, [rows, filter]);
+  }, [rows, filter, searchTrim]);
 
   const dailyKmFilterOptions = useMemo(
     () =>
@@ -336,12 +354,41 @@ export function DailyKmPage() {
   );
 
   const filteredSubmissionDays = useMemo(() => {
-    const days = submissionOverview?.days ?? [];
-    if (overviewDayFilter === 'all') return days;
-    if (overviewDayFilter === 'startPending') return days.filter((d) => d.startMissing > 0);
-    if (overviewDayFilter === 'endPending') return days.filter((d) => d.endMissing > 0);
-    return days.filter((d) => d.startMissing === 0 && d.endMissing === 0);
-  }, [submissionOverview, overviewDayFilter]);
+    let days = submissionOverview?.days ?? [];
+    if (overviewDayFilter === 'startPending') days = days.filter((d) => d.startMissing > 0);
+    else if (overviewDayFilter === 'endPending') days = days.filter((d) => d.endMissing > 0);
+    else if (overviewDayFilter === 'complete') days = days.filter((d) => d.startMissing === 0 && d.endMissing === 0);
+
+    if (!searchTrim) return days;
+    const rowMatch = (row: SubmissionListRow) =>
+      matchesSearch([row.plateNumber, row.driverName, row.driverPhone]);
+
+    return days
+      .map((d) => {
+        const startMissingList = d.startMissingList.filter(rowMatch);
+        const startSubmittedList = d.startSubmittedList.filter(rowMatch);
+        const endMissingList = d.endMissingList.filter(rowMatch);
+        const endSubmittedList = d.endSubmittedList.filter(rowMatch);
+        const dayMatch = matchesSearch([d.date, formatYmdLocal(d.date, lang)]);
+        if (
+          !dayMatch &&
+          startMissingList.length === 0 &&
+          startSubmittedList.length === 0 &&
+          endMissingList.length === 0 &&
+          endSubmittedList.length === 0
+        ) {
+          return null;
+        }
+        return {
+          ...d,
+          startMissingList,
+          startSubmittedList,
+          endMissingList,
+          endSubmittedList,
+        };
+      })
+      .filter((d): d is SubmissionOverviewDay => d != null);
+  }, [submissionOverview, overviewDayFilter, searchTrim, lang]);
 
   const gapDriverSummaries = useMemo(() => {
     const m = new Map<string, GapAuditRow[]>();
@@ -383,6 +430,24 @@ export function DailyKmPage() {
         <div className="flex min-w-0 flex-col items-stretch gap-3 sm:items-end">
           {view === 'table' && (
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end sm:justify-end">
+              <div className="flex min-w-0 w-full flex-col gap-1 sm:w-[240px]">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmSearchLabel')}</span>
+                <div className="relative min-w-0">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                    aria-hidden
+                  />
+                  <input
+                    type="search"
+                    className="app-input w-full pl-9"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={t('dailyKmSearchPlaceholder')}
+                    aria-label={t('dailyKmSearchPlaceholder')}
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
               <div className="flex min-w-0 w-full flex-col gap-1 sm:w-[220px]">
                 <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmFilterLabel')}</span>
                 <SelectField value={filter} onChange={setFilter} options={dailyKmFilterOptions} />

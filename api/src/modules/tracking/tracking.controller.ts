@@ -5,8 +5,10 @@ import {
   Get,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { UserRole } from '@prisma/client';
 import {
   CurrentUser,
@@ -16,19 +18,37 @@ import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorat
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { SessionsService } from '../sessions/sessions.service';
 import { BatchGpsOffSegmentsDto } from './dto/batch-gps-off-segments.dto';
 import { BatchLocationDto } from './dto/batch-location.dto';
 import { TrackingService } from './tracking.service';
 
+function extractIp(req: Request): string | null {
+  const fwd = req.headers['x-forwarded-for'];
+  if (typeof fwd === 'string' && fwd.length > 0) return fwd.split(',')[0].trim();
+  if (Array.isArray(fwd) && fwd.length > 0) return fwd[0];
+  return req.ip ?? req.socket?.remoteAddress ?? null;
+}
+
 @Controller()
 export class TrackingController {
-  constructor(private readonly tracking: TrackingService) {}
+  constructor(
+    private readonly tracking: TrackingService,
+    private readonly sessions: SessionsService,
+  ) {}
 
   @Post('tracking/locations/batch')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.DRIVER)
-  batch(@Body() dto: BatchLocationDto, @CurrentUser() user: JwtUser) {
+  batch(
+    @Body() dto: BatchLocationDto,
+    @CurrentUser() user: JwtUser,
+    @Req() req: Request,
+  ) {
     if (!user.driverId) throw new BadRequestException('No driver profile');
+    void this.sessions
+      .touch(user.userId, extractIp(req), req.headers['user-agent'] ?? null)
+      .catch(() => undefined);
     return this.tracking.ingest(user.driverId, dto);
   }
 
@@ -38,8 +58,12 @@ export class TrackingController {
   batchGpsOff(
     @Body() dto: BatchGpsOffSegmentsDto,
     @CurrentUser() user: JwtUser,
+    @Req() req: Request,
   ) {
     if (!user.driverId) throw new BadRequestException('No driver profile');
+    void this.sessions
+      .touch(user.userId, extractIp(req), req.headers['user-agent'] ?? null)
+      .catch(() => undefined);
     return this.tracking.ingestGpsOffSegments(user.driverId, dto);
   }
 

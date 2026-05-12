@@ -86,6 +86,7 @@ export function VehiclesPage() {
   /** Yangi mashina formasi yashirin; tahrirda doim ochiq. */
   const [createFormOpen, setCreateFormOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [form, setForm] = useState({
     categoryId: '',
     name: '',
@@ -118,9 +119,16 @@ export function VehiclesPage() {
   }, []);
 
   const filteredRows = useMemo(() => {
-    if (!categoryFilter) return rows;
-    return rows.filter((v) => (v.category?.id ?? v.categoryId ?? '') === categoryFilter);
-  }, [rows, categoryFilter]);
+    const q = search.trim().toLowerCase();
+    return rows.filter((v) => {
+      if (categoryFilter && (v.category?.id ?? v.categoryId ?? '') !== categoryFilter) return false;
+      if (!q) return true;
+      const haystack = [v.plateNumber, v.name, v.model ?? '', v.category?.name ?? '']
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [rows, categoryFilter, search]);
 
   const todayStart = useMemo(() => startOfLocalDay(new Date()), []);
 
@@ -327,25 +335,40 @@ export function VehiclesPage() {
         </div>
       )}
 
-      <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0 sm:max-w-xs">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleListFilterCategory')}</label>
-          <select
-            className="app-select w-full"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-          >
-            <option value="">{t('vehicleListFilterAll')}</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <div className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-400">
-            {categoryFilter
-              ? t('vehicleListCountFiltered', { filtered: String(filteredRows.length), total: String(rows.length) })
-              : t('vehicleListCountTotal', { total: String(rows.length) })}
+      <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="min-w-0 sm:max-w-xs sm:flex-1">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+              {t('vehicleListSearch')}
+            </label>
+            <input
+              type="search"
+              className="app-input w-full"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('vehicleListSearchPlaceholder')}
+              autoComplete="off"
+            />
+          </div>
+          <div className="min-w-0 sm:max-w-xs">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('vehicleListFilterCategory')}</label>
+            <select
+              className="app-select w-full"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option value="">{t('vehicleListFilterAll')}</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <div className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+              {categoryFilter || search.trim()
+                ? t('vehicleListCountFiltered', { filtered: String(filteredRows.length), total: String(rows.length) })
+                : t('vehicleListCountTotal', { total: String(rows.length) })}
+            </div>
           </div>
         </div>
         {!showVehicleForm ? (
@@ -521,7 +544,11 @@ export function VehiclesPage() {
               {filteredRows.length === 0 ? (
                 <tr className="app-table-row">
                   <td className="p-3 text-slate-500 dark:text-slate-400" colSpan={6}>
-                    {rows.length === 0 ? t('vehicleDeadlinesEmpty') : t('vehicleListFilterEmpty')}
+                    {rows.length === 0
+                      ? t('vehicleDeadlinesEmpty')
+                      : search.trim() && !categoryFilter
+                        ? t('vehicleListSearchEmpty')
+                        : t('vehicleListFilterEmpty')}
                   </td>
                 </tr>
               ) : (

@@ -34,6 +34,22 @@ model User {
 
   driver Driver?
   auditLogs AuditLog[]
+  sessions  UserSession[]
+}
+
+model UserSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// sha256(ip + '|' + userAgent) — bir xil qurilma/IP/UA = bitta yozuv
+  fingerprint String
+  ip          String?
+  userAgent   String?
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@unique([userId, fingerprint])
+  @@index([userId, lastSeenAt])
 }
 
 model Driver {
