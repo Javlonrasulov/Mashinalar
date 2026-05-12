@@ -89,7 +89,20 @@ export class DriversService {
       where: { login: { equals: login, mode: 'insensitive' } },
       select: { id: true },
     });
-    if (exists) throw new ConflictException('Login already taken');
+    if (exists) throw new ConflictException('login_taken');
+
+    if (dto.vehicleId) {
+      const taken = await this.prisma.driver.findFirst({
+        where: { vehicleId: dto.vehicleId },
+        select: { fullName: true },
+      });
+      if (taken) {
+        throw new ConflictException(
+          `vehicle_already_assigned:${taken.fullName}`,
+        );
+      }
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const driver = await this.prisma.$transaction(async (tx) => {
@@ -129,6 +142,22 @@ export class DriversService {
     const driver = await this.prisma.driver.findUniqueOrThrow({
       where: { id },
     });
+
+    if (
+      dto.vehicleId !== undefined &&
+      dto.vehicleId &&
+      dto.vehicleId !== driver.vehicleId
+    ) {
+      const taken = await this.prisma.driver.findFirst({
+        where: { vehicleId: dto.vehicleId, id: { not: id } },
+        select: { fullName: true },
+      });
+      if (taken) {
+        throw new ConflictException(
+          `vehicle_already_assigned:${taken.fullName}`,
+        );
+      }
+    }
 
     if (dto.password) {
       const passwordHash = await bcrypt.hash(dto.password, 10);

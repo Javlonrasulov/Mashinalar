@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api';
+import { translateApiError } from '@/lib/apiErrors';
 import { useI18n } from '@/i18n/I18nContext';
 import {
   ADMIN_PAGE_KEYS,
@@ -114,7 +115,7 @@ export function SystemUsersPage() {
       clearEdit();
       await load();
     } catch (e2: unknown) {
-      setErr(e2 instanceof Error ? e2.message : t('genericError'));
+      setErr(translateApiError(t, e2) || t('genericError'));
     }
   }
 
@@ -126,7 +127,7 @@ export function SystemUsersPage() {
       if (editingId === id) clearEdit();
       await load();
     } catch (e2: unknown) {
-      setErr(e2 instanceof Error ? e2.message : t('genericError'));
+      setErr(translateApiError(t, e2) || t('genericError'));
     }
   }
 

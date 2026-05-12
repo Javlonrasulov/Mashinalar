@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Search, Smartphone, X } from 'lucide-react';
 import { api } from '@/lib/api';
+import { translateApiError } from '@/lib/apiErrors';
 import { useI18n } from '@/i18n/I18nContext';
 import { formatDateTime } from '@/lib/assignmentDisplay';
 
@@ -115,7 +116,7 @@ export function DriversPage() {
       }
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(translateApiError(t, e));
     }
   }
 
@@ -135,7 +136,7 @@ export function DriversPage() {
       if (editingId === id) cancelEdit();
       await load();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(translateApiError(t, e));
     }
   }
 

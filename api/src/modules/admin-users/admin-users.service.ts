@@ -35,7 +35,7 @@ export class AdminUsersService {
       where: { login: { equals: login, mode: 'insensitive' } },
       select: { id: true },
     });
-    if (exists) throw new BadRequestException('Login already exists');
+    if (exists) throw new BadRequestException('login_taken');
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
       data: {
@@ -78,7 +78,7 @@ export class AdminUsersService {
           },
           select: { id: true },
         });
-        if (exists) throw new BadRequestException('Login already exists');
+        if (exists) throw new BadRequestException('login_taken');
       }
       data.login = login;
     }

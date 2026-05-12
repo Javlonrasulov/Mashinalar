@@ -172,7 +172,7 @@ export class AuthService {
           },
           select: { id: true },
         });
-        if (exists) throw new BadRequestException('Login already exists');
+        if (exists) throw new BadRequestException('login_taken');
         data.login = login;
       } else if (login !== user.login) {
         data.login = login;
