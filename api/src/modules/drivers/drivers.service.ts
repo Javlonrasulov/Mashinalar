@@ -84,8 +84,10 @@ export class DriversService {
   }
 
   async create(dto: CreateDriverDto, actorUserId: string) {
-    const exists = await this.prisma.user.findUnique({
-      where: { login: dto.login },
+    const login = dto.login.trim().toLowerCase();
+    const exists = await this.prisma.user.findFirst({
+      where: { login: { equals: login, mode: 'insensitive' } },
+      select: { id: true },
     });
     if (exists) throw new ConflictException('Login already taken');
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -93,7 +95,7 @@ export class DriversService {
     const driver = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          login: dto.login,
+          login,
           passwordHash,
           role: UserRole.DRIVER,
         },
@@ -117,7 +119,7 @@ export class DriversService {
       action: 'driver.create',
       entity: 'Driver',
       entityId: driver.id,
-      meta: { login: dto.login },
+      meta: { login },
     });
     return driver;
   }

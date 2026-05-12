@@ -13,6 +13,9 @@ const PAGE_CHOICES = [...ADMIN_PAGE_KEYS];
 
 export class UpdateAdminOperatorDto {
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsString()
   @MinLength(2)
   login?: string;

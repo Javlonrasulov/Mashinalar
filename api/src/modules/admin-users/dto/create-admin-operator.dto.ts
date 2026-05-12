@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -10,6 +11,9 @@ import { ADMIN_PAGE_KEYS } from '../../../common/admin-page-keys';
 const PAGE_CHOICES = [...ADMIN_PAGE_KEYS];
 
 export class CreateAdminOperatorDto {
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsString()
   @MinLength(2)
   login!: string;

@@ -30,8 +30,11 @@ export class AdminUsersService {
   }
 
   async create(dto: CreateAdminOperatorDto) {
-    const login = dto.login.trim();
-    const exists = await this.prisma.user.findUnique({ where: { login } });
+    const login = dto.login.trim().toLowerCase();
+    const exists = await this.prisma.user.findFirst({
+      where: { login: { equals: login, mode: 'insensitive' } },
+      select: { id: true },
+    });
     if (exists) throw new BadRequestException('Login already exists');
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
@@ -66,12 +69,18 @@ export class AdminUsersService {
     } = {};
 
     if (dto.login != null) {
-      const login = dto.login.trim();
-      if (login !== row.login) {
-        const exists = await this.prisma.user.findUnique({ where: { login } });
+      const login = dto.login.trim().toLowerCase();
+      if (login !== row.login.toLowerCase()) {
+        const exists = await this.prisma.user.findFirst({
+          where: {
+            login: { equals: login, mode: 'insensitive' },
+            id: { not: id },
+          },
+          select: { id: true },
+        });
         if (exists) throw new BadRequestException('Login already exists');
-        data.login = login;
       }
+      data.login = login;
     }
 
     if (dto.password) {

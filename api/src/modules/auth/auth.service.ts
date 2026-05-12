@@ -28,6 +28,7 @@ export class AuthService {
     const normalizedLogin = rawLogin.trim();
     if (!normalizedLogin)
       throw new UnauthorizedException('Invalid credentials');
+    const lowerLogin = normalizedLogin.toLowerCase();
 
     let user = await this.prisma.user.findUnique({
       where: { login: rawLogin },
@@ -39,11 +40,25 @@ export class AuthService {
         include: { driver: true },
       });
     }
+    if (!user && lowerLogin !== normalizedLogin) {
+      user = await this.prisma.user.findUnique({
+        where: { login: lowerLogin },
+        include: { driver: true },
+      });
+    }
+    if (!user) {
+      // Eski yozuvlardagi caps / probel farqlarini ham qabul qilamiz.
+      const found = await this.prisma.user.findFirst({
+        where: { login: { equals: normalizedLogin, mode: 'insensitive' } },
+        include: { driver: true },
+      });
+      if (found) user = found;
+    }
     if (!user) {
       const trimmedMatch = await this.prisma.$queryRaw<{ id: string }[]>`
         select id
         from "User"
-        where btrim(login) = ${normalizedLogin}
+        where btrim(lower(login)) = ${lowerLogin}
         limit 1
       `;
       const userId = trimmedMatch[0]?.id;
@@ -147,12 +162,21 @@ export class AuthService {
 
     const data: { login?: string; passwordHash?: string } = {};
 
-    if (dto.login && dto.login !== user.login) {
-      const exists = await this.prisma.user.findUnique({
-        where: { login: dto.login },
-      });
-      if (exists) throw new BadRequestException('Login already exists');
-      data.login = dto.login;
+    if (dto.login) {
+      const login = dto.login.trim().toLowerCase();
+      if (login !== user.login.toLowerCase()) {
+        const exists = await this.prisma.user.findFirst({
+          where: {
+            login: { equals: login, mode: 'insensitive' },
+            id: { not: user.id },
+          },
+          select: { id: true },
+        });
+        if (exists) throw new BadRequestException('Login already exists');
+        data.login = login;
+      } else if (login !== user.login) {
+        data.login = login;
+      }
     }
 
     if (dto.newPassword) {

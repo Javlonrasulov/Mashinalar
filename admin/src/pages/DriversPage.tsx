@@ -206,10 +206,13 @@ export function DriversPage() {
           <input
             className={editingId ? 'app-input bg-slate-100 dark:bg-slate-800/80' : 'app-input'}
             value={form.login}
-            onChange={(e) => setForm({ ...form, login: e.target.value })}
+            onChange={(e) => setForm({ ...form, login: e.target.value.toLowerCase() })}
             required={!editingId}
             readOnly={Boolean(editingId)}
             aria-readonly={editingId ? true : undefined}
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
           />
         </div>
         <div>
