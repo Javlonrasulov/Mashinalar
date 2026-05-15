@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DEFAULT_SAVED_FUEL_RADIUS_M } from './saved-fuel-station.constants';
@@ -92,6 +92,35 @@ export class SavedFuelStationService {
   async remove(id: string): Promise<void> {
     await this.ensureExists(id);
     await this.prisma.savedFuelStation.delete({ where: { id } });
+  }
+
+  /** Иккала сақланган нуқтанинг latitude/longitude қийматларини алмаштиради (хатодан кейин тузатиш). */
+  async swapCoordinates(idA: string, idB: string): Promise<void> {
+    const aId = idA.trim();
+    const bId = idB.trim();
+    if (!aId || !bId) throw new BadRequestException('Both station ids required');
+    if (aId === bId) throw new BadRequestException('Ids must differ');
+    const [a, b] = await Promise.all([
+      this.prisma.savedFuelStation.findUnique({ where: { id: aId } }),
+      this.prisma.savedFuelStation.findUnique({ where: { id: bId } }),
+    ]);
+    if (!a || !b) throw new NotFoundException('Saved fuel station not found');
+    await this.prisma.$transaction([
+      this.prisma.savedFuelStation.update({
+        where: { id: a.id },
+        data: {
+          latitude: b.latitude,
+          longitude: b.longitude,
+        },
+      }),
+      this.prisma.savedFuelStation.update({
+        where: { id: b.id },
+        data: {
+          latitude: a.latitude,
+          longitude: a.longitude,
+        },
+      }),
+    ]);
   }
 
   /**

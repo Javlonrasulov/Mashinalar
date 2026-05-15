@@ -126,6 +126,74 @@ export class FuelService {
     return { updated, scanned: rows.length };
   }
 
+  /**
+   * GPS ва харитада жойлашган сақланган заправкалар бўйича барча ёзувларни қайта белгилайди.
+   * Радиус ичида — сақланган ном; акс холда OSM яқин нуқта номи.
+   */
+  private async resolveStationFieldsFromGps(
+    lat: number,
+    lon: number,
+    stations: {
+      id: string;
+      name: string;
+      latitude: Prisma.Decimal;
+      longitude: Prisma.Decimal;
+      radiusMeters: number;
+    }[],
+  ): Promise<{ stationLabel: string | null; savedFuelStationId: string | null }> {
+    const savedHit = this.savedFuel.matchNearestFromRows(lat, lon, stations);
+    if (savedHit) {
+      const row = stations.find((s) => s.id === savedHit.id);
+      const name = row?.name?.trim();
+      if (name) {
+        return { stationLabel: name, savedFuelStationId: savedHit.id };
+      }
+      const nearest = await this.osmFuel.nearestFuelStation(lat, lon);
+      return {
+        stationLabel: nearest?.label?.trim() || null,
+        savedFuelStationId: savedHit.id,
+      };
+    }
+    const nearest = await this.osmFuel.nearestFuelStation(lat, lon);
+    if (!nearest?.label?.trim()) {
+      return { stationLabel: null, savedFuelStationId: null };
+    }
+    return {
+      stationLabel: nearest.label.trim(),
+      savedFuelStationId: null,
+    };
+  }
+
+  async resyncStationsFromGps(): Promise<{ updated: number; scanned: number }> {
+    const [rows, stations] = await Promise.all([
+      this.prisma.fuelReport.findMany({
+        where: {
+          latitude: { not: null },
+          longitude: { not: null },
+        },
+        select: { id: true, latitude: true, longitude: true },
+      }),
+      this.prisma.savedFuelStation.findMany(),
+    ]);
+
+    let updated = 0;
+    for (const r of rows) {
+      const lat = Number(r.latitude);
+      const lon = Number(r.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      const next = await this.resolveStationFieldsFromGps(lat, lon, stations);
+      await this.prisma.fuelReport.update({
+        where: { id: r.id },
+        data: {
+          stationLabel: next.stationLabel,
+          savedFuelStationId: next.savedFuelStationId,
+        },
+      });
+      updated += 1;
+    }
+    return { updated, scanned: rows.length };
+  }
+
   async findAll(params?: {
     date?: string;
     from?: string;

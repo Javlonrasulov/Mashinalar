@@ -210,6 +210,15 @@ export class FuelController {
     return this.reconciliation.getVedomostSnapshot(id.trim());
   }
 
+  /** Барча ёзувлар учун GPS → сақланган заправка номи ёки OSM (координата тузатилгандан кейин). */
+  @Post('resync-stations-from-gps')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
+  resyncStationsFromGps() {
+    return this.fuel.resyncStationsFromGps();
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.DRIVER)

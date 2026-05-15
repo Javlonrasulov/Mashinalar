@@ -36,6 +36,19 @@ export class SavedFuelStationController {
     return this.savedFuel.create(dto);
   }
 
+  /** Иккала заправканинг харитадаги нуқталарини алмаштиради (кейин GPS қайта синхрон қилинг). */
+  @Post('swap-coordinates')
+  @HttpCode(200)
+  async swapCoordinates(
+    @Body() body: { stationIdA?: string; stationIdB?: string },
+  ) {
+    await this.savedFuel.swapCoordinates(
+      body.stationIdA ?? '',
+      body.stationIdB ?? '',
+    );
+    return { ok: true };
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateSavedFuelStationDto) {
     return this.savedFuel.update(id, dto);
