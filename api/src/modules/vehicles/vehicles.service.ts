@@ -71,6 +71,10 @@ export class VehiclesService {
         model: v.model,
         plateNumber: v.plateNumber,
         initialKm: Number(v.initialKm),
+        gasPricePerM3:
+          v.gasPricePerM3 != null ? Number(v.gasPricePerM3) : null,
+        petrolPricePerLiter:
+          v.petrolPricePerLiter != null ? Number(v.petrolPricePerLiter) : null,
       },
       oil: {
         lastOilChangeKm: lastOilKm,
@@ -141,6 +145,12 @@ export class VehiclesService {
           : dto.gasPricePerM3 === null
             ? null
             : dto.gasPricePerM3,
+      petrolPricePerLiter:
+        dto.petrolPricePerLiter === undefined
+          ? undefined
+          : dto.petrolPricePerLiter === null
+            ? null
+            : dto.petrolPricePerLiter,
     };
     const created = await this.prisma.vehicle.create({ data });
     await this.audit.log({
@@ -212,6 +222,9 @@ export class VehiclesService {
     if (dto.gasPricePerM3 !== undefined)
       data.gasPricePerM3 =
         dto.gasPricePerM3 === null ? null : dto.gasPricePerM3;
+    if (dto.petrolPricePerLiter !== undefined)
+      data.petrolPricePerLiter =
+        dto.petrolPricePerLiter === null ? null : dto.petrolPricePerLiter;
 
     const updated = await this.prisma.vehicle.update({ where: { id }, data });
     await this.audit.log({
@@ -219,6 +232,26 @@ export class VehiclesService {
       action: 'vehicle.update',
       entity: 'Vehicle',
       entityId: id,
+    });
+    return updated;
+  }
+
+  async updatePetrolPricePerLiter(
+    id: string,
+    petrolPricePerLiter: number | null,
+    actorUserId: string,
+  ) {
+    await this.findOne(id);
+    const updated = await this.prisma.vehicle.update({
+      where: { id },
+      data: { petrolPricePerLiter },
+    });
+    await this.audit.log({
+      actorUserId,
+      action: 'vehicle.update_petrol_price',
+      entity: 'Vehicle',
+      entityId: id,
+      meta: { petrolPricePerLiter },
     });
     return updated;
   }

@@ -30,6 +30,28 @@ export function formatDateTime(iso: string | null | undefined, lang: Lang): stri
   }).format(d);
 }
 
+export function formatTimeOnly(iso: string | null | undefined, lang: Lang): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '—';
+  return new Intl.DateTimeFormat(intlLocaleFor(lang), {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d);
+}
+
+export function formatDurationMinutes(
+  totalMinutes: number,
+  t: (key: string, vars?: Record<string, string>) => string,
+): string {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return '—';
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h > 0 && m > 0) return t('durationHoursMinutes', { h: String(h), m: String(m) });
+  if (h > 0) return t('durationHours', { h: String(h) });
+  return t('durationMinutes', { m: String(m) });
+}
+
 export function formatDuration(ms: number, lang: Lang): string {
   if (!Number.isFinite(ms) || ms < 0) return '—';
   const dayMs = 24 * 60 * 60 * 1000;

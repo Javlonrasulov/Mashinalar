@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Search, Smartphone, X } from 'lucide-react';
+import { DateRangeField } from '@/components/DateRangeField';
 import { api } from '@/lib/api';
 import { translateApiError } from '@/lib/apiErrors';
 import { useI18n } from '@/i18n/I18nContext';
-import { formatDateTime } from '@/lib/assignmentDisplay';
+import {
+  formatDate,
+  formatDateTime,
+  formatDurationMinutes,
+  formatTimeOnly,
+} from '@/lib/assignmentDisplay';
+import { formatSessionDevice } from '@/lib/formatSessionDevice';
+import { appendSpentRangeParams, parseYmd, type SpentDateRangeYmd } from '@/lib/spentRangeQuery';
 
 type Driver = {
   id: string;
@@ -27,6 +35,38 @@ type Session = {
 /** Server tomonidagi `ACTIVE_WINDOW_MS` bilan mos: oxirgi 10 daqiqada faol = "hozir online". */
 const SESSION_ACTIVE_WINDOW_MS = 10 * 60 * 1000;
 
+type ActivitySegment = {
+  startAt: string;
+  endAt: string;
+  durationMinutes: number;
+};
+
+type ActivityDay = {
+  date: string;
+  totalMinutes: number;
+  segments: ActivitySegment[];
+};
+
+type ActivityReport = {
+  days: ActivityDay[];
+  totalMinutes: number;
+};
+
+function todayYmd(): SpentDateRangeYmd {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const s = `${y}-${m}-${day}`;
+  return { from: s, to: s };
+}
+
+function formatActivityDayLabel(ymd: string, lang: Parameters<typeof formatDate>[1]): string {
+  const d = parseYmd(ymd);
+  if (!Number.isFinite(d.getTime())) return ymd;
+  return formatDate(d.toISOString(), lang);
+}
+
 export function DriversPage() {
   const { t, lang } = useI18n();
   const [rows, setRows] = useState<Driver[]>([]);
@@ -37,6 +77,10 @@ export function DriversPage() {
   const [sessionsFor, setSessionsFor] = useState<Driver | null>(null);
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [sessionsErr, setSessionsErr] = useState<string | null>(null);
+  const [activityRange, setActivityRange] = useState<SpentDateRangeYmd | null>(null);
+  const [activity, setActivity] = useState<ActivityReport | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityErr, setActivityErr] = useState<string | null>(null);
   const [form, setForm] = useState({
     login: '',
     password: '',
@@ -140,10 +184,35 @@ export function DriversPage() {
     }
   }
 
+  async function loadActivity(driverId: string, range: SpentDateRangeYmd | null) {
+    if (!range?.from || !range?.to) {
+      setActivity(null);
+      return;
+    }
+    setActivityLoading(true);
+    setActivityErr(null);
+    try {
+      const p = new URLSearchParams();
+      appendSpentRangeParams(p, range);
+      const data = await api<ActivityReport>(`/drivers/${driverId}/app-activity?${p}`);
+      setActivity(data);
+    } catch (e) {
+      setActivityErr(translateApiError(t, e));
+      setActivity(null);
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
   async function openSessions(d: Driver) {
+    const initialRange = todayYmd();
     setSessionsFor(d);
     setSessions(null);
     setSessionsErr(null);
+    setActivityRange(initialRange);
+    setActivity(null);
+    setActivityErr(null);
+    void loadActivity(d.id, initialRange);
     try {
       const list = await api<Session[]>(`/drivers/${d.id}/sessions`);
       setSessions(list);
@@ -187,6 +256,9 @@ export function DriversPage() {
     setSessionsFor(null);
     setSessions(null);
     setSessionsErr(null);
+    setActivityRange(null);
+    setActivity(null);
+    setActivityErr(null);
   }
 
   return (
@@ -375,7 +447,7 @@ export function DriversPage() {
           onClick={closeSessions}
         >
           <div
-            className="app-card flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden"
+            className="app-card flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700/70">
@@ -395,6 +467,54 @@ export function DriversPage() {
               >
                 <X size={18} aria-hidden />
               </button>
+            </div>
+
+            <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700/70">
+              <p className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                {t('driversAppActivityTitle')}
+              </p>
+              <DateRangeField
+                id="driver-sessions-activity-range"
+                value={activityRange}
+                onChange={(r) => {
+                  setActivityRange(r);
+                  if (sessionsFor && r) void loadActivity(sessionsFor.id, r);
+                }}
+              />
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{t('driversAppActivityHint')}</p>
+              {activityErr ? (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400">{activityErr}</p>
+              ) : null}
+              {activityLoading ? (
+                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">…</p>
+              ) : activity && activity.days.length > 0 ? (
+                <ul className="mt-3 max-h-48 space-y-3 overflow-y-auto">
+                  {activity.days.map((day) => (
+                    <li key={day.date}>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                        {formatActivityDayLabel(day.date, lang)}
+                        {' — '}
+                        {t('driversAppActivityDayTotal', {
+                          duration: formatDurationMinutes(day.totalMinutes, t),
+                        })}
+                      </p>
+                      <ul className="mt-1 space-y-0.5 border-l-2 border-slate-200 pl-3 dark:border-slate-600">
+                        {day.segments.map((seg, i) => (
+                          <li key={i} className="text-xs text-slate-600 dark:text-slate-300">
+                            {t('driversAppActivitySegment', {
+                              from: formatTimeOnly(seg.startAt, lang),
+                              to: formatTimeOnly(seg.endAt, lang),
+                              duration: formatDurationMinutes(seg.durationMinutes, t),
+                            })}
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              ) : activity && !activityLoading ? (
+                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{t('driversAppActivityEmpty')}</p>
+              ) : null}
             </div>
 
             <div className="overflow-auto">
@@ -423,8 +543,8 @@ export function DriversPage() {
                       return (
                         <tr key={s.id} className="app-table-row">
                           <td className="p-3 font-mono text-xs">{s.ip ?? '—'}</td>
-                          <td className="p-3 max-w-[24rem] truncate text-xs text-slate-600 dark:text-slate-300" title={s.userAgent ?? ''}>
-                            {s.userAgent ?? '—'}
+                          <td className="p-3 max-w-[20rem] text-xs font-medium leading-snug text-slate-700 dark:text-slate-200">
+                            {formatSessionDevice(s.userAgent, t('driversDevicesUnknownClient'))}
                           </td>
                           <td className="p-3 whitespace-nowrap text-xs">{formatDateTime(s.firstSeenAt, lang)}</td>
                           <td className="p-3 whitespace-nowrap text-xs">

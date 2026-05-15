@@ -27,6 +27,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleGasPriceDto } from './dto/update-vehicle-gas-price.dto';
+import { UpdateVehiclePetrolPriceDto } from './dto/update-vehicle-petrol-price.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { VehiclesService } from './vehicles.service';
 
@@ -79,6 +80,21 @@ export class VehiclesController {
     @CurrentUser() user: JwtUser,
   ) {
     return this.vehicles.updateGasPricePerM3(id, dto.gasPricePerM3, user.userId);
+  }
+
+  @Patch(':id/petrol-price')
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePageAny(ADMIN_PAGES_VEHICLE_GAS_PRICE)
+  updatePetrolPrice(
+    @Param('id') id: string,
+    @Body() dto: UpdateVehiclePetrolPriceDto,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.vehicles.updatePetrolPricePerLiter(
+      id,
+      dto.petrolPricePerLiter,
+      user.userId,
+    );
   }
 
   @Patch(':id')

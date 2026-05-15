@@ -14,6 +14,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { OsmFuelModule } from './modules/osm-fuel/osm-fuel.module';
+import { SavedFuelStationModule } from './modules/saved-fuel-station/saved-fuel-station.module';
 import { OilChangeModule } from './modules/oil-change/oil-change.module';
 import { VehicleCategoriesModule } from './modules/vehicle-categories/vehicle-categories.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
@@ -34,6 +35,7 @@ import { HealthController } from './health.controller';
     DriversModule,
     TrackingModule,
     OsmFuelModule,
+    SavedFuelStationModule,
     FuelModule,
     DailyKmModule,
     TasksModule,

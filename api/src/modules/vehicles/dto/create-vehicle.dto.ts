@@ -91,4 +91,11 @@ export class CreateVehicleDto {
   @IsNumber()
   @Min(0)
   gasPricePerM3?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v != null)
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  petrolPricePerLiter?: number | null;
 }

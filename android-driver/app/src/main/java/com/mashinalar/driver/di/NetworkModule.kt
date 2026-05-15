@@ -4,6 +4,7 @@ import com.mashinalar.driver.BuildConfig
 import com.mashinalar.driver.core.DeviceInfo
 import com.mashinalar.driver.data.network.ApiService
 import com.mashinalar.driver.data.network.AuthInterceptor
+import com.mashinalar.driver.data.network.DeviceHeadersInterceptor
 import com.mashinalar.driver.data.network.UnauthorizedInterceptor
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -32,11 +33,16 @@ object NetworkModule {
 
   @Provides
   @Singleton
-  fun okHttp(auth: AuthInterceptor, unauthorized: UnauthorizedInterceptor): OkHttpClient {
+  fun okHttp(
+    device: DeviceHeadersInterceptor,
+    auth: AuthInterceptor,
+    unauthorized: UnauthorizedInterceptor,
+  ): OkHttpClient {
     val log = HttpLoggingInterceptor().apply {
       level = if (BuildConfig.HTTP_LOG_BODY) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.BASIC
     }
     return OkHttpClient.Builder()
+      .addInterceptor(device)
       .addInterceptor(auth)
       .addInterceptor(unauthorized)
       .addInterceptor(log)

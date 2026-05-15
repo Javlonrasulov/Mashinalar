@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { DEFAULT_SAVED_FUEL_RADIUS_M } from '../saved-fuel-station/saved-fuel-station.constants';
+import { SavedFuelStationService } from '../saved-fuel-station/saved-fuel-station.service';
 
 /** Yaqin nuqtalar uchun bir xil manzil so‘rovi (~11 m). */
 const GEO_LABEL_KEY_PRECISION = 4;
@@ -138,6 +140,8 @@ function collectFuels(tags: Record<string, string>): string[] {
 
 @Injectable()
 export class OsmFuelService {
+  constructor(private readonly savedFuel: SavedFuelStationService) {}
+
   private readonly logger = new Logger(OsmFuelService.name);
   private cache: { key: string; at: number; data: FuelStationDto[] } | null =
     null;
@@ -320,11 +324,18 @@ out center tags;`;
   async nearestFuelStation(
     lat: number,
     lon: number,
-    radiusM = 450,
+    radiusM = DEFAULT_SAVED_FUEL_RADIUS_M,
   ): Promise<{ label: string | null; distanceM: number | null }> {
     const key = geoLabelKey(lat, lon);
     const hit = this.nearestCache.get(key);
     if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.data;
+
+    const saved = await this.savedFuel.matchNearest(lat, lon);
+    if (saved) {
+      const data = { label: saved.name, distanceM: saved.distanceM };
+      this.nearestCache.set(key, { at: Date.now(), data });
+      return data;
+    }
 
     // Small bbox around point; Overpass doesn't support around in our current query builder.
     // Convert meters to degrees (rough): 1 deg lat ~ 111km, lon depends on latitude.

@@ -18,17 +18,11 @@ import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorat
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { sessionTouchFromRequest } from '../../common/session-device';
 import { SessionsService } from '../sessions/sessions.service';
 import { BatchGpsOffSegmentsDto } from './dto/batch-gps-off-segments.dto';
 import { BatchLocationDto } from './dto/batch-location.dto';
 import { TrackingService } from './tracking.service';
-
-function extractIp(req: Request): string | null {
-  const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd.length > 0) return fwd.split(',')[0].trim();
-  if (Array.isArray(fwd) && fwd.length > 0) return fwd[0];
-  return req.ip ?? req.socket?.remoteAddress ?? null;
-}
 
 @Controller()
 export class TrackingController {
@@ -47,7 +41,7 @@ export class TrackingController {
   ) {
     if (!user.driverId) throw new BadRequestException('No driver profile');
     void this.sessions
-      .touch(user.userId, extractIp(req), req.headers['user-agent'] ?? null)
+      .touch(user.userId, sessionTouchFromRequest(req))
       .catch(() => undefined);
     return this.tracking.ingest(user.driverId, dto);
   }
@@ -62,7 +56,7 @@ export class TrackingController {
   ) {
     if (!user.driverId) throw new BadRequestException('No driver profile');
     void this.sessions
-      .touch(user.userId, extractIp(req), req.headers['user-agent'] ?? null)
+      .touch(user.userId, sessionTouchFromRequest(req))
       .catch(() => undefined);
     return this.tracking.ingestGpsOffSegments(user.driverId, dto);
   }

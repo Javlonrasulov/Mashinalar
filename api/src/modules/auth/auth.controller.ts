@@ -5,16 +5,10 @@ import {
   JwtUser,
 } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { sessionTouchFromRequest } from '../../common/session-device';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { UpdateCredentialsDto } from './dto/update-credentials.dto';
-
-function extractIp(req: Request): string | null {
-  const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd.length > 0) return fwd.split(',')[0].trim();
-  if (Array.isArray(fwd) && fwd.length > 0) return fwd[0];
-  return req.ip ?? req.socket?.remoteAddress ?? null;
-}
 
 @Controller('auth')
 export class AuthController {
@@ -22,10 +16,7 @@ export class AuthController {
 
   @Post('login')
   login(@Body() dto: LoginDto, @Req() req: Request) {
-    return this.auth.login(dto, {
-      ip: extractIp(req),
-      userAgent: req.headers['user-agent'] ?? null,
-    });
+    return this.auth.login(dto, sessionTouchFromRequest(req));
   }
 
   @Get('me')

@@ -1,12 +1,37 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { FuelKind, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { SavedFuelStationService } from '../saved-fuel-station/saved-fuel-station.service';
+
+function mapFuelRow(r: {
+  id: string;
+  amount: Prisma.Decimal;
+  fuelKind: FuelKind;
+  unitPrice: Prisma.Decimal | null;
+  volume: Prisma.Decimal | null;
+  createdAt: Date;
+  vehiclePhotoUrl: string | null;
+  receiptPhotoUrl: string | null;
+}) {
+  return {
+    id: r.id,
+    amount: String(r.amount),
+    fuelKind: r.fuelKind,
+    unitPrice: r.unitPrice == null ? null : String(r.unitPrice),
+    volume: r.volume == null ? null : String(r.volume),
+    createdAt: r.createdAt.toISOString(),
+    vehiclePhotoUrl: r.vehiclePhotoUrl ?? null,
+    receiptPhotoUrl: r.receiptPhotoUrl ?? null,
+  };
+}
 
 @Injectable()
 export class FuelService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly savedFuel: SavedFuelStationService,
   ) {}
 
   /** Haydovchi o‘zining so‘nggi zapravka (fuel) yozuvlari */
@@ -20,28 +45,35 @@ export class FuelService {
       select: {
         id: true,
         amount: true,
+        fuelKind: true,
+        unitPrice: true,
+        volume: true,
         createdAt: true,
         vehiclePhotoUrl: true,
         receiptPhotoUrl: true,
       },
     });
-    return rows.map((r) => ({
-      id: r.id,
-      amount: String(r.amount),
-      createdAt: r.createdAt.toISOString(),
-      vehiclePhotoUrl: r.vehiclePhotoUrl ?? null,
-      receiptPhotoUrl: r.receiptPhotoUrl ?? null,
-    }));
+    return rows.map(mapFuelRow);
   }
 
-  findAll(params?: { date?: string; from?: string; to?: string }) {
+  findAll(params?: {
+    date?: string;
+    from?: string;
+    to?: string;
+    fuelKind?: string;
+  }) {
     const date = params?.date?.trim();
     const fromRaw = params?.from?.trim();
     const toRaw = params?.to?.trim();
+    const kindRaw = params?.fuelKind?.trim().toUpperCase();
 
     let createdAt: { gte: Date; lt: Date } | undefined;
+    let fuelKind: FuelKind | undefined;
 
-    // Preferred: explicit ISO range computed on the client (matches admin browser local day).
+    if (kindRaw === 'GAS' || kindRaw === 'PETROL') {
+      fuelKind = kindRaw as FuelKind;
+    }
+
     if (fromRaw && toRaw) {
       const gte = new Date(fromRaw);
       const lt = new Date(toRaw);
@@ -54,7 +86,6 @@ export class FuelService {
       }
     }
 
-    // Fallback: calendar date string (UTC day boundaries; stable regardless of server TZ).
     if (!createdAt && date) {
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
       if (m) {
@@ -68,16 +99,78 @@ export class FuelService {
         }
       }
     }
-    return this.prisma.fuelReport.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { vehicle: true, driver: true },
-      where: createdAt ? { createdAt } : undefined,
-    });
+
+    return this.prisma.fuelReport
+      .findMany({
+        orderBy: { createdAt: 'desc' },
+        include: { vehicle: true, driver: true },
+        where: {
+          ...(createdAt ? { createdAt } : {}),
+          ...(fuelKind ? { fuelKind } : {}),
+        },
+      })
+      .then((rows) =>
+        rows.map((r) => ({
+          id: r.id,
+          amount: String(r.amount),
+          fuelKind: r.fuelKind,
+          unitPrice: r.unitPrice == null ? null : String(r.unitPrice),
+          volume: r.volume == null ? null : String(r.volume),
+          createdAt: r.createdAt.toISOString(),
+          latitude: r.latitude == null ? null : String(r.latitude),
+          longitude: r.longitude == null ? null : String(r.longitude),
+          stationLabel: r.stationLabel ?? null,
+          vehiclePhotoUrl: r.vehiclePhotoUrl ?? null,
+          receiptPhotoUrl: r.receiptPhotoUrl ?? null,
+          vehicle: {
+            id: r.vehicle.id,
+            plateNumber: r.vehicle.plateNumber,
+            gasPricePerM3:
+              r.vehicle.gasPricePerM3 == null
+                ? null
+                : String(r.vehicle.gasPricePerM3),
+            petrolPricePerLiter:
+              r.vehicle.petrolPricePerLiter == null
+                ? null
+                : String(r.vehicle.petrolPricePerLiter),
+          },
+          driver: {
+            fullName: r.driver.fullName,
+          },
+        })),
+      );
+  }
+
+  private resolveUnitPrice(
+    fuelKind: FuelKind,
+    vehicle: {
+      gasPricePerM3: Prisma.Decimal | null;
+      petrolPricePerLiter: Prisma.Decimal | null;
+    },
+    unitPriceRaw?: number,
+  ): number {
+    if (unitPriceRaw != null && Number.isFinite(unitPriceRaw) && unitPriceRaw > 0) {
+      return unitPriceRaw;
+    }
+    if (fuelKind === FuelKind.GAS) {
+      const p =
+        vehicle.gasPricePerM3 != null ? Number(vehicle.gasPricePerM3) : NaN;
+      if (Number.isFinite(p) && p > 0) return p;
+      throw new BadRequestException('fuel.gas_price_not_set');
+    }
+    const p =
+      vehicle.petrolPricePerLiter != null
+        ? Number(vehicle.petrolPricePerLiter)
+        : NaN;
+    if (Number.isFinite(p) && p > 0) return p;
+    throw new BadRequestException('fuel.petrol_price_not_set');
   }
 
   async createFromDriver(params: {
     driverId: string;
     amount: number;
+    fuelKind: FuelKind;
+    unitPrice?: number;
     vehiclePhotoUrl?: string;
     receiptPhotoUrl?: string;
     latitude?: number;
@@ -88,18 +181,51 @@ export class FuelService {
       where: { id: params.driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId)
+    if (!driver?.vehicleId || !driver.vehicle)
       throw new BadRequestException('No vehicle assigned');
+
+    const unitPrice = this.resolveUnitPrice(
+      params.fuelKind,
+      driver.vehicle,
+      params.unitPrice,
+    );
+    const volume = params.amount / unitPrice;
+    if (!Number.isFinite(volume) || volume <= 0) {
+      throw new BadRequestException('fuel.invalid_volume');
+    }
+
+    let savedFuelStationId: string | undefined;
+    let stationLabel: string | undefined;
+    if (
+      params.latitude != null &&
+      params.longitude != null &&
+      Number.isFinite(params.latitude) &&
+      Number.isFinite(params.longitude)
+    ) {
+      const hit = await this.savedFuel.matchNearest(
+        params.latitude,
+        params.longitude,
+      );
+      if (hit) {
+        savedFuelStationId = hit.id;
+        stationLabel = hit.name;
+      }
+    }
 
     const row = await this.prisma.fuelReport.create({
       data: {
         vehicleId: driver.vehicleId,
         driverId: params.driverId,
+        fuelKind: params.fuelKind,
+        unitPrice,
+        volume,
         amount: params.amount,
         vehiclePhotoUrl: params.vehiclePhotoUrl,
         receiptPhotoUrl: params.receiptPhotoUrl,
         latitude: params.latitude,
         longitude: params.longitude,
+        savedFuelStationId,
+        stationLabel,
       },
       include: { vehicle: true, driver: true },
     });
@@ -114,7 +240,7 @@ export class FuelService {
         vehicleId: driver.vehicleId,
         categoryId: fuelCategory.id,
         amount: params.amount,
-        note: `Fuel report ${row.id}`,
+        note: `Fuel report ${row.id} (${params.fuelKind})`,
         spentAt: row.createdAt,
       },
     });
@@ -124,6 +250,7 @@ export class FuelService {
       action: 'fuel.create',
       entity: 'FuelReport',
       entityId: row.id,
+      meta: { fuelKind: params.fuelKind, unitPrice, volume },
     });
     return row;
   }

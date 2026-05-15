@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -6,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
@@ -47,6 +49,24 @@ export class DriversController {
   @AdminRoutePage('DRIVERS')
   listSessions(@Param('id') id: string) {
     return this.drivers.listSessions(id);
+  }
+
+  @Get(':id/app-activity')
+  @AdminRoutePage('DRIVERS')
+  appActivity(
+    @Param('id') id: string,
+    @Query('spentFrom') spentFrom: string,
+    @Query('spentTo') spentTo: string,
+  ) {
+    if (!spentFrom || !spentTo) {
+      throw new BadRequestException('spentFrom and spentTo required');
+    }
+    const from = new Date(spentFrom);
+    const to = new Date(spentTo);
+    if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime())) {
+      throw new BadRequestException('Invalid date range');
+    }
+    return this.drivers.getAppActivity(id, from, to);
   }
 
   @Delete(':id/sessions/:sessionId')

@@ -22,6 +22,7 @@ import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorat
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { FuelKind } from '@prisma/client';
 import { FuelService } from './fuel.service';
 import { compressMulterFiles } from '../../common/upload/image-compress';
 
@@ -60,8 +61,9 @@ export class FuelController {
     @Query('date') date?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('fuelKind') fuelKind?: string,
   ) {
-    return this.fuel.findAll({ date, from, to });
+    return this.fuel.findAll({ date, from, to, fuelKind });
   }
 
   @Post()
@@ -91,13 +93,37 @@ export class FuelController {
       vehiclePhoto?: Express.Multer.File[];
       receiptPhoto?: Express.Multer.File[];
     },
-    @Body() body: { amount?: string; latitude?: string; longitude?: string },
+    @Body()
+    body: {
+      amount?: string;
+      fuelKind?: string;
+      unitPrice?: string;
+      latitude?: string;
+      longitude?: string;
+    },
     @CurrentUser() user: JwtUser,
   ) {
     if (!user.driverId) throw new BadRequestException('No driver');
     const amount = body.amount ? Number(body.amount) : NaN;
     if (!Number.isFinite(amount) || amount <= 0)
       throw new BadRequestException('Invalid amount');
+
+    const kindRaw = (body.fuelKind ?? 'GAS').trim().toUpperCase();
+    if (kindRaw !== 'GAS' && kindRaw !== 'PETROL') {
+      throw new BadRequestException('fuel.invalid_fuel_kind');
+    }
+    const fuelKind = kindRaw as FuelKind;
+
+    const unitPriceRaw =
+      body.unitPrice != null && body.unitPrice !== ''
+        ? Number(body.unitPrice)
+        : undefined;
+    if (
+      unitPriceRaw !== undefined &&
+      (!Number.isFinite(unitPriceRaw) || unitPriceRaw <= 0)
+    ) {
+      throw new BadRequestException('fuel.invalid_unit_price');
+    }
 
     await compressMulterFiles(files);
 
@@ -112,6 +138,8 @@ export class FuelController {
     return this.fuel.createFromDriver({
       driverId: user.driverId,
       amount,
+      fuelKind,
+      unitPrice: unitPriceRaw,
       vehiclePhotoUrl,
       receiptPhotoUrl,
       latitude: body.latitude !== undefined ? Number(body.latitude) : undefined,

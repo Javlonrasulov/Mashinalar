@@ -161,6 +161,11 @@
       0 3px 12px rgba(0, 0, 0, 0.35);
   }
 
+  .map-saved-fuel-marker-pin {
+    display: flex;
+    filter: drop-shadow(0 2px 6px rgba(91, 33, 182, 0.45));
+  }
+
   /* react-day-picker nav/caption styles to match app theme */
   .app-datetime-daypicker .rdp-caption {
     @apply mb-2 flex items-center justify-between gap-2;

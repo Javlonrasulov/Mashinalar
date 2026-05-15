@@ -37,6 +37,10 @@ object ServerErrorMapper {
       return context.getString(R.string.err_daily_km_end_already_submitted)
     }
 
+    if (cleaned.startsWith("fuel.")) {
+      return mapFuel(context, cleaned)
+    }
+
     if (cleaned.startsWith("oil_change.")) {
       return mapOilChange(context, cleaned)
     }
@@ -56,6 +60,16 @@ object ServerErrorMapper {
 
     return raw
   }
+
+  private fun mapFuel(context: Context, key: String): String =
+    when (key) {
+      "fuel.gas_price_not_set" -> context.getString(R.string.err_fuel_gas_price_not_set)
+      "fuel.petrol_price_not_set" -> context.getString(R.string.err_fuel_petrol_price_not_set)
+      "fuel.invalid_volume" -> context.getString(R.string.err_fuel_invalid_volume)
+      "fuel.invalid_fuel_kind" -> context.getString(R.string.err_fuel_invalid_fuel_kind)
+      "fuel.invalid_unit_price" -> context.getString(R.string.err_fuel_invalid_unit_price)
+      else -> key
+    }
 
   private fun mapOilChange(context: Context, key: String): String =
     when (key) {

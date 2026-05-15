@@ -26,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
@@ -194,6 +195,52 @@ fun FuelScreen(
         .imePadding()
         .verticalScroll(scroll),
   ) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      FilterChip(
+        selected = state.fuelKind == FuelKindOption.GAS,
+        onClick = { vm.setFuelKind(FuelKindOption.GAS) },
+        label = { Text(stringResource(R.string.fuel_kind_gas)) },
+      )
+      FilterChip(
+        selected = state.fuelKind == FuelKindOption.PETROL,
+        onClick = { vm.setFuelKind(FuelKindOption.PETROL) },
+        label = { Text(stringResource(R.string.fuel_kind_petrol)) },
+      )
+    }
+
+    Spacer(Modifier.height(12.dp))
+
+    OutlinedTextField(
+      modifier = Modifier.fillMaxWidth(),
+      value = state.unitPrice,
+      onValueChange = vm::setUnitPrice,
+      label = {
+        Text(
+          if (state.fuelKind == FuelKindOption.GAS) {
+            stringResource(R.string.fuel_unit_price_m3)
+          } else {
+            stringResource(R.string.fuel_unit_price_liter)
+          },
+        )
+      },
+      singleLine = true,
+      keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+    )
+
+    state.previewVolume?.let { vol ->
+      Spacer(Modifier.height(4.dp))
+      Text(
+        stringResource(R.string.fuel_volume_preview, vol),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.primary,
+      )
+    }
+
+    Spacer(Modifier.height(12.dp))
+
     OutlinedTextField(
         modifier = Modifier.fillMaxWidth(),
         value = state.amount,
@@ -354,22 +401,46 @@ private fun FuelHistoryCard(item: FuelHistoryDto) {
         .fillMaxWidth()
         .padding(vertical = 4.dp),
   ) {
-    Row(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .padding(12.dp),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Column(Modifier.padding(12.dp)) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          formatHistoryAmountFromApi(item.amount),
+          style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+          formatFuelHistoryInstant(item.createdAt),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      val kindLabel =
+        if (item.fuelKind.uppercase() == "PETROL") {
+          stringResource(R.string.fuel_kind_petrol)
+        } else {
+          stringResource(R.string.fuel_kind_gas)
+        }
+      val vol = item.volume?.trim()?.takeIf { it.isNotEmpty() }
       Text(
-        formatHistoryAmountFromApi(item.amount),
-        style = MaterialTheme.typography.titleMedium,
-      )
-      Text(
-        formatFuelHistoryInstant(item.createdAt),
+        buildString {
+          append(kindLabel)
+          if (vol != null) {
+            append(" · ")
+            append(
+              if (item.fuelKind.uppercase() == "PETROL") {
+                stringResource(R.string.fuel_history_volume_l, vol)
+              } else {
+                stringResource(R.string.fuel_history_volume_m3, vol)
+              },
+            )
+          }
+        },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp),
       )
     }
   }

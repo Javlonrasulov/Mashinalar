@@ -7,7 +7,7 @@ import { useI18n } from '@/i18n/I18nContext';
 import { MapContainer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { DateTimeField } from '@/components/DateTimeField';
+import { DatetimeLocalRangeField } from '@/components/DatetimeLocalRangeField';
 import { LEAFLET_MAP_MAX_ZOOM, MapBaseLayers } from '@/components/MapBaseLayers';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 
@@ -25,20 +25,37 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const FLEET_GAS_PRICE_LS_KEY = 'mashinalar.fleetGasPricePerM3';
+const FLEET_PETROL_PRICE_LS_KEY = 'mashinalar.fleetPetrolPricePerLiter';
+
+type FuelKindFilter = 'ALL' | 'GAS' | 'PETROL';
 
 type Row = {
   id: string;
   amount: string;
+  fuelKind?: string;
+  unitPrice?: string | null;
+  volume?: string | null;
   createdAt: string;
-  vehicle: { id: string; plateNumber: string; gasPricePerM3?: string | null };
+  vehicle: {
+    id: string;
+    plateNumber: string;
+    gasPricePerM3?: string | null;
+    petrolPricePerLiter?: string | null;
+  };
   driver: { fullName: string };
   latitude: string | null;
   longitude: string | null;
+  stationLabel?: string | null;
   vehiclePhotoUrl: string | null;
   receiptPhotoUrl: string | null;
 };
 
-type VehicleRow = { id: string; plateNumber: string; gasPricePerM3?: string | null };
+type VehicleRow = {
+  id: string;
+  plateNumber: string;
+  gasPricePerM3?: string | null;
+  petrolPricePerLiter?: string | null;
+};
 
 function formatDateTimeNoSeconds(iso: string) {
   const d = new Date(iso);
@@ -69,13 +86,26 @@ export function FuelPage() {
   const [gasSaveErr, setGasSaveErr] = useState<string | null>(null);
   const [gasSaveOk, setGasSaveOk] = useState(false);
   const gasSaveOkTimerRef = useRef<number | null>(null);
-  const [vehicleGasDraft, setVehicleGasDraft] = useState<Record<string, string>>({});
+  const [globalPetrolPrice, setGlobalPetrolPrice] = useState(() => {
+    try {
+      return localStorage.getItem(FLEET_PETROL_PRICE_LS_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const [globalPetrolSaving, setGlobalPetrolSaving] = useState(false);
+  const [petrolSaveErr, setPetrolSaveErr] = useState<string | null>(null);
+  const [petrolSaveOk, setPetrolSaveOk] = useState(false);
+  const petrolSaveOkTimerRef = useRef<number | null>(null);
+  const [fuelKindFilter, setFuelKindFilter] = useState<FuelKindFilter>('ALL');
   const [search, setSearch] = useState('');
-  const [dateValue, setDateValue] = useState(() => {
+  const initToday = () => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return toDatetimeLocalValue(d);
-  });
+  };
+  const [dateFromValue, setDateFromValue] = useState(initToday);
+  const [dateToValue, setDateToValue] = useState(initToday);
   const [mapOpen, setMapOpen] = useState(false);
   const [mapPoint, setMapPoint] = useState<{ lat: number; lon: number; title: string } | null>(null);
   const [fuelLayerVisible, setFuelLayerVisible] = useState(false);
@@ -86,31 +116,41 @@ export function FuelPage() {
   const [stationByKey, setStationByKey] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
-    const selected = new Date(dateValue);
-    if (!Number.isFinite(selected.getTime())) return;
+    const fromD = new Date(dateFromValue);
+    const toD = new Date(dateToValue);
+    if (!Number.isFinite(fromD.getTime()) || !Number.isFinite(toD.getTime())) return;
 
-    const start = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate(), 0, 0, 0, 0);
-    const end = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate() + 1, 0, 0, 0, 0);
+    const start = new Date(fromD.getFullYear(), fromD.getMonth(), fromD.getDate(), 0, 0, 0, 0);
+    const endDay = new Date(toD.getFullYear(), toD.getMonth(), toD.getDate(), 0, 0, 0, 0);
+    const lo = start.getTime() <= endDay.getTime() ? start : endDay;
+    const hi = start.getTime() <= endDay.getTime() ? endDay : start;
+    const end = new Date(hi.getFullYear(), hi.getMonth(), hi.getDate() + 1, 0, 0, 0, 0);
 
     const qs = new URLSearchParams({
-      from: start.toISOString(),
+      from: lo.toISOString(),
       to: end.toISOString(),
     });
+    if (fuelKindFilter !== 'ALL') qs.set('fuelKind', fuelKindFilter);
 
     api<Row[]>(`/fuel-reports?${qs.toString()}`).then(setRows).catch(() => {});
-  }, [dateValue]);
+  }, [dateFromValue, dateToValue, fuelKindFilter]);
 
   useEffect(() => {
     setVehiclesErr(null);
     api<VehicleRow[]>('/vehicles')
       .then((vs) => {
-        const mapped = vs.map((v) => ({ id: v.id, plateNumber: v.plateNumber, gasPricePerM3: v.gasPricePerM3 }));
+        const mapped = vs.map((v) => ({
+          id: v.id,
+          plateNumber: v.plateNumber,
+          gasPricePerM3: v.gasPricePerM3,
+          petrolPricePerLiter: v.petrolPricePerLiter,
+        }));
         setAllVehicles(mapped);
 
-        const prices = mapped.map((v) => (v.gasPricePerM3 == null ? '' : String(v.gasPricePerM3)));
-        const uniq = Array.from(new Set(prices.filter((p) => p !== '')));
-        if (uniq.length === 1) {
-          const v = uniq[0] ?? '';
+        const gasPrices = mapped.map((v) => (v.gasPricePerM3 == null ? '' : String(v.gasPricePerM3)));
+        const gasUniq = Array.from(new Set(gasPrices.filter((p) => p !== '')));
+        if (gasUniq.length === 1) {
+          const v = gasUniq[0] ?? '';
           setGlobalGasPrice(v);
           try {
             if (v) localStorage.setItem(FLEET_GAS_PRICE_LS_KEY, v);
@@ -118,11 +158,35 @@ export function FuelPage() {
           } catch {
             /* ignore */
           }
-        } else if (uniq.length === 0) {
+        } else if (gasUniq.length === 0) {
           setGlobalGasPrice((prev) => {
             if (prev.trim() !== '') return prev;
             try {
               return localStorage.getItem(FLEET_GAS_PRICE_LS_KEY) ?? '';
+            } catch {
+              return '';
+            }
+          });
+        }
+
+        const petrolPrices = mapped.map((v) =>
+          v.petrolPricePerLiter == null ? '' : String(v.petrolPricePerLiter),
+        );
+        const petrolUniq = Array.from(new Set(petrolPrices.filter((p) => p !== '')));
+        if (petrolUniq.length === 1) {
+          const v = petrolUniq[0] ?? '';
+          setGlobalPetrolPrice(v);
+          try {
+            if (v) localStorage.setItem(FLEET_PETROL_PRICE_LS_KEY, v);
+            else localStorage.removeItem(FLEET_PETROL_PRICE_LS_KEY);
+          } catch {
+            /* ignore */
+          }
+        } else if (petrolUniq.length === 0) {
+          setGlobalPetrolPrice((prev) => {
+            if (prev.trim() !== '') return prev;
+            try {
+              return localStorage.getItem(FLEET_PETROL_PRICE_LS_KEY) ?? '';
             } catch {
               return '';
             }
@@ -138,30 +202,14 @@ export function FuelPage() {
   useEffect(() => {
     return () => {
       if (gasSaveOkTimerRef.current != null) window.clearTimeout(gasSaveOkTimerRef.current);
+      if (petrolSaveOkTimerRef.current != null) window.clearTimeout(petrolSaveOkTimerRef.current);
     };
   }, []);
 
   useEffect(() => {
-    setVehicleGasDraft((prev) => {
-      const next = { ...prev };
-      for (const r of rows) {
-        const id = r.vehicle.id;
-        if (next[id] === undefined) {
-          next[id] = r.vehicle.gasPricePerM3 != null ? String(r.vehicle.gasPricePerM3) : '';
-        }
-      }
-      for (const v of allVehicles) {
-        if (next[v.id] === undefined) {
-          next[v.id] = v.gasPricePerM3 != null ? String(v.gasPricePerM3) : '';
-        }
-      }
-      return next;
-    });
-  }, [rows, allVehicles]);
-
-  useEffect(() => {
     const pts = rows
       .map((r) => {
+        if (r.stationLabel?.trim()) return null;
         const lat = r.latitude ? Number(r.latitude) : NaN;
         const lon = r.longitude ? Number(r.longitude) : NaN;
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
@@ -206,6 +254,13 @@ export function FuelPage() {
     });
   }, [lang]);
 
+  const literFmt = useMemo(() => {
+    return new Intl.NumberFormat(intlLocaleFor(lang), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }, [lang]);
+
   const moneyFmt = useMemo(() => {
     return new Intl.NumberFormat(intlLocaleFor(lang), {
       minimumFractionDigits: 0,
@@ -223,7 +278,7 @@ export function FuelPage() {
         Number.isFinite(lat) && Number.isFinite(lon)
           ? `${lat.toFixed(5)}_${lon.toFixed(5)}`
           : '';
-      const station = key ? stationByKey[key] ?? '' : '';
+      const station = r.stationLabel?.trim() || (key ? stationByKey[key] ?? '' : '');
       const hay = [
         r.vehicle.plateNumber,
         r.driver.fullName,
@@ -236,14 +291,34 @@ export function FuelPage() {
     });
   }, [rows, search, stationByKey]);
 
-  function calcM3(amountRaw: string, vehicleId: string): string {
-    const a = Number(String(amountRaw).replace(/[^\d.]/g, ''));
-    const raw = vehicleGasDraft[vehicleId] ?? '';
-    const p = raw ? Number(raw) : NaN;
+  function isPetrolRow(row: Row): boolean {
+    return (row.fuelKind ?? 'GAS').toUpperCase() === 'PETROL';
+  }
+
+  function fuelKindLabel(row: Row): string {
+    return isPetrolRow(row) ? t('fuelKindPetrol') : t('fuelKindGas');
+  }
+
+  function formatUnitPriceUsed(row: Row): string {
+    const raw = row.unitPrice?.trim() ?? '';
+    const n = raw ? Number(raw) : NaN;
+    if (!raw || !Number.isFinite(n) || n <= 0) return '—';
+    return moneyFmt.format(n);
+  }
+
+  function formatReportVolume(row: Row): string {
+    if (row.volume != null && row.volume !== '') {
+      const v = Number(row.volume);
+      if (Number.isFinite(v) && v > 0) {
+        return isPetrolRow(row) ? `${literFmt.format(v)} L` : `${m3Fmt.format(v)} m³`;
+      }
+    }
+    const a = Number(String(row.amount).replace(/[^\d.]/g, ''));
+    const p = row.unitPrice ? Number(row.unitPrice) : NaN;
     if (!Number.isFinite(a) || !Number.isFinite(p) || p <= 0) return '—';
     const v = a / p;
-    if (!Number.isFinite(v)) return '—';
-    return m3Fmt.format(v);
+    if (!Number.isFinite(v) || v <= 0) return '—';
+    return isPetrolRow(row) ? `${literFmt.format(v)} L` : `${m3Fmt.format(v)} m³`;
   }
 
   async function saveGlobalGasPriceForAllVehicles() {
@@ -268,11 +343,6 @@ export function FuelPage() {
 
       const s = raw === '' ? '' : String(n);
       setAllVehicles((prev) => prev.map((v) => ({ ...v, gasPricePerM3: raw === '' ? null : s })));
-      setVehicleGasDraft((prev) => {
-        const next = { ...prev };
-        for (const v of allVehicles) next[v.id] = s;
-        return next;
-      });
       setRows((prev) =>
         prev.map((r) => ({
           ...r,
@@ -292,6 +362,50 @@ export function FuelPage() {
       setGasSaveErr(e instanceof Error ? e.message : String(e));
     } finally {
       setGlobalGasSaving(false);
+    }
+  }
+
+  async function saveGlobalPetrolPriceForAllVehicles() {
+    const raw = globalPetrolPrice.trim();
+    const n = raw === '' ? NaN : Number(raw);
+    if (raw !== '' && (!Number.isFinite(n) || n < 0)) return;
+    if (!allVehicles.length) return;
+
+    setGlobalPetrolSaving(true);
+    setPetrolSaveErr(null);
+    setPetrolSaveOk(false);
+    try {
+      const value = raw === '' ? null : n;
+      await Promise.all(
+        allVehicles.map((v) =>
+          api(`/vehicles/${v.id}/petrol-price`, {
+            method: 'PATCH',
+            body: JSON.stringify({ petrolPricePerLiter: value }),
+          }),
+        ),
+      );
+
+      const s = raw === '' ? '' : String(n);
+      setAllVehicles((prev) => prev.map((v) => ({ ...v, petrolPricePerLiter: raw === '' ? null : s })));
+      setRows((prev) =>
+        prev.map((r) => ({
+          ...r,
+          vehicle: { ...r.vehicle, petrolPricePerLiter: raw === '' ? null : s },
+        })),
+      );
+      setPetrolSaveOk(true);
+      try {
+        if (raw === '') localStorage.removeItem(FLEET_PETROL_PRICE_LS_KEY);
+        else localStorage.setItem(FLEET_PETROL_PRICE_LS_KEY, String(n));
+      } catch {
+        /* ignore */
+      }
+      if (petrolSaveOkTimerRef.current != null) window.clearTimeout(petrolSaveOkTimerRef.current);
+      petrolSaveOkTimerRef.current = window.setTimeout(() => setPetrolSaveOk(false), 2000);
+    } catch (e: unknown) {
+      setPetrolSaveErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGlobalPetrolSaving(false);
     }
   }
 
@@ -354,19 +468,38 @@ export function FuelPage() {
               aria-label={t('oilSearchLabel')}
             />
           </div>
-          <div className="flex min-w-0 items-center justify-between gap-3 sm:justify-end">
-            <label className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">{t('date')}</label>
-            <div className="w-[190px]">
-              <DateTimeField
-                value={dateValue}
-                onChange={setDateValue}
-                mode="date"
+          <div className="flex min-w-0 w-full flex-col gap-1 sm:min-w-[280px] sm:max-w-[min(100vw-2rem,22rem)]">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmTableDateRange')}</span>
+            <div className="w-full min-w-0">
+              <DatetimeLocalRangeField
+                fromValue={dateFromValue}
+                toValue={dateToValue}
+                onFromChange={setDateFromValue}
+                onToChange={setDateToValue}
                 disabled={{ after: new Date() }}
                 align="right"
               />
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {(['ALL', 'GAS', 'PETROL'] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            className={clsx(
+              'rounded-lg border px-3 py-1.5 text-sm font-medium transition',
+              fuelKindFilter === k
+                ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800',
+            )}
+            onClick={() => setFuelKindFilter(k)}
+          >
+            {k === 'ALL' ? t('fuelKindAll') : k === 'GAS' ? t('fuelKindGas') : t('fuelKindPetrol')}
+          </button>
+        ))}
       </div>
 
       <div className="app-card-pad grid min-w-0 grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
@@ -398,6 +531,35 @@ export function FuelPage() {
         </div>
       </div>
 
+      <div className="app-card-pad grid min-w-0 grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
+        <div className="min-w-0 md:col-span-7">
+          <div className="text-sm font-semibold text-slate-900 dark:text-white">{t('petrolPriceAllTitle')}</div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('petrolPriceAllHint')}</div>
+        </div>
+        <div className="min-w-0 md:col-span-3">
+          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('petrolPricePerLiter')}</label>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="app-input w-full text-right tabular-nums"
+            value={globalPetrolPrice}
+            onChange={(e) => setGlobalPetrolPrice(e.target.value)}
+            placeholder="—"
+          />
+        </div>
+        <div className="md:col-span-2">
+          <button
+            type="button"
+            className="app-btn-primary w-full"
+            disabled={globalPetrolSaving || !allVehicles.length}
+            onClick={() => void saveGlobalPetrolPriceForAllVehicles()}
+          >
+            {globalPetrolSaving ? '…' : t('petrolPriceAllSave')}
+          </button>
+        </div>
+      </div>
+
       {vehiclesErr && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           {t('genericError')}: {vehiclesErr}
@@ -413,6 +575,16 @@ export function FuelPage() {
           {t('credentialsSaved')}
         </div>
       )}
+      {petrolSaveErr && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {t('genericError')}: {petrolSaveErr}
+        </div>
+      )}
+      {petrolSaveOk && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
+          {t('credentialsSaved')}
+        </div>
+      )}
 
       <div className="app-card min-w-0 overflow-hidden">
         <div className="app-table-wrap">
@@ -422,8 +594,9 @@ export function FuelPage() {
               <th className="p-3">{t('plate')}</th>
               <th className="p-3">{t('fullName')}</th>
               <th className="p-3">{t('amount')}</th>
-              <th className="p-3">{t('gasPricePerM3')}</th>
-              <th className="p-3">{t('colM3')}</th>
+              <th className="p-3">{t('colFuelKind')}</th>
+              <th className="p-3">{t('colUnitPriceUsed')}</th>
+              <th className="p-3">{t('colVolume')}</th>
               <th className="p-3">{t('colTime')}</th>
               <th className="p-3">{t('colLocation')}</th>
               <th className="p-3">{t('colFuelStation')}</th>
@@ -434,7 +607,7 @@ export function FuelPage() {
           <tbody>
             {filteredRows.length === 0 && (
               <tr>
-                <td className="p-6 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={10}>
+                <td className="p-6 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={12}>
                   {search.trim() ? t('oilSearchNoResults') : '—'}
                 </td>
               </tr>
@@ -444,15 +617,9 @@ export function FuelPage() {
                 <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
                 <td className="p-3">{r.driver.fullName}</td>
                 <td className="p-3">{r.amount}</td>
-                <td className="p-3">
-                  {(() => {
-                    const raw = (vehicleGasDraft[r.vehicle.id] ?? '').trim();
-                    const n = raw ? Number(raw) : NaN;
-                    if (!raw || !Number.isFinite(n) || n <= 0) return <span className="text-slate-500 dark:text-slate-400">—</span>;
-                    return <span className="tabular-nums text-slate-900 dark:text-slate-100">{moneyFmt.format(n)}</span>;
-                  })()}
-                </td>
-                <td className="p-3 tabular-nums">{calcM3(r.amount, r.vehicle.id)}</td>
+                <td className="p-3">{fuelKindLabel(r)}</td>
+                <td className="p-3 tabular-nums">{formatUnitPriceUsed(r)}</td>
+                <td className="p-3 tabular-nums">{formatReportVolume(r)}</td>
                 <td className="p-3 whitespace-nowrap">{formatDateTimeNoSeconds(r.createdAt)}</td>
                 <td className="p-3">
                   {r.latitude && r.longitude ? (
@@ -483,7 +650,8 @@ export function FuelPage() {
                       const lat = Number(r.latitude);
                       const lon = Number(r.longitude);
                       const key = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
-                      const lbl = stationByKey[key];
+                      const savedLbl = r.stationLabel?.trim() || null;
+                      const lbl = savedLbl ?? stationByKey[key];
                       if (lbl === undefined) {
                         return <span className="text-slate-500 dark:text-slate-400">…</span>;
                       }

@@ -34,6 +34,8 @@ interface ApiService {
   @POST("api/fuel-reports")
   suspend fun createFuelReport(
     @Part("amount") amount: RequestBody,
+    @Part("fuelKind") fuelKind: RequestBody,
+    @Part("unitPrice") unitPrice: RequestBody?,
     @Part("latitude") latitude: RequestBody?,
     @Part("longitude") longitude: RequestBody?,
     @Part vehiclePhoto: MultipartBody.Part?,

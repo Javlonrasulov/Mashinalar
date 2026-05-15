@@ -7,6 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { SessionTouchCtx } from '../../common/session-device';
 import { SessionsService } from '../sessions/sessions.service';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { LoginDto } from './dto/login.dto';
@@ -20,10 +21,7 @@ export class AuthService {
     private readonly sessions: SessionsService,
   ) {}
 
-  async login(
-    dto: LoginDto,
-    ctx: { ip?: string | null; userAgent?: string | null } = {},
-  ) {
+  async login(dto: LoginDto, ctx: SessionTouchCtx = { ip: null, userAgent: null }) {
     const rawLogin = dto.login;
     const normalizedLogin = rawLogin.trim();
     if (!normalizedLogin)
@@ -87,9 +85,7 @@ export class AuthService {
       tokenEpoch: user.tokenEpoch,
     };
     const accessToken = await this.jwt.signAsync(payload);
-    await this.sessions
-      .touchOnLogin(user.id, ctx.ip ?? null, ctx.userAgent ?? null)
-      .catch(() => undefined);
+    await this.sessions.touchOnLogin(user.id, ctx).catch(() => undefined);
     return {
       accessToken,
       user: {

@@ -68,6 +68,21 @@ function isDailyKmEndMissing(r: DailyKmRow): boolean {
   return false;
 }
 
+/** Shu kundagi yurilgan masofa: yakuniy KM − boshlangʻich KM. */
+function dailyDrivenKm(r: DailyKmRow): number | null {
+  if (isDailyKmEndMissing(r)) return null;
+  const start = Number(r.startKm);
+  const end = Number(r.endKm);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  const d = end - start;
+  if (d < 0) return null;
+  return d;
+}
+
+function formatDrivenKm(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
 /** Hisobot kuni (UTC sana) va yakun yuborilgan vaqt o‘rtasidagi kun farqi (0 = shu kalendar kuni). */
 function endLateCalendarDays(reportDate: string, endRecordedAt: string | null | undefined): number | null {
   if (!endRecordedAt) return null;
@@ -778,6 +793,7 @@ export function DailyKmPage() {
                 const hasGap = Number.isFinite(gapNum) && gapNum !== 0;
                 const gapSigned =
                   Number.isFinite(gapNum) ? (gapNum > 0 ? `+${gapNum}` : `${gapNum}`) : '';
+                const drivenKm = dailyDrivenKm(r);
                 return (
                   <Fragment key={r.id}>
                     <tr className="app-table-row">
@@ -851,6 +867,14 @@ export function DailyKmPage() {
                             <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-100">
                               {String(r.endKm)} · {formatDateTimeNoSeconds(r.endRecordedAt)}
                             </span>
+                            {drivenKm != null ? (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold tabular-nums leading-snug text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
+                                title={`${r.startKm} → ${r.endKm}`}
+                              >
+                                {t('dailyKmDrivenLabel')}: {formatDrivenKm(drivenKm)} км
+                              </span>
+                            ) : null}
                             <span className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">{t('dailyKmFullEndBelow')}</span>
                           </div>
                         )}
@@ -877,7 +901,14 @@ export function DailyKmPage() {
                         {endPending ? (
                           <span className="text-xs font-medium leading-snug text-red-800 dark:text-red-100">{t('dailyKmEndPending')}</span>
                         ) : (
-                          String(r.endKm)
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium tabular-nums text-slate-900 dark:text-slate-100">{String(r.endKm)}</span>
+                            {drivenKm != null ? (
+                              <span className="inline-flex max-w-[200px] items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+                                {t('dailyKmDrivenLabel')}: {formatDrivenKm(drivenKm)} км
+                              </span>
+                            ) : null}
+                          </div>
                         )}
                       </td>
                       <td

@@ -88,6 +88,8 @@ data class VehicleDto(
   val model: String? = null,
   /** Mashina bazadagi boshlang‘ich (odometr) KM — kunlik KM shu qiymatdan past bo‘lmasligi kerak */
   val initialKm: Double? = null,
+  val gasPricePerM3: Double? = null,
+  val petrolPricePerLiter: Double? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -169,6 +171,9 @@ data class DailyKmHistoryDto(
 data class FuelHistoryDto(
   val id: String,
   val amount: String,
+  val fuelKind: String = "GAS",
+  val unitPrice: String? = null,
+  val volume: String? = null,
   val createdAt: String,
   val vehiclePhotoUrl: String? = null,
   val receiptPhotoUrl: String? = null,

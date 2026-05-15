@@ -1,13 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { createHash } from 'crypto';
+import {
+  sessionDisplayLabel,
+  sessionFingerprint,
+  type SessionTouchCtx,
+} from '../../common/session-device';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  groupSegmentsByDay,
+  mergeActivitySegments,
+  type ActivityDayDto,
+} from './session-activity.util';
 
 /** «Hozir faol qurilma» chegarasi — millisekundlarda. */
 const ACTIVE_WINDOW_MS = 10 * 60 * 1000;
-
-function fingerprint(ip: string, userAgent: string): string {
-  return createHash('sha256').update(`${ip}|${userAgent}`).digest('hex');
-}
+const EVENT_LOG_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
 export type SessionInfo = {
   id: string;
@@ -22,54 +28,74 @@ export type SessionInfo = {
 export class SessionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Loginda chaqiriladi — yangi/mavjud sessiyani aktivlashtirib, revokedAt'ni nolga tushiradi. */
-  async touchOnLogin(
+  private async upsert(
     userId: string,
-    ip: string | null,
-    userAgent: string | null,
+    ctx: SessionTouchCtx,
+    clearRevoked: boolean,
   ) {
-    const safeIp = (ip ?? '').toString().slice(0, 64);
-    const safeUa = (userAgent ?? '').toString().slice(0, 256);
-    const fp = fingerprint(safeIp, safeUa);
+    const fp = sessionFingerprint(ctx);
+    const label = sessionDisplayLabel(ctx);
+    const safeIp = (ctx.ip ?? '').toString().slice(0, 64) || null;
+
     await this.prisma.userSession.upsert({
       where: { userId_fingerprint: { userId, fingerprint: fp } },
       create: {
         userId,
         fingerprint: fp,
-        ip: safeIp || null,
-        userAgent: safeUa || null,
+        ip: safeIp,
+        userAgent: label,
       },
       update: {
         lastSeenAt: new Date(),
-        ip: safeIp || null,
-        userAgent: safeUa || null,
-        revokedAt: null,
+        ip: safeIp,
+        userAgent: label,
+        ...(clearRevoked ? { revokedAt: null } : {}),
       },
     });
+
+    return { fingerprint: fp, label: label ?? null };
   }
 
-  /** Login emas — boshqa authenticated request da. Revoke holatini o‘zgartirmaydi. */
-  async touch(userId: string, ip: string | null, userAgent: string | null) {
-    const safeIp = (ip ?? '').toString().slice(0, 64);
-    const safeUa = (userAgent ?? '').toString().slice(0, 256);
-    const fp = fingerprint(safeIp, safeUa);
-    await this.prisma.userSession.upsert({
-      where: { userId_fingerprint: { userId, fingerprint: fp } },
-      create: {
+  private async logActivityEvent(
+    userId: string,
+    fingerprint: string,
+    deviceLabel: string | null,
+    force: boolean,
+  ) {
+    if (!force) {
+      const since = new Date(Date.now() - EVENT_LOG_MIN_INTERVAL_MS);
+      const recent = await this.prisma.userSessionEvent.findFirst({
+        where: { userId, fingerprint, recordedAt: { gte: since } },
+        select: { id: true },
+      });
+      if (recent) return;
+    }
+    await this.prisma.userSessionEvent.create({
+      data: {
         userId,
-        fingerprint: fp,
-        ip: safeIp || null,
-        userAgent: safeUa || null,
-      },
-      update: {
-        lastSeenAt: new Date(),
-        ip: safeIp || null,
-        userAgent: safeUa || null,
+        fingerprint,
+        deviceLabel: deviceLabel?.slice(0, 256) ?? null,
       },
     });
   }
 
-  /** Bir userId uchun oxirgi N daqiqada faol (va revoke qilinmagan) qurilmalar soni. */
+  /** Loginda — revoke holatini tozalaydi. */
+  async touchOnLogin(userId: string, ctx: SessionTouchCtx) {
+    const { fingerprint, label } = await this.upsert(userId, ctx, true);
+    await this.logActivityEvent(userId, fingerprint, label, true);
+  }
+
+  /** GPS / boshqa so‘rovlar — revoke holatini o‘zgartirmaydi. */
+  async touch(userId: string, ctx: SessionTouchCtx) {
+    const { fingerprint, label } = await this.upsert(userId, ctx, false);
+    await this.logActivityEvent(userId, fingerprint, label, false);
+  }
+
+  /** JWT tekshiruvi uchun fingerprint. */
+  fingerprintForRequest(ctx: SessionTouchCtx): string {
+    return sessionFingerprint(ctx);
+  }
+
   async countActiveByUserIds(userIds: string[]): Promise<Map<string, number>> {
     const result = new Map<string, number>();
     if (userIds.length === 0) return result;
@@ -87,7 +113,6 @@ export class SessionsService {
     return result;
   }
 
-  /** Foydalanuvchining barcha sessiyalari (eng yangi birinchi). */
   async listForUser(userId: string): Promise<SessionInfo[]> {
     const rows = await this.prisma.userSession.findMany({
       where: { userId },
@@ -103,7 +128,6 @@ export class SessionsService {
     }));
   }
 
-  /** Bitta sessiyani chiqarib yuborish — qayta loginsiz ilova qaytadan ishlamaydi. */
   async revokeOne(userId: string, sessionId: string) {
     await this.prisma.userSession.updateMany({
       where: { id: sessionId, userId },
@@ -111,7 +135,6 @@ export class SessionsService {
     });
   }
 
-  /** Foydalanuvchining barcha sessiyalarini chiqarish: epoch oshiriladi + sessiyalar o‘chiriladi. */
   async revokeAllForUser(userId: string) {
     await this.prisma.$transaction([
       this.prisma.user.update({
@@ -120,5 +143,35 @@ export class SessionsService {
       }),
       this.prisma.userSession.deleteMany({ where: { userId } }),
     ]);
+  }
+
+  /**
+   * Tanlangan sanalar oralig‘ida ilova faol vaqti (GPS nuqtalari + sessiya pinglari).
+   */
+  async appActivityForDriver(
+    driverId: string,
+    userId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ days: ActivityDayDto[]; totalMinutes: number }> {
+    const [events, points] = await Promise.all([
+      this.prisma.userSessionEvent.findMany({
+        where: { userId, recordedAt: { gte: from, lte: to } },
+        select: { recordedAt: true },
+      }),
+      this.prisma.locationPoint.findMany({
+        where: { driverId, recordedAt: { gte: from, lte: to } },
+        select: { recordedAt: true },
+      }),
+    ]);
+
+    const times = [
+      ...events.map((e) => e.recordedAt),
+      ...points.map((p) => p.recordedAt),
+    ];
+    const segments = mergeActivitySegments(times);
+    const days = groupSegmentsByDay(segments);
+    const totalMinutes = days.reduce((s, d) => s + d.totalMinutes, 0);
+    return { days, totalMinutes };
   }
 }

@@ -84,6 +84,9 @@ export function DatetimeLocalRangeField({ fromValue, toValue, onFromChange, onTo
 
   const label = useMemo(() => {
     if (!selected?.from || !selected?.to) return '';
+    if (selected.from.getTime() === selected.to.getTime()) {
+      return formatDayShort(selected.from, lang);
+    }
     return `${formatDayShort(selected.from, lang)} — ${formatDayShort(selected.to, lang)}`;
   }, [selected, lang]);
 

@@ -64,6 +64,19 @@
   <string name="fuel_history_show_more">Yana ko‘rsatish (+%1$d)</string>
   <string name="fuel_history_show_less">Yopish</string>
   <string name="amount_field">Summa</string>
+  <string name="fuel_kind_gas">Gaz</string>
+  <string name="fuel_kind_petrol">Benzin</string>
+  <string name="fuel_unit_price_m3">1 m³ narxi (so‘m)</string>
+  <string name="fuel_unit_price_liter">1 L narxi (so‘m)</string>
+  <string name="fuel_volume_preview">Taxminiy hajm: %1$s</string>
+  <string name="msg_fuel_unit_price_required">Birlik narxini kiriting</string>
+  <string name="fuel_history_volume_m3">%1$s m³</string>
+  <string name="fuel_history_volume_l">%1$s L</string>
+  <string name="err_fuel_gas_price_not_set">Admin gaz narxini belgilamagan</string>
+  <string name="err_fuel_petrol_price_not_set">Admin benzin narxini belgilamagan</string>
+  <string name="err_fuel_invalid_volume">Hajm hisoblanmadi — summani yoki narxni tekshiring</string>
+  <string name="err_fuel_invalid_fuel_kind">Yoqilg‘i turi noto‘g‘ri</string>
+  <string name="err_fuel_invalid_unit_price">Birlik narxi noto‘g‘ri</string>
   <string name="vehicle_photo">Mashina rasmi</string>
   <string name="receipt_photo">Chek rasmi</string>
 

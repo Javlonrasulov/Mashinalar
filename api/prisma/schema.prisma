@@ -37,6 +37,7 @@ model User {
   driver Driver?
   auditLogs AuditLog[]
   sessions  UserSession[]
+  sessionEvents UserSessionEvent[]
 }
 
 model UserSession {
@@ -54,6 +55,18 @@ model UserSession {
 
   @@unique([userId, fingerprint])
   @@index([userId, lastSeenAt])
+}
+
+/// Ilova faol vaqti hisobi uchun (GPS / kirish pinglari).
+model UserSessionEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprint String?
+  deviceLabel String?
+  recordedAt  DateTime @default(now())
+
+  @@index([userId, recordedAt])
 }
 
 model Driver {
@@ -101,6 +114,8 @@ model Vehicle {
   gasBalloonNextChangeAt  DateTime?
   /// Газ (1 м³) нархи (заправка суммасидан m³ hisoblash)
   gasPricePerM3        Decimal?  @db.Decimal(14, 2)
+  /// Benzin (1 L) narxi
+  petrolPricePerLiter  Decimal?  @db.Decimal(14, 2)
   lastLatitude         Decimal?  @db.Decimal(10, 7)
   lastLongitude        Decimal?  @db.Decimal(10, 7)
   lastLocationAt       DateTime?
@@ -184,22 +199,47 @@ model LocationPoint {
   @@index([recordedAt])
 }
 
+model SavedFuelStation {
+  id           String       @id @default(cuid())
+  name         String
+  latitude     Decimal      @db.Decimal(10, 7)
+  longitude    Decimal      @db.Decimal(10, 7)
+  radiusMeters Int          @default(500)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  fuelReports  FuelReport[]
+}
+
+enum FuelKind {
+  GAS
+  PETROL
+}
+
 model FuelReport {
   id          String   @id @default(cuid())
   vehicleId   String
   vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   driverId    String
   driver      Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  fuelKind    FuelKind @default(GAS)
+  /// Haydovchi kiritgan 1 m³ yoki 1 L narxi (admin defaultdan farq qilishi mumkin)
+  unitPrice   Decimal? @db.Decimal(14, 4)
+  /// amount / unitPrice — m³ yoki L
+  volume      Decimal? @db.Decimal(14, 4)
   amount      Decimal  @db.Decimal(14, 2)
   currency    String   @default("UZS")
   vehiclePhotoUrl String?
   receiptPhotoUrl String?
   latitude    Decimal? @db.Decimal(10, 7)
   longitude   Decimal? @db.Decimal(10, 7)
+  savedFuelStationId String?
+  savedFuelStation   SavedFuelStation? @relation(fields: [savedFuelStationId], references: [id], onDelete: SetNull)
+  stationLabel       String?
   createdAt   DateTime @default(now())
 
   @@index([vehicleId, createdAt])
   @@index([driverId])
+  @@index([savedFuelStationId])
 }
 
 model OilChangeReport {

@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, MapContainer, Marker, Polyline, Popup, Tooltip, useMap } from 'react-leaflet';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Circle,
+  MapContainer,
+  Marker,
+  Polyline,
+  Popup,
+  Tooltip,
+  useMap,
+  useMapEvents,
+} from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { io, Socket } from 'socket.io-client';
@@ -8,9 +17,13 @@ import { useI18n } from '@/i18n/I18nContext';
 import { DateTimeField } from '@/components/DateTimeField';
 import { LEAFLET_MAP_MAX_ZOOM, MapBaseLayers } from '@/components/MapBaseLayers';
 import { fuelPumpLeafletIcon, type FuelStationMapItem } from '@/lib/fuelStationsMap';
+import {
+  savedFuelLeafletIcon,
+  type SavedFuelStationMapItem,
+} from '@/lib/savedFuelStationsMap';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 import clsx from 'clsx';
-import { Check, ChevronsUpDown, Fuel, Loader2, RefreshCw, Search, X } from 'lucide-react';
+import { Check, ChevronsUpDown, Fuel, Loader2, MapPin, RefreshCw, Search, X } from 'lucide-react';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -275,6 +288,22 @@ function buildGpsPowerTimeline(offRows: GpsOffRow[], rangeFrom: Date, rangeTo: D
 
 type RefreshUi = 'idle' | 'loading' | 'success';
 
+function MapClickForStation({
+  active,
+  onPick,
+}: {
+  active: boolean;
+  onPick: (lat: number, lon: number) => void;
+}) {
+  useMapEvents({
+    click(e) {
+      if (!active) return;
+      onPick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
+
 export function MapPage() {
   const { t } = useI18n();
   const [live, setLive] = useState<Live[]>([]);
@@ -283,6 +312,12 @@ export function MapPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [fuelStations, setFuelStations] = useState<FuelStationMapItem[]>([]);
   const [fuelLayerVisible, setFuelLayerVisible] = useState(false);
+  const [savedFuelStations, setSavedFuelStations] = useState<SavedFuelStationMapItem[]>([]);
+  const [placeStationMode, setPlaceStationMode] = useState(false);
+  const [pendingStation, setPendingStation] = useState<{ lat: number; lon: number } | null>(null);
+  const [newStationName, setNewStationName] = useState('');
+  const [savingStation, setSavingStation] = useState(false);
+  const [stationSaveErr, setStationSaveErr] = useState<string | null>(null);
   const [vehicleQuery, setVehicleQuery] = useState('');
   const [vehicleCategoryId, setVehicleCategoryId] = useState('');
   const [presenceFilter, setPresenceFilter] = useState<'all' | 'online' | 'offline'>('all');
@@ -320,6 +355,51 @@ export function MapPage() {
 
   const loadFuelStations = () =>
     api<FuelStationMapItem[]>('/map/fuel-stations').then(setFuelStations).catch(() => setFuelStations([]));
+
+  const loadSavedFuelStations = useCallback(() => {
+    api<SavedFuelStationMapItem[]>('/map/saved-fuel-stations')
+      .then(setSavedFuelStations)
+      .catch(() => setSavedFuelStations([]));
+  }, []);
+
+  useEffect(() => {
+    loadSavedFuelStations();
+  }, [loadSavedFuelStations]);
+
+  async function savePendingStation() {
+    if (!pendingStation) return;
+    const name = newStationName.trim();
+    if (!name) return;
+    setSavingStation(true);
+    setStationSaveErr(null);
+    try {
+      await api('/map/saved-fuel-stations', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          latitude: pendingStation.lat,
+          longitude: pendingStation.lon,
+        }),
+      });
+      setPendingStation(null);
+      setNewStationName('');
+      setPlaceStationMode(false);
+      loadSavedFuelStations();
+    } catch (e) {
+      setStationSaveErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingStation(false);
+    }
+  }
+
+  async function deleteSavedStation(id: string) {
+    try {
+      await api(`/map/saved-fuel-stations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      loadSavedFuelStations();
+    } catch {
+      /* ignore */
+    }
+  }
 
   const loadRouteAnalytics = useCallback(async () => {
     if (!vehicleId) {
@@ -934,26 +1014,99 @@ export function MapPage() {
 
       <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1fr_min(22rem,100%)] lg:items-stretch">
         <div className="app-card relative z-0 h-[min(52vh,520px)] min-h-[260px] w-full min-w-0 overflow-hidden p-0 sm:min-h-[320px] lg:h-[min(70vh,640px)] lg:min-h-[400px]">
-          <button
-            type="button"
-            className={clsx(
-              'absolute right-2 top-2 z-[410] flex h-10 w-10 items-center justify-center rounded-[10px] border-2 border-slate-900 bg-white shadow-md transition hover:bg-slate-50 dark:border-slate-200 dark:bg-white dark:hover:bg-slate-100',
-              fuelLayerVisible &&
-                'border-amber-600 bg-amber-50 ring-2 ring-amber-400/90 ring-offset-2 ring-offset-white dark:ring-offset-slate-900',
-            )}
-            aria-pressed={fuelLayerVisible}
-            aria-label={t('mapFuelLayer')}
-            title={t('mapFuelLayer')}
-            onClick={() => {
-              setFuelLayerVisible((v) => {
-                const next = !v;
-                if (next) void loadFuelStations();
-                return next;
-              });
-            }}
-          >
-            <Fuel className="h-5 w-5 text-slate-900" strokeWidth={2.25} aria-hidden />
-          </button>
+          <div className="absolute right-2 top-2 z-[410] flex flex-col gap-2">
+            <button
+              type="button"
+              className={clsx(
+                'flex h-10 w-10 items-center justify-center rounded-[10px] border-2 border-slate-900 bg-white shadow-md transition hover:bg-slate-50 dark:border-slate-200 dark:bg-white dark:hover:bg-slate-100',
+                fuelLayerVisible &&
+                  'border-amber-600 bg-amber-50 ring-2 ring-amber-400/90 ring-offset-2 ring-offset-white dark:ring-offset-slate-900',
+              )}
+              aria-pressed={fuelLayerVisible}
+              aria-label={t('mapFuelLayer')}
+              title={t('mapFuelLayer')}
+              onClick={() => {
+                setFuelLayerVisible((v) => {
+                  const next = !v;
+                  if (next) void loadFuelStations();
+                  return next;
+                });
+              }}
+            >
+              <Fuel className="h-5 w-5 text-slate-900" strokeWidth={2.25} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className={clsx(
+                'flex h-10 w-10 items-center justify-center rounded-[10px] border-2 border-slate-900 bg-white shadow-md transition hover:bg-slate-50 dark:border-slate-200 dark:bg-white dark:hover:bg-slate-100',
+                placeStationMode &&
+                  'border-violet-600 bg-violet-50 ring-2 ring-violet-400/90 ring-offset-2 ring-offset-white dark:ring-offset-slate-900',
+              )}
+              aria-pressed={placeStationMode}
+              aria-label={t('mapSavedFuelAdd')}
+              title={placeStationMode ? t('mapSavedFuelPlaceHint') : t('mapSavedFuelAdd')}
+              onClick={() => {
+                setPlaceStationMode((v) => {
+                  const next = !v;
+                  if (!next) {
+                    setPendingStation(null);
+                    setNewStationName('');
+                    setStationSaveErr(null);
+                  }
+                  return next;
+                });
+              }}
+            >
+              <MapPin className="h-5 w-5 text-violet-700" strokeWidth={2.25} aria-hidden />
+            </button>
+          </div>
+          {placeStationMode && !pendingStation && (
+            <p className="pointer-events-none absolute left-2 top-2 z-[410] max-w-[min(16rem,calc(100%-5.5rem))] rounded-lg border border-violet-300/80 bg-violet-50/95 px-2.5 py-1.5 text-xs font-medium text-violet-900 shadow-sm dark:border-violet-500/40 dark:bg-violet-950/90 dark:text-violet-100">
+              {t('mapSavedFuelPlaceHint')}
+            </p>
+          )}
+          {pendingStation && (
+            <div className="absolute bottom-2 left-2 right-2 z-[420] rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-600 dark:bg-slate-900">
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                {t('mapSavedFuelName')}
+              </label>
+              <input
+                type="text"
+                className="app-input w-full text-sm"
+                value={newStationName}
+                onChange={(e) => setNewStationName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void savePendingStation();
+                }}
+              />
+              {stationSaveErr && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{stationSaveErr}</p>
+              )}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="app-btn-primary text-sm"
+                  disabled={savingStation || !newStationName.trim()}
+                  onClick={() => void savePendingStation()}
+                >
+                  {savingStation ? <Loader2 className="h-4 w-4 animate-spin" /> : t('mapSavedFuelSave')}
+                </button>
+                <button
+                  type="button"
+                  className="app-btn-ghost text-sm"
+                  disabled={savingStation}
+                  onClick={() => {
+                    setPendingStation(null);
+                    setNewStationName('');
+                    setStationSaveErr(null);
+                  }}
+                >
+                  {t('mapSavedFuelCancel')}
+                </button>
+              </div>
+            </div>
+          )}
           <MapContainer
             center={DEFAULT_MAP_CENTER}
             zoom={DEFAULT_MAP_ZOOM}
@@ -962,6 +1115,14 @@ export function MapPage() {
             scrollWheelZoom
           >
             <MapBaseLayers />
+            <MapClickForStation
+              active={placeStationMode && !pendingStation}
+              onPick={(lat, lon) => {
+                setPendingStation({ lat, lon });
+                setNewStationName('');
+                setStationSaveErr(null);
+              }}
+            />
             <FitBounds key={`${presenceFilter}-${vehicleId}-${visibleMarkers.length}`} points={fitBoundsPoints} />
             <FlyToSelectedOnVehicleChange pos={selectedPos} vehicleId={vehicleId} />
             {showRoute && (
@@ -1023,6 +1184,37 @@ export function MapPage() {
                 </Circle>
               );
             })}
+            {savedFuelStations.map((s) => (
+              <Fragment key={s.id}>
+                <Circle
+                  center={[s.latitude, s.longitude]}
+                  radius={s.radiusMeters}
+                  pathOptions={{
+                    color: '#7c3aed',
+                    fillColor: '#a78bfa',
+                    fillOpacity: 0.14,
+                    weight: 2,
+                  }}
+                />
+                <Marker position={[s.latitude, s.longitude]} icon={savedFuelLeafletIcon}>
+                  <Popup className="map-fuel-popup">
+                    <div className="map-fuel-popup-body">
+                      <div className="font-semibold">{s.name}</div>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {t('mapSavedFuelRadius').replace('{n}', String(s.radiusMeters))}
+                      </p>
+                      <button
+                        type="button"
+                        className="mt-2 text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                        onClick={() => void deleteSavedStation(s.id)}
+                      >
+                        {t('mapSavedFuelDelete')}
+                      </button>
+                    </div>
+                  </Popup>
+                </Marker>
+              </Fragment>
+            ))}
             {fuelLayerVisible &&
               fuelStations.map((s) => (
                 <Marker key={s.id} position={[s.lat, s.lon]} icon={fuelPumpLeafletIcon}>

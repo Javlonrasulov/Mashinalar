@@ -42,6 +42,16 @@ export class DriversService {
     return this.sessions.listForUser(d.userId);
   }
 
+  async getAppActivity(driverId: string, from: Date, to: Date) {
+    const d = await this.findOne(driverId);
+    return this.sessions.appActivityForDriver(
+      driverId,
+      d.userId,
+      from,
+      to,
+    );
+  }
+
   async revokeSession(
     driverId: string,
     sessionId: string,
