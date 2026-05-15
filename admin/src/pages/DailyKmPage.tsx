@@ -196,7 +196,11 @@ function LocBtn({
 export function DailyKmPage() {
   const { t, lang } = useI18n();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  /** Kun KM sahifasiga kirgan operatorlar ham admin qismi (юбориш, API) ni ko‘rishi kerak */
+  const isFleetPanelUser = user?.role === 'ADMIN' || user?.role === 'OPERATOR';
+  const canUseGapAuditTab =
+    user?.role === 'ADMIN' ||
+    (user?.role === 'OPERATOR' && (user.allowedPages ?? []).includes('DAILY_KM_GAPS'));
   const [view, setView] = useState<'table' | 'gaps'>('table');
   const [rows, setRows] = useState<DailyKmRow[]>([]);
   const [filter, setFilter] = useState<'all' | 'gapsOnly' | 'gapDesc'>('all');
@@ -229,15 +233,15 @@ export function DailyKmPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    if (!isAdmin && view === 'gaps') setView('table');
-  }, [isAdmin, view]);
+    if (!canUseGapAuditTab && view === 'gaps') setView('table');
+  }, [canUseGapAuditTab, view]);
 
   useEffect(() => {
     if (view === 'table') gapsRangeSeededRef.current = false;
   }, [view]);
 
   useEffect(() => {
-    if (view !== 'gaps' || !isAdmin || gapsRangeSeededRef.current) return;
+    if (view !== 'gaps' || !canUseGapAuditTab || gapsRangeSeededRef.current) return;
     gapsRangeSeededRef.current = true;
     const end = new Date(tableToValue);
     end.setHours(0, 0, 0, 0);
@@ -245,7 +249,7 @@ export function DailyKmPage() {
     start.setDate(start.getDate() - 30);
     setGapFromValue(toDatetimeLocalValue(start));
     setGapToValue(toDatetimeLocalValue(end));
-  }, [view, tableToValue, isAdmin]);
+  }, [view, tableToValue, canUseGapAuditTab]);
 
   useEffect(() => {
     const a = toDateInputValueLocal(new Date(tableFromValue));
@@ -257,7 +261,7 @@ export function DailyKmPage() {
   }, [tableFromValue, tableToValue]);
 
   useEffect(() => {
-    if (!isAdmin || view !== 'table') return;
+    if (!isFleetPanelUser || view !== 'table') return;
     const a = toDateInputValueLocal(new Date(tableFromValue));
     const b = toDateInputValueLocal(new Date(tableToValue));
     const fromStr = a <= b ? a : b;
@@ -274,21 +278,21 @@ export function DailyKmPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, view, tableFromValue, tableToValue]);
+  }, [isFleetPanelUser, view, tableFromValue, tableToValue]);
 
   useEffect(() => {
     setExpandedOverviewDay(null);
   }, [tableFromValue, tableToValue, overviewDayFilter, searchQuery]);
 
   useEffect(() => {
-    if (view !== 'gaps' || !isAdmin) return;
+    if (view !== 'gaps' || !canUseGapAuditTab) return;
     const a = toDateInputValueLocal(new Date(gapFromValue));
     const b = toDateInputValueLocal(new Date(gapToValue));
     const fromStr = a <= b ? a : b;
     const toStr = a <= b ? b : a;
     const q = `from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
     api<GapAuditRow[]>(`/daily-km-reports/gap-audit?${q}`).then(setGapRows).catch(() => setGapRows([]));
-  }, [view, gapFromValue, gapToValue, isAdmin]);
+  }, [view, gapFromValue, gapToValue, canUseGapAuditTab]);
 
   useEffect(() => {
     if (!mapOpen) return;
@@ -465,7 +469,7 @@ export function DailyKmPage() {
               </div>
             </div>
           )}
-          {view === 'gaps' && isAdmin && (
+          {view === 'gaps' && canUseGapAuditTab && (
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-end sm:justify-end">
               <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                 {t('dailyKmGapsFrom')}
@@ -484,7 +488,7 @@ export function DailyKmPage() {
         </div>
       </div>
 
-      {isAdmin && (
+      {isFleetPanelUser && canUseGapAuditTab && (
         <div className="inline-flex rounded-xl border border-slate-200/90 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
           <button
             type="button"
@@ -520,7 +524,7 @@ export function DailyKmPage() {
         </p>
       )}
 
-      {view === 'table' && isAdmin && submissionOverview && submissionOverview.fleetTotal > 0 && (
+      {view === 'table' && isFleetPanelUser && submissionOverview && submissionOverview.fleetTotal > 0 && (
         <div className="app-card min-w-0 overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-slate-200/90 bg-slate-50/80 px-4 py-3 dark:border-slate-700/90 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
@@ -717,7 +721,7 @@ export function DailyKmPage() {
         </div>
       )}
 
-      {view === 'gaps' && isAdmin && (
+      {view === 'gaps' && canUseGapAuditTab && (
         <p className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-2 text-xs leading-relaxed text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 sm:text-sm">
           {t('dailyKmGapsHint')}
           <span className="mt-1 block text-slate-500 dark:text-slate-400">{t('dailyKmGapsClickRow')}</span>
@@ -932,7 +936,7 @@ export function DailyKmPage() {
       </div>
       )}
 
-      {view === 'gaps' && isAdmin && (
+      {view === 'gaps' && canUseGapAuditTab && (
         <div className="app-card min-w-0 overflow-hidden">
           <div className="app-table-wrap overflow-x-auto">
             <table className="app-table-inner min-w-[720px] text-sm">
