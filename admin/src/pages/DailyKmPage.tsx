@@ -198,9 +198,12 @@ export function DailyKmPage() {
   const { user } = useAuth();
   /** Kun KM sahifasiga kirgan operatorlar ham admin qismi (юбориш, API) ni ko‘rishi kerak */
   const isFleetPanelUser = user?.role === 'ADMIN' || user?.role === 'OPERATOR';
+  /** Kun KM ruxsati = sahifa ichidagi «Oraliq KM» yorlig‘i ham (alohida DAILY_KM_GAPS shart emas) */
   const canUseGapAuditTab =
     user?.role === 'ADMIN' ||
-    (user?.role === 'OPERATOR' && (user.allowedPages ?? []).includes('DAILY_KM_GAPS'));
+    (user?.role === 'OPERATOR' &&
+      ((user.allowedPages ?? []).includes('DAILY_KM') ||
+        (user.allowedPages ?? []).includes('DAILY_KM_GAPS')));
   const [view, setView] = useState<'table' | 'gaps'>('table');
   const [rows, setRows] = useState<DailyKmRow[]>([]);
   const [filter, setFilter] = useState<'all' | 'gapsOnly' | 'gapDesc'>('all');
