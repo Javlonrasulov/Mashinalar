@@ -230,6 +230,7 @@ export class FuelService {
         latitude: r.latitude == null ? null : String(r.latitude),
         longitude: r.longitude == null ? null : String(r.longitude),
         stationLabel,
+        savedFuelStationId: r.savedFuelStationId ?? null,
         vehiclePhotoUrl: r.vehiclePhotoUrl ?? null,
         receiptPhotoUrl: r.receiptPhotoUrl ?? null,
         vehicle: {

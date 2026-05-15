@@ -21,6 +21,7 @@ import {
   buildStationPaletteLookup,
   fuelStationNameClass,
   fuelStationRowClass,
+  normalizeStationLabelKey,
   resolveStationPaletteIndex,
 } from '@/lib/fuelStationRowStyle';
 import type { SavedFuelStationMapItem } from '@/lib/savedFuelStationsMap';
@@ -41,6 +42,9 @@ L.Marker.prototype.options.icon = DefaultIcon;
 const FLEET_GAS_PRICE_LS_KEY = 'mashinalar.fleetGasPricePerM3';
 const FLEET_PETROL_PRICE_LS_KEY = 'mashinalar.fleetPetrolPricePerLiter';
 
+/** Legend: «номи олинмади» uchun filtri (id bilan aralashmasin). */
+const STATION_LEGEND_UNKNOWN = '__fuel_unknown_station__';
+
 type FuelKindFilter = 'ALL' | 'GAS' | 'PETROL';
 
 type Row = {
@@ -60,6 +64,7 @@ type Row = {
   latitude: string | null;
   longitude: string | null;
   stationLabel?: string | null;
+  savedFuelStationId?: string | null;
   vehiclePhotoUrl: string | null;
   receiptPhotoUrl: string | null;
 };
@@ -70,6 +75,21 @@ type VehicleRow = {
   gasPricePerM3?: string | null;
   petrolPricePerLiter?: string | null;
 };
+
+/** Legend chip = saqlangan zapravka nomi bilan qаторni solishtirish (id + текст «Спутник» / «XK» парчалари). */
+function rowMatchesSavedStationLegend(
+  r: Row,
+  station: { id: string; name: string },
+  resolvedRowLabel: string,
+  unknownLabel: string,
+): boolean {
+  if (!resolvedRowLabel || resolvedRowLabel === unknownLabel) return false;
+  if (r.savedFuelStationId && r.savedFuelStationId === station.id) return true;
+  const a = normalizeStationLabelKey(resolvedRowLabel);
+  const b = normalizeStationLabelKey(station.name);
+  if (!a.length || !b.length) return false;
+  return a === b || a.startsWith(b) || b.startsWith(a);
+}
 
 function formatDateTimeNoSeconds(iso: string) {
   const d = new Date(iso);
@@ -128,6 +148,9 @@ export function FuelPage() {
   const [photoFs, setPhotoFs] = useState(false);
   const photoStageRef = useRef<HTMLDivElement>(null);
   const [stationByKey, setStationByKey] = useState<Record<string, string | null>>({});
+  const [stationLegendFilter, setStationLegendFilter] = useState<string | typeof STATION_LEGEND_UNKNOWN | null>(
+    null,
+  );
   const [savedFuelStations, setSavedFuelStations] = useState<SavedFuelStationMapItem[]>([]);
   const [exportMeta, setExportMeta] = useState<FuelExportMeta | null>(() => loadFuelExportMeta());
 
@@ -352,24 +375,31 @@ export function FuelPage() {
     return lbl;
   }
 
-  const stationsForPalette = useMemo(() => {
-    const byName = new Map<string, string>();
-    for (const s of savedFuelStations) {
-      const n = s.name.trim();
-      if (n) byName.set(n, s.id);
+  const displayRows = useMemo(() => {
+    if (stationLegendFilter === null) return filteredRows;
+    const unk = t('fuelStationUnknown');
+    if (stationLegendFilter === STATION_LEGEND_UNKNOWN) {
+      return filteredRows.filter((r) => stationLabelForRow(r) === unk);
     }
-    for (const r of filteredRows) {
-      const lbl = stationLabelForRow(r);
-      if (lbl && lbl !== t('fuelStationUnknown') && !byName.has(lbl)) {
-        byName.set(lbl, lbl);
-      }
-    }
-    return [...byName.entries()].map(([name, id]) => ({ id, name }));
-  }, [savedFuelStations, filteredRows, stationByKey, rows, t]);
+    const station = savedFuelStations.find((s) => s.id === stationLegendFilter);
+    if (!station) return filteredRows;
+    return filteredRows.filter((r) =>
+      rowMatchesSavedStationLegend(r, station, stationLabelForRow(r), unk),
+    );
+  }, [filteredRows, stationLegendFilter, savedFuelStations, stationByKey, t]);
+
+  /** Faqat xaritada saqlangan zapravkalar — yozuvlardagi eski nomlar legendga qo‘shilmaydi (o‘chirishdan keyin chopqib qolmaydi). */
+  const legendStations = useMemo(
+    () =>
+      savedFuelStations
+        .filter((s) => s.name.trim())
+        .map((s) => ({ id: s.id, name: s.name.trim() })),
+    [savedFuelStations],
+  );
 
   const stationPaletteLookup = useMemo(
-    () => buildStationPaletteLookup(stationsForPalette),
-    [stationsForPalette],
+    () => buildStationPaletteLookup(savedFuelStations),
+    [savedFuelStations],
   );
 
   function stationPaletteIndexForRow(r: Row): number | null {
@@ -609,11 +639,14 @@ export function FuelPage() {
   }, [mapPoint]);
 
   return (
-    <div className="app-page">
+    <div className="min-w-0 space-y-3">
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="app-page-title">{t('navFuel')}</h1>
-        <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
-          <div className="min-w-0 flex-1 sm:w-[260px] sm:flex-initial">
+        <h1 className="app-page-title">{t('fuelSubNavTable')}</h1>
+        <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-stretch sm:justify-end sm:gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1 sm:w-[260px] sm:flex-initial">
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              {t('oilSearchLabel')}
+            </span>
             <input
               type="search"
               className="app-input w-full"
@@ -757,24 +790,48 @@ export function FuelPage() {
       )}
 
       <div className="app-card min-w-0 overflow-hidden">
-        {stationsForPalette.length > 0 && (
+        {legendStations.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-800">
-            {stationsForPalette.map((s) => {
+            {legendStations.map((s) => {
               const idx = resolveStationPaletteIndex(s.name, stationPaletteLookup);
+              const selected = stationLegendFilter === s.id;
               return (
-                <span
+                <button
                   key={s.id}
+                  type="button"
+                  title={t('fuelLegendFilterChipTitle')}
+                  aria-pressed={selected}
+                  onClick={() =>
+                    setStationLegendFilter((prev) => (prev === s.id ? null : s.id))
+                  }
                   className={clsx(
-                    'rounded-md px-2 py-0.5 text-xs',
+                    'rounded-md px-2 py-0.5 text-left text-xs transition focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900',
+                    selected && 'ring-2 ring-blue-700 ring-offset-2 dark:ring-blue-400 dark:ring-offset-slate-950',
                     fuelStationRowClass(idx),
                     fuelStationNameClass(idx),
                   )}
                 >
                   {s.name}
-                </span>
+                </button>
               );
             })}
-            <span className="text-xs text-slate-500 dark:text-slate-400">{t('fuelStationUnknown')}</span>
+            <button
+              type="button"
+              title={t('fuelLegendFilterChipTitle')}
+              aria-pressed={stationLegendFilter === STATION_LEGEND_UNKNOWN}
+              onClick={() =>
+                setStationLegendFilter((prev) =>
+                  prev === STATION_LEGEND_UNKNOWN ? null : STATION_LEGEND_UNKNOWN,
+                )
+              }
+              className={clsx(
+                'text-xs transition focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 dark:text-slate-400 dark:focus-visible:ring-offset-slate-900',
+                stationLegendFilter === STATION_LEGEND_UNKNOWN &&
+                  'rounded-md px-2 py-0.5 ring-2 ring-slate-600 ring-offset-2 dark:ring-slate-400 dark:ring-offset-slate-950',
+              )}
+            >
+              {t('fuelStationUnknown')}
+            </button>
           </div>
         )}
         <div className="app-table-wrap">
@@ -795,14 +852,18 @@ export function FuelPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredRows.length === 0 && (
+            {displayRows.length === 0 && (
               <tr>
                 <td className="p-6 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={12}>
-                  {search.trim() ? t('oilSearchNoResults') : '—'}
+                  {search.trim()
+                    ? t('oilSearchNoResults')
+                    : stationLegendFilter !== null
+                      ? t('fuelLegendFilterEmpty')
+                      : '—'}
                 </td>
               </tr>
             )}
-            {filteredRows.map((r) => {
+            {displayRows.map((r) => {
               const stationIdx = stationPaletteIndexForRow(r);
               return (
               <tr key={r.id} className={clsx('app-table-row', fuelStationRowClass(stationIdx))}>

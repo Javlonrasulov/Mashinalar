@@ -345,6 +345,10 @@ export function MapPage() {
   const [newStationName, setNewStationName] = useState('');
   const [savingStation, setSavingStation] = useState(false);
   const [stationSaveErr, setStationSaveErr] = useState<string | null>(null);
+  const [editingSavedStation, setEditingSavedStation] = useState<SavedFuelStationMapItem | null>(null);
+  const [editStationName, setEditStationName] = useState('');
+  const [savingEditStation, setSavingEditStation] = useState(false);
+  const [editStationErr, setEditStationErr] = useState<string | null>(null);
   const [vehicleQuery, setVehicleQuery] = useState('');
   const [vehicleCategoryId, setVehicleCategoryId] = useState('');
   const [presenceFilter, setPresenceFilter] = useState<'all' | 'online' | 'offline'>('all');
@@ -413,6 +417,9 @@ export function MapPage() {
       setPendingStation(null);
       setNewStationName('');
       setPlaceStationMode(false);
+      setEditingSavedStation(null);
+      setEditStationName('');
+      setEditStationErr(null);
       loadSavedFuelStations();
     } catch (e) {
       setStationSaveErr(e instanceof Error ? e.message : String(e));
@@ -421,7 +428,33 @@ export function MapPage() {
     }
   }
 
+  async function saveEditedStation() {
+    if (!editingSavedStation) return;
+    const name = editStationName.trim();
+    if (!name) return;
+    setSavingEditStation(true);
+    setEditStationErr(null);
+    try {
+      await api(`/map/saved-fuel-stations/${encodeURIComponent(editingSavedStation.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      });
+      setEditingSavedStation(null);
+      setEditStationName('');
+      loadSavedFuelStations();
+    } catch (e) {
+      setEditStationErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingEditStation(false);
+    }
+  }
+
   async function deleteSavedStation(id: string) {
+    if (editingSavedStation?.id === id) {
+      setEditingSavedStation(null);
+      setEditStationName('');
+      setEditStationErr(null);
+    }
     try {
       await api(`/map/saved-fuel-stations/${encodeURIComponent(id)}`, { method: 'DELETE' });
       loadSavedFuelStations();
@@ -1105,6 +1138,9 @@ export function MapPage() {
                     setPendingStation(null);
                     setNewStationName('');
                     setStationSaveErr(null);
+                    setEditingSavedStation(null);
+                    setEditStationName('');
+                    setEditStationErr(null);
                   }
                   return next;
                 });
@@ -1160,6 +1196,51 @@ export function MapPage() {
               </div>
             </div>
           )}
+          {editingSavedStation && !pendingStation && (
+            <div className="absolute bottom-2 left-2 right-2 z-[420] rounded-xl border border-violet-200 bg-white p-3 shadow-lg dark:border-violet-500/40 dark:bg-slate-900">
+              <div className="mb-1 text-xs font-medium text-violet-800 dark:text-violet-200">
+                {t('mapSavedFuelEdit')}
+              </div>
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                {t('mapSavedFuelName')}
+              </label>
+              <input
+                type="text"
+                className="app-input w-full text-sm"
+                value={editStationName}
+                onChange={(e) => setEditStationName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void saveEditedStation();
+                }}
+              />
+              {editStationErr && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{editStationErr}</p>
+              )}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="app-btn-primary text-sm"
+                  disabled={savingEditStation || !editStationName.trim()}
+                  onClick={() => void saveEditedStation()}
+                >
+                  {savingEditStation ? <Loader2 className="h-4 w-4 animate-spin" /> : t('mapSavedFuelSave')}
+                </button>
+                <button
+                  type="button"
+                  className="app-btn-ghost text-sm"
+                  disabled={savingEditStation}
+                  onClick={() => {
+                    setEditingSavedStation(null);
+                    setEditStationName('');
+                    setEditStationErr(null);
+                  }}
+                >
+                  {t('mapSavedFuelCancel')}
+                </button>
+              </div>
+            </div>
+          )}
           <MapContainer
             center={DEFAULT_MAP_CENTER}
             zoom={DEFAULT_MAP_ZOOM}
@@ -1171,6 +1252,9 @@ export function MapPage() {
             <MapClickForStation
               active={placeStationMode && !pendingStation}
               onPick={(lat, lon) => {
+                setEditingSavedStation(null);
+                setEditStationName('');
+                setEditStationErr(null);
                 setPendingStation({ lat, lon });
                 setNewStationName('');
                 setStationSaveErr(null);
@@ -1256,13 +1340,28 @@ export function MapPage() {
                       <p className="mt-1 text-xs text-slate-600">
                         {t('mapSavedFuelRadius').replace('{n}', String(s.radiusMeters))}
                       </p>
-                      <button
-                        type="button"
-                        className="mt-2 text-xs font-medium text-red-600 hover:underline dark:text-red-400"
-                        onClick={() => void deleteSavedStation(s.id)}
-                      >
-                        {t('mapSavedFuelDelete')}
-                      </button>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-violet-700 hover:underline dark:text-violet-300"
+                          onClick={() => {
+                            setPendingStation(null);
+                            setPlaceStationMode(false);
+                            setEditingSavedStation(s);
+                            setEditStationName(s.name);
+                            setEditStationErr(null);
+                          }}
+                        >
+                          {t('mapSavedFuelEdit')}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                          onClick={() => void deleteSavedStation(s.id)}
+                        >
+                          {t('mapSavedFuelDelete')}
+                        </button>
+                      </div>
                     </div>
                   </Popup>
                 </Marker>

@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Query,
   UploadedFiles,
   UseGuards,
@@ -24,6 +25,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { FuelKind } from '@prisma/client';
 import { FuelService } from './fuel.service';
+import { FuelReconciliationService } from './fuel-reconciliation.service';
 import { compressMulterFiles } from '../../common/upload/image-compress';
 
 const uploadDir = join(process.cwd(), 'uploads');
@@ -43,7 +45,10 @@ function fileName(
 
 @Controller('fuel-reports')
 export class FuelController {
-  constructor(private readonly fuel: FuelService) {}
+  constructor(
+    private readonly fuel: FuelService,
+    private readonly reconciliation: FuelReconciliationService,
+  ) {}
 
   @Get('mine')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -86,6 +91,69 @@ export class FuelController {
   @AdminRoutePage('FUEL')
   backfillStationLabels() {
     return this.fuel.backfillStationLabels();
+  }
+
+  /** Ойлик сольиштириш: тизимдаги кунлик м³ + ведомость майдонлари */
+  @Get('station-month-grid')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
+  stationMonthGrid(
+    @Query('savedFuelStationId') savedFuelStationId?: string,
+    @Query('year') yearQ?: string,
+    @Query('month') monthQ?: string,
+    @Query('all') allQ?: string,
+  ) {
+    const id = savedFuelStationId?.trim();
+    if (!id) throw new BadRequestException('savedFuelStationId required');
+    const year = Number(yearQ);
+    const month = Number(monthQ);
+    return this.reconciliation.getMonthlyGrid({
+      savedFuelStationId: id,
+      year,
+      month,
+      includeAllFleet: allQ === '1',
+    });
+  }
+
+  @Put('station-month-actual')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
+  putStationMonthActual(
+    @Body()
+    body: {
+      savedFuelStationId?: string;
+      vehicleId?: string;
+      year?: number;
+      month?: number;
+      day?: number;
+      actualM3?: number | string | null;
+    },
+  ) {
+    const sid = body.savedFuelStationId?.trim();
+    const vid = body.vehicleId?.trim();
+    const year = Number(body.year);
+    const month = Number(body.month);
+    const day = Number(body.day);
+    const raw = body.actualM3;
+    let actualM3: number | null = null;
+    if (raw === '' || raw === undefined || raw === null) {
+      actualM3 = null;
+    } else {
+      actualM3 = typeof raw === 'number' ? raw : Number(String(raw).replace(',', '.'));
+      if (!Number.isFinite(actualM3)) actualM3 = null;
+    }
+    if (!sid || !vid)
+      throw new BadRequestException('savedFuelStationId and vehicleId required');
+    return this.reconciliation.upsertMonthActual({
+      savedFuelStationId: sid,
+      vehicleId: vid,
+      year,
+      month,
+      day,
+      actualM3,
+    });
   }
 
   @Post()

@@ -75,6 +75,7 @@ function usePageTitle() {
     { path: '/vehicles', end: true, key: 'navVehicles' },
     { path: '/drivers', key: 'navDrivers' },
     { path: '/tasks', key: 'navTasks' },
+    { path: '/fuel/report', key: 'fuelSubNavReport' },
     { path: '/fuel', key: 'navFuel' },
     { path: '/daily-km', key: 'navDailyKm' },
     { path: '/oil', key: 'navOil' },

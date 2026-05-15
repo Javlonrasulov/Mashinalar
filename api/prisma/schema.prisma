@@ -131,6 +131,7 @@ model Vehicle {
   expenses          Expense[]
   oilChangeReports  OilChangeReport[]
   gpsOffSegments    GpsOffSegment[]
+  fuelStationMonthActuals FuelStationMonthActual[]
 
   @@index([categoryId])
 }
@@ -208,6 +209,7 @@ model SavedFuelStation {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   fuelReports  FuelReport[]
+  monthActuals FuelStationMonthActual[]
 }
 
 enum FuelKind {
@@ -240,6 +242,23 @@ model FuelReport {
   @@index([vehicleId, createdAt])
   @@index([driverId])
   @@index([savedFuelStationId])
+}
+
+/// Zapravка ведомость: ой бўйича кунларга бўлиб, ходим / тизимдан ташқари «ҳақиқий» м³
+model FuelStationMonthActual {
+  id                 String           @id @default(cuid())
+  savedFuelStationId String
+  savedFuelStation   SavedFuelStation @relation(fields: [savedFuelStationId], references: [id], onDelete: Cascade)
+  vehicleId          String
+  vehicle            Vehicle          @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  year               Int
+  month              Int
+  day                Int
+  actualM3           Decimal          @db.Decimal(14, 4)
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([savedFuelStationId, vehicleId, year, month, day])
+  @@index([savedFuelStationId, year, month])
 }
 
 model OilChangeReport {

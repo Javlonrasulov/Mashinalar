@@ -336,7 +336,7 @@ export function VehiclesPage() {
       )}
 
       <div className="mb-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-start">
           <div className="min-w-0 sm:max-w-xs sm:flex-1">
             <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
               {t('vehicleListSearch')}

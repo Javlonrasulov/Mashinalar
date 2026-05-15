@@ -161,9 +161,35 @@
       0 3px 12px rgba(0, 0, 0, 0.35);
   }
 
+  .leaflet-div-icon.leaflet-saved-fuel-divicon {
+    background: transparent !important;
+    border: none !important;
+  }
+
   .map-saved-fuel-marker-pin {
     display: flex;
-    filter: drop-shadow(0 2px 6px rgba(91, 33, 182, 0.45));
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    border: 2px solid #5b21b6;
+    background: #ffffff;
+    box-shadow:
+      0 1px 0 rgba(91, 33, 182, 0.15),
+      0 3px 10px rgba(91, 33, 182, 0.22);
+  }
+
+  .map-saved-fuel-pump-svg {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .dark .map-saved-fuel-marker-pin {
+    border-color: #a78bfa;
+    box-shadow:
+      0 0 0 1px rgba(167, 139, 250, 0.35),
+      0 3px 12px rgba(0, 0, 0, 0.35);
   }
 
   /* react-day-picker nav/caption styles to match app theme */

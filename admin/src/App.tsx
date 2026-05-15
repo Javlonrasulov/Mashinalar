@@ -16,7 +16,9 @@ import { VehicleDeadlinesPage } from '@/pages/VehicleDeadlinesPage';
 import { VehiclesAllDriverHistoryPage } from '@/pages/VehiclesAllDriverHistoryPage';
 import { DriversPage } from '@/pages/DriversPage';
 import { TasksPage } from '@/pages/TasksPage';
+import { FuelLayout } from '@/pages/FuelLayout';
 import { FuelPage } from '@/pages/FuelPage';
+import { FuelReportPage } from '@/pages/FuelReportPage';
 import { DailyKmPage } from '@/pages/DailyKmPage';
 import { OilPage } from '@/pages/OilPage';
 import { ExpensesPage } from '@/pages/ExpensesPage';
@@ -70,7 +72,10 @@ function Shell() {
           </Route>
           <Route path="drivers" element={<DriversPage />} />
           <Route path="tasks" element={<TasksPage />} />
-          <Route path="fuel" element={<FuelPage />} />
+          <Route path="fuel" element={<FuelLayout />}>
+            <Route index element={<FuelPage />} />
+            <Route path="report" element={<FuelReportPage />} />
+          </Route>
           <Route path="daily-km" element={<DailyKmPage />} />
           <Route path="daily-km/gaps" element={<Navigate to="/daily-km" replace />} />
           <Route path="oil" element={<OilPage />} />
