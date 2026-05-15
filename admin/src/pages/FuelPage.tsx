@@ -259,7 +259,7 @@ export function FuelPage() {
       const value = raw === '' ? null : n;
       await Promise.all(
         allVehicles.map((v) =>
-          api(`/vehicles/${v.id}`, {
+          api(`/vehicles/${v.id}/gas-price`, {
             method: 'PATCH',
             body: JSON.stringify({ gasPricePerM3: value }),
           }),

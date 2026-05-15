@@ -20,7 +20,8 @@ import {
   CurrentUser,
   JwtUser,
 } from '../../common/decorators/current-user.decorator';
-import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
+import { ADMIN_PAGES_DAILY_KM_SHARED } from '../../common/admin-page-keys';
+import { AdminRoutePageAny } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -63,7 +64,7 @@ export class DailyKmController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @AdminRoutePage('DAILY_KM')
+  @AdminRoutePageAny(ADMIN_PAGES_DAILY_KM_SHARED)
   async findAll(
     @Query('date') date?: string,
     @Query('from') from?: string,
@@ -77,7 +78,7 @@ export class DailyKmController {
   @Get('gap-audit')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @AdminRoutePage('DAILY_KM')
+  @AdminRoutePageAny(ADMIN_PAGES_DAILY_KM_SHARED)
   async gapAudit(@Query('from') from: string, @Query('to') to: string) {
     return await this.dailyKm.findGapAudit({ from, to });
   }
@@ -86,7 +87,7 @@ export class DailyKmController {
   @Get('submission-overview')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @AdminRoutePage('DAILY_KM')
+  @AdminRoutePageAny(ADMIN_PAGES_DAILY_KM_SHARED)
   submissionOverview(@Query('from') from: string, @Query('to') to: string) {
     return this.dailyKm.submissionOverview({ from, to });
   }

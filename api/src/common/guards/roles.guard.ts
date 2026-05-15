@@ -36,16 +36,19 @@ export class RolesGuard implements CanActivate {
     if (adminOnly) {
       if (user.role === UserRole.ADMIN) return true;
       if (user.role === UserRole.OPERATOR) {
-        const page = this.reflector.getAllAndOverride<AdminPageKey>(
+        const raw = this.reflector.getAllAndOverride<AdminPageKey | AdminPageKey[]>(
           ADMIN_ROUTE_PAGE_KEY,
           [context.getHandler(), context.getClass()],
         );
-        if (!page) return false;
+        if (raw == null) return false;
+        const pages = Array.isArray(raw) ? raw : [raw];
+        if (!pages.length) return false;
         const row = await this.prisma.user.findUnique({
           where: { id: user.userId },
           select: { allowedPages: true },
         });
-        return row?.allowedPages?.includes(page) ?? false;
+        const allowed = row?.allowedPages ?? [];
+        return pages.some((p) => allowed.includes(p));
       }
       return false;
     }

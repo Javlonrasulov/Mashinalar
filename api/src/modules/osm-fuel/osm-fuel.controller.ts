@@ -8,7 +8,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
-import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
+import { ADMIN_PAGES_MAP_FUEL_OSM } from '../../common/admin-page-keys';
+import { AdminRoutePageAny } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -29,7 +30,7 @@ export class OsmFuelController {
   @Get('fuel-stations')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @AdminRoutePage('MAP')
+  @AdminRoutePageAny(ADMIN_PAGES_MAP_FUEL_OSM)
   async fuelStations(
     @Query('south') southQ?: string,
     @Query('west') westQ?: string,
@@ -53,7 +54,7 @@ export class OsmFuelController {
   @Post('reverse-geocode-batch')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @AdminRoutePage('MAP')
+  @AdminRoutePageAny(ADMIN_PAGES_MAP_FUEL_OSM)
   async reverseGeocodeBatch(@Body() dto: ReverseGeocodeBatchDto) {
     if (!dto.points?.length) return { labels: {} as Record<string, string> };
     return { labels: await this.osmFuel.reverseGeocodeBatch(dto.points) };
@@ -63,7 +64,7 @@ export class OsmFuelController {
   @Get('fuel-station-nearest')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @AdminRoutePage('MAP')
+  @AdminRoutePageAny(ADMIN_PAGES_MAP_FUEL_OSM)
   async nearest(@Query('lat') latQ?: string, @Query('lon') lonQ?: string) {
     const lat = Number(latQ);
     const lon = Number(lonQ);

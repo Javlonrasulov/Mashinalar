@@ -223,6 +223,22 @@ export class VehiclesService {
     return updated;
   }
 
+  async updateGasPricePerM3(id: string, gasPricePerM3: number | null, actorUserId: string) {
+    await this.findOne(id);
+    const updated = await this.prisma.vehicle.update({
+      where: { id },
+      data: { gasPricePerM3 },
+    });
+    await this.audit.log({
+      actorUserId,
+      action: 'vehicle.update_gas_price',
+      entity: 'Vehicle',
+      entityId: id,
+      meta: { gasPricePerM3 },
+    });
+    return updated;
+  }
+
   async remove(id: string, actorUserId: string) {
     await this.findOne(id);
     await this.prisma.vehicle.delete({ where: { id } });
