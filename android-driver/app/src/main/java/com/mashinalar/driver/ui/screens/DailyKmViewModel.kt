@@ -7,6 +7,7 @@ import com.mashinalar.driver.core.ServerErrorMapper
 import com.mashinalar.driver.data.network.DailyKmHistoryDto
 import com.mashinalar.driver.data.reports.ReportsRepository
 import com.mashinalar.driver.ui.util.LocationHelper
+import com.mashinalar.driver.util.AppZone
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -21,7 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 data class DailyKmUiState(
-  val reportDate: LocalDate = LocalDate.now(),
+  val reportDate: LocalDate = AppZone.today(),
   /** Mashina `initialKm` — server va ilovada minimal odometr */
   val minOdometerKm: Double? = null,
   val startKm: String = "",

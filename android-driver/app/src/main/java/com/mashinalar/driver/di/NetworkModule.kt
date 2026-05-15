@@ -6,6 +6,7 @@ import com.mashinalar.driver.data.network.ApiService
 import com.mashinalar.driver.data.network.AuthInterceptor
 import com.mashinalar.driver.data.network.DeviceHeadersInterceptor
 import com.mashinalar.driver.data.network.UnauthorizedInterceptor
+import com.mashinalar.driver.data.network.FlexibleDoubleJsonAdapter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -28,6 +29,7 @@ object NetworkModule {
   @Provides
   @Singleton
   fun moshi(): Moshi = Moshi.Builder()
+    .add(FlexibleDoubleJsonAdapter())
     .add(KotlinJsonAdapterFactory())
     .build()
 

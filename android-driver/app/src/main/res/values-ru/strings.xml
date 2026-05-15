@@ -56,10 +56,14 @@
   <string name="amount_field">Сумма</string>
   <string name="fuel_kind_gas">Газ</string>
   <string name="fuel_kind_petrol">Бензин</string>
+  <string name="fuel_total_price">Общая цена</string>
+  <string name="fuel_gas_price">Цена газа</string>
+  <string name="fuel_petrol_price">Цена бензина</string>
   <string name="fuel_unit_price_m3">Цена за 1 м³ (сум)</string>
   <string name="fuel_unit_price_liter">Цена за 1 л (сум)</string>
   <string name="fuel_volume_preview">Примерный объём: %1$s</string>
-  <string name="msg_fuel_unit_price_required">Введите цену за единицу</string>
+  <string name="msg_fuel_unit_price_required">Введите цену топлива</string>
+  <string name="msg_fuel_total_price_required">Введите общую цену</string>
   <string name="fuel_history_volume_m3">%1$s м³</string>
   <string name="fuel_history_volume_l">%1$s л</string>
   <string name="err_fuel_gas_price_not_set">Админ не задал цену газа</string>
@@ -135,7 +139,7 @@
   <string name="tracking_notif_channel_name">Служба геолокации</string>
   <string name="tracking_notif_text_minimal"> </string>
 
-  <string name="msg_enter_amount">Введите сумму</string>
+  <string name="msg_enter_amount">Введите общую цену</string>
   <string name="msg_fuel_complete_all">Укажите сумму и фото машины.</string>
   <string name="msg_enter_km">Введите старт/финиш км</string>
   <string name="msg_daily_km_start_km_required">Введите начальный км</string>

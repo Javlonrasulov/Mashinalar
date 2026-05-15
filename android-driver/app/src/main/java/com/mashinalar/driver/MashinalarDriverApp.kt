@@ -14,6 +14,8 @@ import com.mashinalar.driver.notifications.DailyKmStartReminderWorker
 import com.mashinalar.driver.notifications.OilReminderWorker
 import com.mashinalar.driver.notifications.TaskAssignedWorker
 import com.mashinalar.driver.tracking.NetworkUploadTrigger
+import com.mashinalar.driver.notifications.BackgroundWorkScheduler
+import com.mashinalar.driver.util.AppZone
 import com.mashinalar.driver.util.LocaleManager
 import dagger.hilt.android.HiltAndroidApp
 import java.time.Duration
@@ -45,6 +47,7 @@ class MashinalarDriverApp : Application() {
     scheduleOilReminders()
     scheduleDailyKmReminders()
     scheduleTaskAssignedNotifications()
+    BackgroundWorkScheduler.enqueueTaskCheckNow(this)
   }
 
   private fun scheduleLocationUploads() {
@@ -79,7 +82,8 @@ class MashinalarDriverApp : Application() {
 
   private fun scheduleDailyKmReminders() {
     fun delayUntil(hour: Int, minute: Int): Duration {
-      val now = ZonedDateTime.now()
+      val zone = AppZone.zone
+      val now = ZonedDateTime.now(zone)
       var next =
         now
           .truncatedTo(ChronoUnit.DAYS)

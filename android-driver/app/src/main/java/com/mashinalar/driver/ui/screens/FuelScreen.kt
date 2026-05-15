@@ -215,14 +215,32 @@ fun FuelScreen(
 
     OutlinedTextField(
       modifier = Modifier.fillMaxWidth(),
+      value = state.amount,
+      onValueChange = vm::setAmount,
+      label = { Text(stringResource(R.string.fuel_total_price)) },
+      singleLine = true,
+      keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+      keyboardActions =
+        KeyboardActions(
+          onDone = {
+            keyboard?.hide()
+            focusManager.clearFocus(true)
+          },
+        ),
+    )
+
+    Spacer(Modifier.height(12.dp))
+
+    OutlinedTextField(
+      modifier = Modifier.fillMaxWidth(),
       value = state.unitPrice,
       onValueChange = vm::setUnitPrice,
       label = {
         Text(
           if (state.fuelKind == FuelKindOption.GAS) {
-            stringResource(R.string.fuel_unit_price_m3)
+            stringResource(R.string.fuel_gas_price)
           } else {
-            stringResource(R.string.fuel_unit_price_liter)
+            stringResource(R.string.fuel_petrol_price)
           },
         )
       },
@@ -238,24 +256,6 @@ fun FuelScreen(
         color = MaterialTheme.colorScheme.primary,
       )
     }
-
-    Spacer(Modifier.height(12.dp))
-
-    OutlinedTextField(
-        modifier = Modifier.fillMaxWidth(),
-        value = state.amount,
-        onValueChange = vm::setAmount,
-        label = { Text(stringResource(R.string.amount_field)) },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions =
-          KeyboardActions(
-            onDone = {
-              keyboard?.hide()
-              focusManager.clearFocus(true)
-            },
-          ),
-      )
 
       Spacer(Modifier.height(12.dp))
       if (state.vehiclePhoto == null && captureTarget != "vehicle") {

@@ -66,10 +66,14 @@
   <string name="amount_field">Summa</string>
   <string name="fuel_kind_gas">Gaz</string>
   <string name="fuel_kind_petrol">Benzin</string>
+  <string name="fuel_total_price">Umumiy narx</string>
+  <string name="fuel_gas_price">Gaz narxi</string>
+  <string name="fuel_petrol_price">Benzin narxi</string>
   <string name="fuel_unit_price_m3">1 m³ narxi (so‘m)</string>
   <string name="fuel_unit_price_liter">1 L narxi (so‘m)</string>
   <string name="fuel_volume_preview">Taxminiy hajm: %1$s</string>
-  <string name="msg_fuel_unit_price_required">Birlik narxini kiriting</string>
+  <string name="msg_fuel_unit_price_required">Yoqilg‘i narxini kiriting</string>
+  <string name="msg_fuel_total_price_required">Umumiy narxni kiriting</string>
   <string name="fuel_history_volume_m3">%1$s m³</string>
   <string name="fuel_history_volume_l">%1$s L</string>
   <string name="err_fuel_gas_price_not_set">Admin gaz narxini belgilamagan</string>
@@ -162,7 +166,7 @@
   <string name="tracking_notif_text_minimal"> </string>
 
   <!-- Messages -->
-  <string name="msg_enter_amount">Summa kiriting</string>
+  <string name="msg_enter_amount">Umumiy narxni kiriting</string>
   <string name="msg_fuel_complete_all">Summa va mashina rasmini to‘ldiring.</string>
   <string name="msg_enter_km">Start/End KM kiriting</string>
   <string name="msg_daily_km_start_km_required">Boshlang‘ich KM kiriting</string>

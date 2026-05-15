@@ -72,15 +72,16 @@ class FuelViewModel @Inject constructor(
           val gas = formatPriceNumber(v?.gasPricePerM3)
           val petrol = formatPriceNumber(v?.petrolPricePerLiter)
           val cur = _state.value
+          val defaultForKind =
+            when (cur.fuelKind) {
+              FuelKindOption.GAS -> gas
+              FuelKindOption.PETROL -> petrol
+            }
           _state.value =
             cur.copy(
               defaultGasPrice = gas,
               defaultPetrolPrice = petrol,
-              unitPrice =
-                when (cur.fuelKind) {
-                  FuelKindOption.GAS -> gas
-                  FuelKindOption.PETROL -> petrol
-                },
+              unitPrice = cur.unitPrice.ifBlank { defaultForKind },
             )
         }
         is ApiResult.Err -> { /* defaults stay empty */ }

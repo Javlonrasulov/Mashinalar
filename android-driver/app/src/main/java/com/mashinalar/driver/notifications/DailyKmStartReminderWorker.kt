@@ -9,7 +9,7 @@ import com.mashinalar.driver.data.auth.TokenStore
 import com.mashinalar.driver.data.reports.ReportsRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import java.time.LocalDate
+import com.mashinalar.driver.util.AppZone
 import kotlinx.coroutines.flow.first
 
 @HiltWorker
@@ -23,7 +23,7 @@ class DailyKmStartReminderWorker @AssistedInject constructor(
     val token = tokenStore.tokenFlow.first().orEmpty()
     if (token.isBlank()) return Result.success()
 
-    val today = LocalDate.now().toString()
+    val today = AppZone.today().toString()
     val shouldNotify =
       when (val r = reports.myDailyKmReports(7)) {
         is ApiResult.Ok -> r.value.none { it.reportDate.trim().startsWith(today) }

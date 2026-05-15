@@ -36,7 +36,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.mashinalar.driver.R
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
+import com.mashinalar.driver.util.AppZone
 import com.mashinalar.driver.ui.util.formatIsoToDmy
 import java.time.temporal.ChronoUnit
 
@@ -211,9 +211,8 @@ private fun formatKm(value: Double?): String {
 private fun daysLeftToDeadline(deadlineIso: String): String? {
   return runCatching {
     val deadlineInstant = Instant.parse(deadlineIso)
-    val zone = ZoneId.systemDefault()
-    val today = LocalDate.now(zone)
-    val deadlineDate = deadlineInstant.atZone(zone).toLocalDate()
+    val today = AppZone.today()
+    val deadlineDate = deadlineInstant.atZone(AppZone.zone).toLocalDate()
     ChronoUnit.DAYS.between(today, deadlineDate).toString()
   }.getOrNull()
 }

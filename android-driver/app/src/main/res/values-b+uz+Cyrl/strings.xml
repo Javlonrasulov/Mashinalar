@@ -56,10 +56,14 @@
   <string name="amount_field">Сумма</string>
   <string name="fuel_kind_gas">Газ</string>
   <string name="fuel_kind_petrol">Бензин</string>
+  <string name="fuel_total_price">Умумий нарх</string>
+  <string name="fuel_gas_price">Газ нархи</string>
+  <string name="fuel_petrol_price">Бензин нархи</string>
   <string name="fuel_unit_price_m3">1 m³ нархи (сўм)</string>
   <string name="fuel_unit_price_liter">1 L нархи (сўм)</string>
   <string name="fuel_volume_preview">Тахминий ҳажм: %1$s</string>
-  <string name="msg_fuel_unit_price_required">Бирлик нархини киритинг</string>
+  <string name="msg_fuel_unit_price_required">Ёқилғи нархини киритинг</string>
+  <string name="msg_fuel_total_price_required">Умумий нархни киритинг</string>
   <string name="fuel_history_volume_m3">%1$s m³</string>
   <string name="fuel_history_volume_l">%1$s L</string>
   <string name="err_fuel_gas_price_not_set">Админ газ нархини белгиламаган</string>
@@ -135,7 +139,7 @@
   <string name="tracking_notif_channel_name">Локация хизмати</string>
   <string name="tracking_notif_text_minimal"> </string>
 
-  <string name="msg_enter_amount">Сумма киритинг</string>
+  <string name="msg_enter_amount">Умумий нархни киритинг</string>
   <string name="msg_fuel_complete_all">Сумма ва машина расмини тўлдиринг.</string>
   <string name="msg_enter_km">Старт/Энд КМ киритинг</string>
   <string name="msg_daily_km_start_km_required">Бошланғич КМ киритинг</string>

@@ -1,4 +1,12 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from 'react';
 import {
   Circle,
   MapContainer,
@@ -167,16 +175,35 @@ type MapAnalytics = {
   endPoint: { latitude: number; longitude: number; recordedAt: string } | null;
 };
 
-function FitBounds({ points }: { points: [number, number][] }) {
+/**
+ * Xaritani faqat `fitKey` o‘zgarganda bir marta moslashtiradi.
+ * `lastFittedKeyRef` MapPage da — live yangilanishda komponent qayta mount bo‘lsa ham zoom saqlanadi.
+ */
+function MapAutoFit({
+  points,
+  fitKey,
+  lastFittedKeyRef,
+}: {
+  points: [number, number][];
+  fitKey: string;
+  lastFittedKeyRef: MutableRefObject<string | null>;
+}) {
   const map = useMap();
+  const pointsRef = useRef(points);
+  pointsRef.current = points;
+
   useEffect(() => {
-    if (points.length === 0) return;
-    if (points.length === 1) {
-      map.setView(points[0], 13);
+    const pts = pointsRef.current;
+    if (pts.length === 0) return;
+    if (lastFittedKeyRef.current === fitKey) return;
+
+    lastFittedKeyRef.current = fitKey;
+    if (pts.length === 1) {
+      map.setView(pts[0], Math.max(map.getZoom(), 14));
       return;
     }
-    map.fitBounds(points, { padding: [40, 40] });
-  }, [map, points]);
+    map.fitBounds(pts, { padding: [40, 40] });
+  }, [map, fitKey, lastFittedKeyRef]);
   return null;
 }
 
@@ -323,6 +350,8 @@ export function MapPage() {
   const [presenceFilter, setPresenceFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [vehicleOpen, setVehicleOpen] = useState(false);
   const vehicleRef = useRef<HTMLDivElement>(null);
+  /** MapAutoFit: bir xil filtr/marshrut uchun qayta fitBounds chaqirilmasin. */
+  const lastMapFitKeyRef = useRef<string | null>(null);
   const [refreshUi, setRefreshUi] = useState<RefreshUi>('idle');
   const refreshTimersRef = useRef<number[]>([]);
   const [nowTick, setNowTick] = useState(0);
@@ -767,9 +796,33 @@ export function MapPage() {
         ? routeFitBoundsPoints
         : fleetFitBoundsPoints;
 
+  const mapFitKey = useMemo(() => {
+    if (clusterFitBoundsPoints.length > 0 && focusedCluster) {
+      return `cluster:${focusedCluster.latitude.toFixed(5)}:${focusedCluster.longitude.toFixed(5)}:${focusedStopSegments.length}`;
+    }
+    if (routeFitBoundsPoints.length > 0 && vehicleId) {
+      return `route:${vehicleId}:${from}:${to}:${history.length}`;
+    }
+    return `fleet:${presenceFilter}:${vehicleId}:${vehicleCategoryId}:${vehicleQuery.trim()}@${visibleMarkers.length}`;
+  }, [
+    clusterFitBoundsPoints.length,
+    focusedCluster,
+    focusedStopSegments.length,
+    routeFitBoundsPoints.length,
+    vehicleId,
+    from,
+    to,
+    history.length,
+    visibleMarkers.length,
+    presenceFilter,
+    vehicleCategoryId,
+    vehicleQuery,
+  ]);
+
   const onRefreshAll = async () => {
     clearRefreshTimers();
     setRefreshUi('loading');
+    lastMapFitKeyRef.current = null;
     try {
       await Promise.all([
         loadLive(),
@@ -1123,7 +1176,7 @@ export function MapPage() {
                 setStationSaveErr(null);
               }}
             />
-            <FitBounds key={`${presenceFilter}-${vehicleId}-${visibleMarkers.length}`} points={fitBoundsPoints} />
+            <MapAutoFit points={fitBoundsPoints} fitKey={mapFitKey} lastFittedKeyRef={lastMapFitKeyRef} />
             <FlyToSelectedOnVehicleChange pos={selectedPos} vehicleId={vehicleId} />
             {showRoute && (
               <Polyline

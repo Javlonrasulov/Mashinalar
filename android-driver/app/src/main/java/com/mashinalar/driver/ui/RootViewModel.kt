@@ -1,12 +1,16 @@
 package com.mashinalar.driver.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mashinalar.driver.core.ApiResult
 import com.mashinalar.driver.data.auth.AuthRepository
 import com.mashinalar.driver.data.auth.TokenStore
 import com.mashinalar.driver.data.local.LanguageStore
+import com.mashinalar.driver.notifications.BackgroundWorkScheduler
+import com.mashinalar.driver.notifications.TaskAssignedWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +28,7 @@ data class RootState(
 
 @HiltViewModel
 class RootViewModel @Inject constructor(
+  @ApplicationContext private val appContext: Context,
   private val auth: AuthRepository,
   private val tokenStore: TokenStore,
   private val languageStore: LanguageStore,
@@ -40,7 +45,12 @@ class RootViewModel @Inject constructor(
         .distinctUntilChanged()
         .collectLatest { (hasToken, lang) ->
           _state.value = _state.value.copy(hasToken = hasToken, languageTag = lang)
-          if (hasToken) auth.validateToken() // if expired → token cleared by repo/interceptor
+          if (hasToken) {
+            auth.validateToken() // if expired → token cleared by repo/interceptor
+            BackgroundWorkScheduler.enqueueTaskCheckNow(appContext)
+          } else {
+            TaskAssignedWorker.resetKnownTasks(appContext)
+          }
         }
     }
   }
@@ -49,7 +59,11 @@ class RootViewModel @Inject constructor(
     viewModelScope.launch {
       _state.value = _state.value.copy(loginLoading = true, loginError = null)
       when (val r = auth.login(login, password)) {
-        is ApiResult.Ok -> _state.value = _state.value.copy(hasToken = true, loginLoading = false)
+        is ApiResult.Ok -> {
+          _state.value = _state.value.copy(hasToken = true, loginLoading = false)
+          TaskAssignedWorker.resetKnownTasks(appContext)
+          BackgroundWorkScheduler.enqueueTaskCheckNow(appContext)
+        }
         is ApiResult.Err -> _state.value = _state.value.copy(loginLoading = false, loginError = r.message)
       }
     }

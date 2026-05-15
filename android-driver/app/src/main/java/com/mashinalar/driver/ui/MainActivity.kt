@@ -3,6 +3,7 @@ package com.mashinalar.driver.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -93,12 +94,15 @@ class MainActivity : AppCompatActivity() {
       }
 
       LaunchedEffect(Unit) {
-        requestLocation.launch(
-          arrayOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-          ),
-        )
+        val permissions =
+          buildList {
+            add(Manifest.permission.ACCESS_FINE_LOCATION)
+            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+              add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+          }
+        requestLocation.launch(permissions.toTypedArray())
       }
 
       // Lokatsiya fonida: kirilgan sessiya + ruxsat bo‘lsa avtomatik FGS (foydalanuvchidan so‘ralmaydi).

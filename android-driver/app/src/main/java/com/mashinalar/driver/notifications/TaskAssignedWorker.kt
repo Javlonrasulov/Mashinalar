@@ -26,6 +26,7 @@ class TaskAssignedWorker @AssistedInject constructor(
     if (token.isBlank()) return Result.success()
 
     val prefs = applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val initialized = prefs.getBoolean(KEY_INITIALIZED, false)
     val known = prefs.getStringSet(KEY_KNOWN_ACTIVE_IDS, emptySet())?.toMutableSet() ?: mutableSetOf()
 
     val active =
@@ -35,12 +36,20 @@ class TaskAssignedWorker @AssistedInject constructor(
       }
 
     val activeIds = active.map { it.id }.toSet()
+    if (!initialized) {
+      prefs
+        .edit()
+        .putStringSet(KEY_KNOWN_ACTIVE_IDS, activeIds)
+        .putBoolean(KEY_INITIALIZED, true)
+        .apply()
+      return Result.success()
+    }
+
     val newIds = activeIds - known
     if (newIds.isNotEmpty()) {
       AlertNotifier.showNewTasks(applicationContext, newIds.size)
     }
 
-    // Keep the store bounded — only active tasks are needed to detect *new* assignments.
     prefs.edit().putStringSet(KEY_KNOWN_ACTIVE_IDS, activeIds).apply()
     return Result.success()
   }
@@ -48,6 +57,14 @@ class TaskAssignedWorker @AssistedInject constructor(
   companion object {
     private const val PREFS = "task_notifier"
     private const val KEY_KNOWN_ACTIVE_IDS = "known_active_ids"
+    private const val KEY_INITIALIZED = "initialized"
+
+    fun resetKnownTasks(context: Context) {
+      context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        .remove(KEY_KNOWN_ACTIVE_IDS)
+        .remove(KEY_INITIALIZED)
+        .apply()
+    }
 
     fun constraints(): Constraints =
       Constraints.Builder()
