@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { FuelKind } from '@prisma/client';
+import { FuelKind, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const TZ = 'Asia/Tashkent';
@@ -240,4 +240,90 @@ export class FuelReconciliationService {
     });
     return { ok: true, deleted: false };
   }
+
+  async createVedomostSnapshot(params: {
+    savedFuelStationId: string;
+    year: number;
+    month: number;
+    includeAllFleet?: boolean;
+  }) {
+    const { savedFuelStationId, year, month } = params;
+    const grid = await this.getMonthlyGrid({
+      savedFuelStationId,
+      year,
+      month,
+      includeAllFleet: params.includeAllFleet === true,
+    });
+    const payload: VedomostSnapshotPayload = {
+      capturedAt: new Date().toISOString(),
+      includeAllFleet: params.includeAllFleet === true,
+      grid,
+    };
+    const row = await this.prisma.fuelVedomostSnapshot.create({
+      data: {
+        savedFuelStationId,
+        year,
+        month,
+        payload: payload as unknown as Prisma.InputJsonValue,
+      },
+    });
+    return {
+      id: row.id,
+      createdAt: row.createdAt.toISOString(),
+      payload,
+    };
+  }
+
+  async listVedomostSnapshots(params: {
+    savedFuelStationId: string;
+    year: number;
+    month: number;
+  }) {
+    const { savedFuelStationId, year, month } = params;
+    if (
+      !Number.isInteger(year) ||
+      year < 2000 ||
+      year > 2100 ||
+      !Number.isInteger(month) ||
+      month < 1 ||
+      month > 12
+    ) {
+      throw new BadRequestException('Invalid year or month');
+    }
+    const rows = await this.prisma.fuelVedomostSnapshot.findMany({
+      where: { savedFuelStationId, year, month },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, createdAt: true },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async getVedomostSnapshot(id: string): Promise<{
+    id: string;
+    createdAt: string;
+    payload: VedomostSnapshotPayload;
+  }> {
+    const row = await this.prisma.fuelVedomostSnapshot.findUnique({
+      where: { id },
+    });
+    if (!row) throw new NotFoundException('Snapshot not found');
+    return {
+      id: row.id,
+      createdAt: row.createdAt.toISOString(),
+      payload: row.payload as unknown as VedomostSnapshotPayload,
+    };
+  }
 }
+
+export type MonthlyGridDto = Awaited<
+  ReturnType<FuelReconciliationService['getMonthlyGrid']>
+>;
+
+export type VedomostSnapshotPayload = {
+  capturedAt: string;
+  includeAllFleet: boolean;
+  grid: MonthlyGridDto;
+};

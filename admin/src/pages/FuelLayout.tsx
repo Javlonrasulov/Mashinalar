@@ -17,7 +17,7 @@ export function FuelLayout() {
     <div className="app-page min-w-0 space-y-4">
       <nav
         aria-label={t('navFuel')}
-        className="flex flex-wrap gap-1 rounded-xl border border-slate-200/90 bg-slate-50/90 p-1 dark:border-slate-700 dark:bg-slate-900/60"
+        className="inline-flex w-fit max-w-full flex-wrap gap-1 rounded-xl border border-slate-200/90 bg-slate-50/90 p-1 dark:border-slate-700 dark:bg-slate-900/60"
       >
         <NavLink to="/fuel" end className={({ isActive }) => subTabClass(isActive)}>
           {t('fuelSubNavTable')}

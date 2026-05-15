@@ -210,6 +210,7 @@ model SavedFuelStation {
   updatedAt    DateTime     @updatedAt
   fuelReports  FuelReport[]
   monthActuals FuelStationMonthActual[]
+  vedomostSnapshots FuelVedomostSnapshot[]
 }
 
 enum FuelKind {
@@ -259,6 +260,19 @@ model FuelStationMonthActual {
 
   @@unique([savedFuelStationId, vehicleId, year, month, day])
   @@index([savedFuelStationId, year, month])
+}
+
+/// Ведомость тарихи: ойлик жадвалнинг бир вақтдаги нусхаси (Excel учун)
+model FuelVedomostSnapshot {
+  id                 String           @id @default(cuid())
+  savedFuelStationId String
+  savedFuelStation   SavedFuelStation @relation(fields: [savedFuelStationId], references: [id], onDelete: Cascade)
+  year               Int
+  month              Int
+  createdAt          DateTime         @default(now())
+  payload            Json
+
+  @@index([savedFuelStationId, year, month, createdAt])
 }
 
 model OilChangeReport {

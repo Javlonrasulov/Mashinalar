@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Put,
   Query,
@@ -154,6 +155,59 @@ export class FuelController {
       day,
       actualM3,
     });
+  }
+
+  @Post('vedomost-snapshot')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
+  createVedomostSnapshot(
+    @Body()
+    body: {
+      savedFuelStationId?: string;
+      year?: number;
+      month?: number;
+      all?: string;
+    },
+  ) {
+    const sid = body.savedFuelStationId?.trim();
+    const year = Number(body.year);
+    const month = Number(body.month);
+    if (!sid) throw new BadRequestException('savedFuelStationId required');
+    return this.reconciliation.createVedomostSnapshot({
+      savedFuelStationId: sid,
+      year,
+      month,
+      includeAllFleet: body.all === '1',
+    });
+  }
+
+  @Get('vedomost-snapshots')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
+  listVedomostSnapshots(
+    @Query('savedFuelStationId') savedFuelStationId?: string,
+    @Query('year') yearQ?: string,
+    @Query('month') monthQ?: string,
+  ) {
+    const id = savedFuelStationId?.trim();
+    if (!id) throw new BadRequestException('savedFuelStationId required');
+    const year = Number(yearQ);
+    const month = Number(monthQ);
+    return this.reconciliation.listVedomostSnapshots({
+      savedFuelStationId: id,
+      year,
+      month,
+    });
+  }
+
+  @Get('vedomost-snapshot/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
+  getVedomostSnapshot(@Param('id') id: string) {
+    return this.reconciliation.getVedomostSnapshot(id.trim());
   }
 
   @Post()

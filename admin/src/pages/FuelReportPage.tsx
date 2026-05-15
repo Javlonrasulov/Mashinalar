@@ -1,9 +1,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, FileDown, Loader2, RefreshCw, Save } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import type { SavedFuelStationMapItem } from '@/lib/savedFuelStationsMap';
+import {
+  downloadFuelReportXlsx,
+  safeExcelFileBase,
+  type FuelReportExportGrid,
+} from '@/lib/fuelReportExcelExport';
 
 type GridVehicle = {
   vehicleId: string;
@@ -74,6 +79,20 @@ function sumNums(arr: (number | null)[]): number | null {
   return any ? Math.round(s * 100) / 100 : null;
 }
 
+function stationOptionLabel(
+  s: SavedFuelStationMapItem,
+  t: (key: string, vars?: Record<string, string>) => string,
+): string {
+  const n = (s.name ?? '').trim();
+  if (n) return n;
+  return t('fuelReportUnnamedStation', {
+    lat: s.latitude.toFixed(3),
+    lon: s.longitude.toFixed(3),
+  });
+}
+
+type SnapListItem = { id: string; createdAt: string };
+
 export function FuelReportPage() {
   const { t, lang } = useI18n();
   const now = useMemo(() => new Date(), []);
@@ -90,6 +109,9 @@ export function FuelReportPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [allFleet, setAllFleet] = useState(true);
+  const [snapshots, setSnapshots] = useState<SnapListItem[]>([]);
+  const [savingSnap, setSavingSnap] = useState(false);
+  const [snapMsg, setSnapMsg] = useState<string | null>(null);
   /** vendor katakcha draft — фақат бир вақт ўзгариши */
   const [draftVendor, setDraftVendor] = useState<Record<string, string>>({});
 
@@ -141,6 +163,103 @@ export function FuelReportPage() {
     if (stationId) void loadGrid();
   }, [stationId, monthStr, loadGrid]);
 
+  const loadSnapshots = useCallback(async () => {
+    const parsed = parseMonthInput(monthStr);
+    if (!stationId || !parsed) {
+      setSnapshots([]);
+      return;
+    }
+    try {
+      const qs = new URLSearchParams({
+        savedFuelStationId: stationId,
+        year: String(parsed.y),
+        month: String(parsed.m),
+      });
+      const list = await api<SnapListItem[]>(
+        `/fuel-reports/vedomost-snapshots?${qs.toString()}`,
+      );
+      setSnapshots(list);
+    } catch {
+      setSnapshots([]);
+    }
+  }, [stationId, monthStr]);
+
+  useEffect(() => {
+    void loadSnapshots();
+  }, [loadSnapshots]);
+
+  const exportLabels = useMemo(
+    () => ({
+      plate: t('fuelReportColPlate'),
+      source: t('fuelReportColSource'),
+      rowEmployees: t('fuelReportRowSystem'),
+      rowVendor: t('fuelReportRowVendor'),
+      rowDiff: t('fuelReportRowDiff'),
+      total: t('fuelReportColTotal'),
+      stationTitle: t('fuelReportExportStation'),
+      metaRow: t('fuelReportExportPeriod'),
+    }),
+    [t],
+  );
+
+  const exportGridToFile = useCallback(
+    (g: GridResponse, suffix?: string) => {
+      const stamp = `${g.year}-${String(g.month).padStart(2, '0')}`;
+      const nameRaw = `${g.savedStation.name?.trim() || 'zapravka'}_${stamp}${suffix ? `_${suffix}` : ''}`;
+      downloadFuelReportXlsx(
+        g as FuelReportExportGrid,
+        exportLabels,
+        safeExcelFileBase(nameRaw),
+      );
+    },
+    [exportLabels],
+  );
+
+  const exportCurrentGrid = useCallback(() => {
+    if (grid) exportGridToFile(grid);
+  }, [grid, exportGridToFile]);
+
+  const saveVedomostSnapshot = useCallback(async () => {
+    const parsed = parseMonthInput(monthStr);
+    if (!stationId || !parsed) return;
+    setSavingSnap(true);
+    setSnapMsg(null);
+    setErr(null);
+    try {
+      await api('/fuel-reports/vedomost-snapshot', {
+        method: 'POST',
+        body: JSON.stringify({
+          savedFuelStationId: stationId,
+          year: parsed.y,
+          month: parsed.m,
+          ...(allFleet ? { all: '1' } : {}),
+        }),
+      });
+      setSnapMsg(t('fuelReportSnapshotSaved'));
+      await loadSnapshots();
+      window.setTimeout(() => setSnapMsg(null), 4000);
+    } catch {
+      setErr(t('genericError'));
+    } finally {
+      setSavingSnap(false);
+    }
+  }, [stationId, monthStr, allFleet, t, loadSnapshots]);
+
+  const exportSnapshotById = useCallback(
+    async (id: string) => {
+      setErr(null);
+      try {
+        const res = await api<{
+          payload: { grid: GridResponse };
+        }>(`/fuel-reports/vedomost-snapshot/${encodeURIComponent(id)}`);
+        exportGridToFile(res.payload.grid, `tarix_${id.slice(0, 8)}`);
+      } catch {
+        setErr(t('genericError'));
+      }
+    },
+    [exportGridToFile, t],
+  );
+
   const saveActual = useCallback(
     async (vehicleId: string, day: number, raw: string) => {
       const parsed = parseMonthInput(monthStr);
@@ -189,72 +308,150 @@ export function FuelReportPage() {
         </p>
       </div>
 
-      <div className="app-card-pad flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-        <div className="flex min-w-0 flex-1 flex-col gap-1 sm:min-w-[220px]">
-          <label
-            className="text-xs font-medium text-slate-500 dark:text-slate-400"
-            htmlFor="fuel-report-station"
-          >
-            {t('fuelReportPickStation')}
+      <div className="app-card-pad flex min-w-0 flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="flex w-full min-w-0 max-w-md flex-col gap-1">
+            <label
+              className="text-xs font-medium text-slate-500 dark:text-slate-400"
+              htmlFor="fuel-report-station"
+            >
+              {t('fuelReportPickStation')}
+            </label>
+            <div className="relative">
+              <select
+                id="fuel-report-station"
+                className="app-select w-full appearance-none py-2 pl-3 pr-9 text-sm"
+                value={stationId}
+                onChange={(e) => setStationId(e.target.value)}
+              >
+                {!stations.length && (
+                  <option value="">{t('fuelReportNoStations')}</option>
+                )}
+                {stations.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {stationOptionLabel(s, t)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden
+              />
+            </div>
+          </div>
+          <div className="flex w-full flex-col gap-1 sm:w-40 sm:max-w-[11rem]">
+            <label
+              className="text-xs font-medium text-slate-500 dark:text-slate-400"
+              htmlFor="fuel-report-month"
+            >
+              {t('fuelReportPickMonth')}
+            </label>
+            <input
+              id="fuel-report-month"
+              type="month"
+              className="app-input w-full text-sm tabular-nums"
+              value={monthStr}
+              onChange={(e) => setMonthStr(e.target.value)}
+            />
+          </div>
+          <label className="flex min-h-[40px] max-w-xl cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input
+              type="checkbox"
+              checked={allFleet}
+              onChange={(e) => setAllFleet(e.target.checked)}
+              className="h-4 w-4 shrink-0 rounded border-slate-400"
+            />
+            <span>{t('fuelReportAllFleet')}</span>
           </label>
-          <select
-            id="fuel-report-station"
-            className="app-input w-full text-sm"
-            value={stationId}
-            onChange={(e) => setStationId(e.target.value)}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 self-end sm:self-auto">
+          <button
+            type="button"
+            className="app-btn-ghost inline-flex h-10 w-10 items-center justify-center p-0"
+            onClick={() => void saveVedomostSnapshot()}
+            disabled={savingSnap || !stationId || loading}
+            title={t('fuelReportSaveVedomost')}
+            aria-label={t('fuelReportSaveVedomost')}
           >
-            {!stations.length && (
-              <option value="">{t('fuelReportNoStations')}</option>
+            {savingSnap ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Save className="h-5 w-5" />
             )}
-            {stations.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex min-w-0 flex-col gap-1 sm:w-44">
-          <label
-            className="text-xs font-medium text-slate-500 dark:text-slate-400"
-            htmlFor="fuel-report-month"
+          </button>
+          <button
+            type="button"
+            className="app-btn-ghost inline-flex h-10 w-10 items-center justify-center p-0"
+            onClick={() => exportCurrentGrid()}
+            disabled={!grid || grid.vehicles.length === 0}
+            title={t('fuelReportExportCurrent')}
+            aria-label={t('fuelReportExportCurrent')}
           >
-            {t('fuelReportPickMonth')}
-          </label>
-          <input
-            id="fuel-report-month"
-            type="month"
-            className="app-input w-full text-sm tabular-nums"
-            value={monthStr}
-            onChange={(e) => setMonthStr(e.target.value)}
-          />
+            <FileDown className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="app-btn-ghost inline-flex h-10 w-10 items-center justify-center p-0"
+            onClick={() => void loadGrid()}
+            disabled={loading}
+            title={t('fuelReportRefreshAria')}
+            aria-label={t('fuelReportRefreshAria')}
+          >
+            {loading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-5 w-5" />
+            )}
+          </button>
         </div>
-        <label className="flex min-h-[40px] cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-          <input
-            type="checkbox"
-            checked={allFleet}
-            onChange={(e) => setAllFleet(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-400"
-          />
-          {t('fuelReportAllFleet')}
-        </label>
-        <button
-          type="button"
-          className="app-btn-ghost shrink-0"
-          onClick={() => void loadGrid()}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-          ) : null}
-          {t('mapRefresh')}
-        </button>
       </div>
+
+      {snapMsg && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+          {snapMsg}
+        </div>
+      )}
 
       {err && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           {err}
         </div>
       )}
+
+      <div className="app-card-pad">
+        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+          {t('fuelReportVedomostHistory')}
+        </h2>
+        {snapshots.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            {t('fuelReportSnapshotEmpty')}
+          </p>
+        ) : (
+          <ul className="mt-3 divide-y divide-slate-200 dark:divide-slate-700">
+            {snapshots.map((s) => (
+              <li
+                key={s.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2 first:pt-0"
+              >
+                <span className="text-sm tabular-nums text-slate-700 dark:text-slate-200">
+                  {new Date(s.createdAt).toLocaleString(locale, {
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })}
+                </span>
+                <button
+                  type="button"
+                  className="app-btn-ghost inline-flex shrink-0 items-center gap-1.5 py-1.5 text-sm"
+                  onClick={() => void exportSnapshotById(s.id)}
+                >
+                  <FileDown className="h-4 w-4" aria-hidden />
+                  {t('fuelReportExportExcel')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {loading && !grid ? (
         <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
