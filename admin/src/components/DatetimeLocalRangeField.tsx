@@ -185,7 +185,7 @@ export function DatetimeLocalRangeField({ fromValue, toValue, onFromChange, onTo
                 hideNavigation={false}
                 showOutsideDays
                 disabled={disabled}
-                className="app-datetime-daypicker w-full max-w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] [--rdp-day-width:32px] [--rdp-day-height:32px] [--rdp-day_button-width:30px] [--rdp-day_button-height:30px] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]"
+                className="app-datetime-daypicker app-datetime-daypicker--range-gap w-full max-w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] [--rdp-day-width:32px] [--rdp-day-height:32px] [--rdp-day_button-width:30px] [--rdp-day_button-height:30px] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]"
               />
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-slate-200/90 bg-slate-50/80 px-3 py-2 dark:border-slate-700/90 dark:bg-slate-950/40">

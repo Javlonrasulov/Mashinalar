@@ -436,7 +436,12 @@ private fun DailyKmHistoryCard(
           if (done) R.string.daily_km_history_status_done else R.string.daily_km_history_status_open,
         ),
         style = MaterialTheme.typography.labelMedium,
-        color = if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        color =
+          if (done) {
+            MaterialTheme.colorScheme.primary
+          } else {
+            MaterialTheme.colorScheme.error
+          },
       )
       if (!done) {
         Spacer(Modifier.height(8.dp))

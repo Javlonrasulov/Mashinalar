@@ -66,6 +66,28 @@ export class FuelController {
     return this.fuel.findAll({ date, from, to, fuelKind });
   }
 
+  /** Zapravkalar sahifasi: saqlangan zapravka nomi (xarita radiusi bo‘yicha). */
+  @Get('nearest-saved-station')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
+  nearestSavedStation(@Query('lat') latQ?: string, @Query('lon') lonQ?: string) {
+    const lat = Number(latQ);
+    const lon = Number(lonQ);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon))
+      throw new BadRequestException('Invalid coordinates');
+    return this.fuel.nearestSavedStation(lat, lon);
+  }
+
+  /** Barcha eski yozuvlarga zapravka nomini qo‘llash (bir marta). */
+  @Post('backfill-station-labels')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
+  backfillStationLabels() {
+    return this.fuel.backfillStationLabels();
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.DRIVER)

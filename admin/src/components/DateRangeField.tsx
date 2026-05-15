@@ -303,7 +303,7 @@ export function DateRangeField({ value, onChange, id }: Props) {
                 onDayMouseEnter={(d) => {
                   if (draft?.from && !draft?.to) setHoverDate(d);
                 }}
-                className="app-datetime-daypicker w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]"
+                className="app-datetime-daypicker app-datetime-daypicker--range-gap w-full [--rdp-accent-color:rgb(37_99_235)] [--rdp-accent-background-color:rgb(239_246_255)] [--rdp-day_button-border-radius:0.5rem] dark:[--rdp-accent-color:rgb(96_165_250)] dark:[--rdp-accent-background-color:rgba(59_130_246_0.15)]"
               />
             </div>
 

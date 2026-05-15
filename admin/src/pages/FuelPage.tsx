@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Car, Fuel, Maximize2, Receipt, X } from 'lucide-react';
+import { Car, Download, Fuel, Maximize2, Receipt, X } from 'lucide-react';
 import clsx from 'clsx';
 import { api, apiUrl } from '@/lib/api';
 import { fuelPumpLeafletIcon, fuelStationsApiPathForPoint, type FuelStationMapItem } from '@/lib/fuelStationsMap';
@@ -10,6 +10,13 @@ import 'leaflet/dist/leaflet.css';
 import { DatetimeLocalRangeField } from '@/components/DatetimeLocalRangeField';
 import { LEAFLET_MAP_MAX_ZOOM, MapBaseLayers } from '@/components/MapBaseLayers';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
+import {
+  downloadFuelReportsExcel,
+  loadFuelExportMeta,
+  saveFuelExportMeta,
+  type FuelExportMeta,
+  ymdFromDatetimeLocal,
+} from '@/lib/fuelReportExport';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -114,6 +121,7 @@ export function FuelPage() {
   const [photoFs, setPhotoFs] = useState(false);
   const photoStageRef = useRef<HTMLDivElement>(null);
   const [stationByKey, setStationByKey] = useState<Record<string, string | null>>({});
+  const [exportMeta, setExportMeta] = useState<FuelExportMeta | null>(() => loadFuelExportMeta());
 
   useEffect(() => {
     const fromD = new Date(dateFromValue);
@@ -226,7 +234,7 @@ export function FuelPage() {
         unique.map(async (p) => {
           try {
             const res = await api<{ label: string | null }>(
-              `/map/fuel-station-nearest?lat=${encodeURIComponent(String(p.lat))}&lon=${encodeURIComponent(String(p.lon))}`,
+              `/fuel-reports/nearest-saved-station?lat=${encodeURIComponent(String(p.lat))}&lon=${encodeURIComponent(String(p.lon))}`,
             );
             const lbl = res.label?.trim() ? res.label.trim() : null;
             return [p.key, lbl] as const;
@@ -305,6 +313,113 @@ export function FuelPage() {
     if (!raw || !Number.isFinite(n) || n <= 0) return '—';
     return moneyFmt.format(n);
   }
+
+  function formatYmdDisplay(ymd: string): string {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+    if (!m) return ymd;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (!Number.isFinite(d.getTime())) return ymd;
+    return new Intl.DateTimeFormat(intlLocaleFor(lang), {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(d);
+  }
+
+  function stationLabelForRow(r: Row): string {
+    const saved = r.stationLabel?.trim();
+    if (saved) return saved;
+    const lat = r.latitude ? Number(r.latitude) : NaN;
+    const lon = r.longitude ? Number(r.longitude) : NaN;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return '';
+    const key = `${lat.toFixed(5)}_${lon.toFixed(5)}`;
+    const lbl = stationByKey[key];
+    if (lbl === undefined || !lbl) return t('fuelStationUnknown');
+    return lbl;
+  }
+
+  function rawVolumeForExport(row: Row): string {
+    if (row.volume != null && row.volume !== '') {
+      const v = Number(row.volume);
+      if (Number.isFinite(v) && v > 0) return String(v);
+    }
+    const a = Number(String(row.amount).replace(/[^\d.]/g, ''));
+    const p = row.unitPrice ? Number(row.unitPrice) : NaN;
+    if (!Number.isFinite(a) || !Number.isFinite(p) || p <= 0) return '';
+    const v = a / p;
+    return Number.isFinite(v) && v > 0 ? String(v) : '';
+  }
+
+  function handleExportExcel() {
+    if (!rows.length) return;
+    const fromYmd = ymdFromDatetimeLocal(dateFromValue);
+    const toYmd = ymdFromDatetimeLocal(dateToValue);
+    if (!fromYmd || !toYmd) return;
+
+    const headers = [
+      t('plate'),
+      t('fullName'),
+      t('amount'),
+      t('colFuelKind'),
+      t('colUnitPriceUsed'),
+      t('colVolume'),
+      t('colTime'),
+      t('colLocation'),
+      t('colFuelStation'),
+      t('colVehiclePhoto'),
+      t('colReceipt'),
+    ];
+
+    const data = rows.map((r) => {
+      const lat = r.latitude ? Number(r.latitude) : NaN;
+      const lon = r.longitude ? Number(r.longitude) : NaN;
+      return {
+        plate: r.vehicle.plateNumber,
+        driver: r.driver.fullName,
+        amount: r.amount,
+        fuelKind: fuelKindLabel(r),
+        unitPrice: r.unitPrice?.trim() ?? '',
+        volume: rawVolumeForExport(r),
+        createdAt: formatDateTimeNoSeconds(r.createdAt),
+        latitude: Number.isFinite(lat) ? String(lat) : '',
+        longitude: Number.isFinite(lon) ? String(lon) : '',
+        station: stationLabelForRow(r),
+        vehiclePhotoUrl: r.vehiclePhotoUrl ? apiUrl(r.vehiclePhotoUrl) : '',
+        receiptPhotoUrl: r.receiptPhotoUrl ? apiUrl(r.receiptPhotoUrl) : '',
+      };
+    });
+
+    const count = downloadFuelReportsExcel(headers, data, fromYmd, toYmd);
+    if (count <= 0) return;
+
+    const lo = fromYmd <= toYmd ? fromYmd : toYmd;
+    const hi = fromYmd <= toYmd ? toYmd : fromYmd;
+    const meta: FuelExportMeta = {
+      exportedAt: new Date().toISOString(),
+      fromYmd: lo,
+      toYmd: hi,
+      rowCount: count,
+    };
+    saveFuelExportMeta(meta);
+    setExportMeta(meta);
+  }
+
+  const exportMetaLabel = useMemo(() => {
+    if (!exportMeta) return t('fuelExportNever');
+    const at = new Intl.DateTimeFormat(intlLocaleFor(lang), {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(exportMeta.exportedAt));
+    return t('fuelExportLast', {
+      at,
+      from: formatYmdDisplay(exportMeta.fromYmd),
+      to: formatYmdDisplay(exportMeta.toYmd),
+      n: String(exportMeta.rowCount),
+    });
+  }, [exportMeta, lang, t]);
 
   function formatReportVolume(row: Row): string {
     if (row.volume != null && row.volume !== '') {
@@ -484,22 +599,37 @@ export function FuelPage() {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        {(['ALL', 'GAS', 'PETROL'] as const).map((k) => (
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {(['ALL', 'GAS', 'PETROL'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              className={clsx(
+                'rounded-lg border px-3 py-1.5 text-sm font-medium transition',
+                fuelKindFilter === k
+                  ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800',
+              )}
+              onClick={() => setFuelKindFilter(k)}
+            >
+              {k === 'ALL' ? t('fuelKindAll') : k === 'GAS' ? t('fuelKindGas') : t('fuelKindPetrol')}
+            </button>
+          ))}
+        </div>
+        <div className="flex min-w-0 flex-col items-stretch gap-2 sm:items-end">
+          <p className="text-xs text-slate-500 dark:text-slate-400">{exportMetaLabel}</p>
           <button
-            key={k}
             type="button"
-            className={clsx(
-              'rounded-lg border px-3 py-1.5 text-sm font-medium transition',
-              fuelKindFilter === k
-                ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
-                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800',
-            )}
-            onClick={() => setFuelKindFilter(k)}
+            className="app-btn-ghost shrink-0"
+            disabled={!rows.length}
+            title={!rows.length ? t('fuelExportNoRows') : undefined}
+            onClick={handleExportExcel}
           >
-            {k === 'ALL' ? t('fuelKindAll') : k === 'GAS' ? t('fuelKindGas') : t('fuelKindPetrol')}
+            <Download className="h-4 w-4 shrink-0" aria-hidden />
+            {t('fuelExportExcel')}
           </button>
-        ))}
+        </div>
       </div>
 
       <div className="app-card-pad grid min-w-0 grid-cols-1 gap-3 md:grid-cols-12 md:items-end">

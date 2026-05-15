@@ -98,11 +98,17 @@ export class SavedFuelStationService {
    * Eng yaqin saqlangan zapravka (o‘z radiusi ichida).
    * Bir nechta mos kelsa — eng yaqini.
    */
-  async matchNearest(
+  matchNearestFromRows(
     lat: number,
     lon: number,
-  ): Promise<{ id: string; name: string; distanceM: number } | null> {
-    const stations = await this.prisma.savedFuelStation.findMany();
+    stations: {
+      id: string;
+      name: string;
+      latitude: Prisma.Decimal;
+      longitude: Prisma.Decimal;
+      radiusMeters: number;
+    }[],
+  ): { id: string; name: string; distanceM: number } | null {
     let best: { id: string; name: string; distanceM: number } | null = null;
     let bestD = Infinity;
     for (const s of stations) {
@@ -120,6 +126,14 @@ export class SavedFuelStationService {
       }
     }
     return best;
+  }
+
+  async matchNearest(
+    lat: number,
+    lon: number,
+  ): Promise<{ id: string; name: string; distanceM: number } | null> {
+    const stations = await this.prisma.savedFuelStation.findMany();
+    return this.matchNearestFromRows(lat, lon, stations);
   }
 
   private async ensureExists(id: string) {

@@ -56,7 +56,68 @@ export class FuelService {
     return rows.map(mapFuelRow);
   }
 
-  findAll(params?: {
+  /** Saqlangan zapravkalar ro‘yxati bo‘yicha mos kelish (xarita sahifasidagi nomlar). */
+  resolveSavedStationLabel(
+    lat: number,
+    lon: number,
+    stations: {
+      id: string;
+      name: string;
+      latitude: Prisma.Decimal;
+      longitude: Prisma.Decimal;
+      radiusMeters: number;
+    }[],
+  ): { id: string; name: string } | null {
+    const hit = this.savedFuel.matchNearestFromRows(lat, lon, stations);
+    return hit ? { id: hit.id, name: hit.name } : null;
+  }
+
+  async nearestSavedStation(lat: number, lon: number) {
+    const hit = await this.savedFuel.matchNearest(lat, lon);
+    return {
+      label: hit?.name ?? null,
+      distanceM: hit?.distanceM ?? null,
+    };
+  }
+
+  /** Eski yozuvlar: stationLabel bo‘sh bo‘lsa, saqlangan zapravkadan to‘ldirish. */
+  async backfillStationLabels(): Promise<{ updated: number; scanned: number }> {
+    const [rows, stations] = await Promise.all([
+      this.prisma.fuelReport.findMany({
+        where: {
+          stationLabel: null,
+          latitude: { not: null },
+          longitude: { not: null },
+        },
+        select: { id: true, latitude: true, longitude: true },
+      }),
+      this.prisma.savedFuelStation.findMany(),
+    ]);
+
+    let updated = 0;
+    const updates: Promise<unknown>[] = [];
+    for (const r of rows) {
+      const lat = Number(r.latitude);
+      const lon = Number(r.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      const hit = this.resolveSavedStationLabel(lat, lon, stations);
+      if (!hit) continue;
+      updated += 1;
+      updates.push(
+        this.prisma.fuelReport.update({
+          where: { id: r.id },
+          data: {
+            stationLabel: hit.name,
+            savedFuelStationId: hit.id,
+          },
+        }),
+      );
+    }
+    if (updates.length) await Promise.all(updates);
+    return { updated, scanned: rows.length };
+  }
+
+  async findAll(params?: {
     date?: string;
     from?: string;
     to?: string;
@@ -100,45 +161,90 @@ export class FuelService {
       }
     }
 
-    return this.prisma.fuelReport
-      .findMany({
+    const [rows, stations] = await Promise.all([
+      this.prisma.fuelReport.findMany({
         orderBy: { createdAt: 'desc' },
         include: { vehicle: true, driver: true },
         where: {
           ...(createdAt ? { createdAt } : {}),
           ...(fuelKind ? { fuelKind } : {}),
         },
-      })
-      .then((rows) =>
-        rows.map((r) => ({
-          id: r.id,
-          amount: String(r.amount),
-          fuelKind: r.fuelKind,
-          unitPrice: r.unitPrice == null ? null : String(r.unitPrice),
-          volume: r.volume == null ? null : String(r.volume),
-          createdAt: r.createdAt.toISOString(),
-          latitude: r.latitude == null ? null : String(r.latitude),
-          longitude: r.longitude == null ? null : String(r.longitude),
-          stationLabel: r.stationLabel ?? null,
-          vehiclePhotoUrl: r.vehiclePhotoUrl ?? null,
-          receiptPhotoUrl: r.receiptPhotoUrl ?? null,
-          vehicle: {
-            id: r.vehicle.id,
-            plateNumber: r.vehicle.plateNumber,
-            gasPricePerM3:
-              r.vehicle.gasPricePerM3 == null
-                ? null
-                : String(r.vehicle.gasPricePerM3),
-            petrolPricePerLiter:
-              r.vehicle.petrolPricePerLiter == null
-                ? null
-                : String(r.vehicle.petrolPricePerLiter),
-          },
-          driver: {
-            fullName: r.driver.fullName,
-          },
-        })),
-      );
+      }),
+      this.prisma.savedFuelStation.findMany(),
+    ]);
+
+    const persistJobs: Promise<unknown>[] = [];
+    const mapped = rows.map((r) => {
+      let stationLabel = r.stationLabel?.trim() || null;
+      let resolvedId = r.savedFuelStationId;
+
+      if (!stationLabel && r.savedFuelStationId) {
+        const linked = stations.find((s) => s.id === r.savedFuelStationId);
+        if (linked) stationLabel = linked.name;
+      }
+
+      if (!stationLabel && r.latitude != null && r.longitude != null) {
+        const lat = Number(r.latitude);
+        const lon = Number(r.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          const hit = this.resolveSavedStationLabel(lat, lon, stations);
+          if (hit) {
+            stationLabel = hit.name;
+            resolvedId = hit.id;
+          }
+        }
+      }
+
+      if (
+        stationLabel &&
+        (!r.stationLabel?.trim() ||
+          r.savedFuelStationId !== resolvedId ||
+          !r.savedFuelStationId)
+      ) {
+        const data: { stationLabel: string; savedFuelStationId?: string } = {
+          stationLabel,
+        };
+        if (resolvedId) data.savedFuelStationId = resolvedId;
+        persistJobs.push(
+          this.prisma.fuelReport.update({ where: { id: r.id }, data }),
+        );
+      }
+
+      return {
+        id: r.id,
+        amount: String(r.amount),
+        fuelKind: r.fuelKind,
+        unitPrice: r.unitPrice == null ? null : String(r.unitPrice),
+        volume: r.volume == null ? null : String(r.volume),
+        createdAt: r.createdAt.toISOString(),
+        latitude: r.latitude == null ? null : String(r.latitude),
+        longitude: r.longitude == null ? null : String(r.longitude),
+        stationLabel,
+        vehiclePhotoUrl: r.vehiclePhotoUrl ?? null,
+        receiptPhotoUrl: r.receiptPhotoUrl ?? null,
+        vehicle: {
+          id: r.vehicle.id,
+          plateNumber: r.vehicle.plateNumber,
+          gasPricePerM3:
+            r.vehicle.gasPricePerM3 == null
+              ? null
+              : String(r.vehicle.gasPricePerM3),
+          petrolPricePerLiter:
+            r.vehicle.petrolPricePerLiter == null
+              ? null
+              : String(r.vehicle.petrolPricePerLiter),
+        },
+        driver: {
+          fullName: r.driver.fullName,
+        },
+      };
+    });
+
+    if (persistJobs.length) {
+      await Promise.all(persistJobs);
+    }
+
+    return mapped;
   }
 
   private resolveUnitPrice(

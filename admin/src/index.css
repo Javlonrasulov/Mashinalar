@@ -186,6 +186,42 @@
   .app-datetime-daypicker .rdp-head_cell {
     @apply text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400;
   }
+
+  /* Oraliq tanlov: kunlar orasida bo‘sh joy (uzluksiz chiziq emas, alohida tugmalar) */
+  .app-datetime-daypicker--range-gap {
+    --rdp-range_middle-background-color: transparent;
+    --rdp-range_start-background: transparent;
+    --rdp-range_end-background: transparent;
+  }
+
+  .app-datetime-daypicker--range-gap .rdp-month_grid {
+    border-collapse: separate;
+    border-spacing: 5px;
+  }
+
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_start,
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_middle,
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_end {
+    background: transparent !important;
+  }
+
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_start::before,
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_middle::before,
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_end::before,
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_start::after,
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_middle::after,
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_end::after {
+    display: none !important;
+    content: none !important;
+  }
+
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_start .rdp-day_button,
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_middle .rdp-day_button,
+  .app-datetime-daypicker--range-gap .rdp-day.rdp-range_end .rdp-day_button {
+    background-color: var(--rdp-accent-background-color);
+    color: var(--rdp-accent-color);
+    font-weight: 600;
+  }
 }
 
 body {
