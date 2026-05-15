@@ -72,9 +72,9 @@ export class VehiclesService {
         plateNumber: v.plateNumber,
         initialKm: Number(v.initialKm),
         gasPricePerM3:
-          v.gasPricePerM3 != null ? Number(v.gasPricePerM3) : null,
+          v.gasPricePerM3 != null ? String(v.gasPricePerM3) : null,
         petrolPricePerLiter:
-          v.petrolPricePerLiter != null ? Number(v.petrolPricePerLiter) : null,
+          v.petrolPricePerLiter != null ? String(v.petrolPricePerLiter) : null,
       },
       oil: {
         lastOilChangeKm: lastOilKm,

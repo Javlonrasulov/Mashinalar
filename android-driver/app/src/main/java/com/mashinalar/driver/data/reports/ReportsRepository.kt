@@ -69,7 +69,7 @@ class ReportsRepository @Inject constructor(
   suspend fun createFuel(
     amount: String,
     fuelKind: String,
-    unitPrice: String,
+    unitPrice: String?,
     latitude: String?,
     longitude: String?,
     vehiclePhoto: File?,
@@ -79,7 +79,8 @@ class ReportsRepository @Inject constructor(
       api.createFuelReport(
         amount = textPart(amount),
         fuelKind = textPart(fuelKind),
-        unitPrice = textPart(unitPrice),
+        unitPrice =
+          unitPrice?.filter { it.isDigit() }?.takeIf { it.isNotEmpty() }?.let(::textPart),
         latitude = latitude?.let(::textPart),
         longitude = longitude?.let(::textPart),
         vehiclePhoto = vehiclePhoto?.let { filePart("vehiclePhoto", it) },

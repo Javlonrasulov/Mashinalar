@@ -74,6 +74,11 @@ fun FuelScreen(
   vm: FuelViewModel = hiltViewModel(),
 ) {
   val state by vm.state.collectAsState()
+
+  LaunchedEffect(Unit) {
+    vm.reloadVehicleFuelPrices()
+  }
+
   /** UI: kamera jarayoni boshlangan (tugma o‘rnida matn) */
   var captureTarget by remember { mutableStateOf<String?>(null) }
   var fuelHistoryExpanded by remember { mutableStateOf(false) }

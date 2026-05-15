@@ -39,7 +39,7 @@ data class FuelUiState(
   val previewVolume: String?
     get() {
       val a = amount.filter { it.isDigit() }.toDoubleOrNull() ?: return null
-      val p = unitPrice.filter { it.isDigit() }.toDoubleOrNull() ?: return null
+      val p = effectiveUnitPriceDigits().toDoubleOrNull() ?: return null
       if (p <= 0) return null
       val v = a / p
       if (!v.isFinite() || v <= 0) return null
@@ -48,6 +48,21 @@ data class FuelUiState(
       } else {
         String.format("%.2f L", v)
       }
+    }
+
+  fun effectiveUnitPriceDigits(): String {
+    val typed = unitPrice.filter { it.isDigit() }
+    if (typed.isNotEmpty()) return typed
+    return when (fuelKind) {
+      FuelKindOption.GAS -> defaultGasPrice
+      FuelKindOption.PETROL -> defaultPetrolPrice
+    }.filter { it.isDigit() }
+  }
+
+  fun defaultPriceForKind(kind: FuelKindOption): String =
+    when (kind) {
+      FuelKindOption.GAS -> defaultGasPrice
+      FuelKindOption.PETROL -> defaultPetrolPrice
     }
 }
 
@@ -60,11 +75,11 @@ class FuelViewModel @Inject constructor(
   val state: StateFlow<FuelUiState> = _state
 
   init {
-    loadVehicleFuelPrices()
+    reloadVehicleFuelPrices()
     refreshHistory()
   }
 
-  private fun loadVehicleFuelPrices() {
+  fun reloadVehicleFuelPrices() {
     viewModelScope.launch {
       when (val r = repo.myVehicle()) {
         is ApiResult.Ok -> {
@@ -72,7 +87,7 @@ class FuelViewModel @Inject constructor(
           val gas = formatPriceNumber(v?.gasPricePerM3)
           val petrol = formatPriceNumber(v?.petrolPricePerLiter)
           val cur = _state.value
-          val defaultForKind =
+          val adminForKind =
             when (cur.fuelKind) {
               FuelKindOption.GAS -> gas
               FuelKindOption.PETROL -> petrol
@@ -81,7 +96,7 @@ class FuelViewModel @Inject constructor(
             cur.copy(
               defaultGasPrice = gas,
               defaultPetrolPrice = petrol,
-              unitPrice = cur.unitPrice.ifBlank { defaultForKind },
+              unitPrice = cur.unitPrice.ifBlank { adminForKind },
             )
         }
         is ApiResult.Err -> { /* defaults stay empty */ }
@@ -105,12 +120,12 @@ class FuelViewModel @Inject constructor(
 
   fun setFuelKind(kind: FuelKindOption) {
     val s = _state.value
-    val price =
-      when (kind) {
-        FuelKindOption.GAS -> s.defaultGasPrice
-        FuelKindOption.PETROL -> s.defaultPetrolPrice
-      }
-    _state.value = s.copy(fuelKind = kind, unitPrice = price, message = null)
+    _state.value =
+      s.copy(
+        fuelKind = kind,
+        unitPrice = s.defaultPriceForKind(kind),
+        message = null,
+      )
   }
 
   fun setAmount(v: String) {
@@ -154,7 +169,7 @@ class FuelViewModel @Inject constructor(
       _state.value = s.copy(message = context.getString(R.string.msg_enter_amount))
       return
     }
-    val unitDigits = s.unitPrice.filter { it.isDigit() }
+    val unitDigits = s.effectiveUnitPriceDigits()
     if (unitDigits.isEmpty()) {
       _state.value = s.copy(message = context.getString(R.string.msg_fuel_unit_price_required))
       return
@@ -167,11 +182,13 @@ class FuelViewModel @Inject constructor(
       _state.value = s.copy(loading = true, message = null)
       val loc = runCatching { LocationHelper.getOnce(context) }.getOrNull()
       val kindApi = if (s.fuelKind == FuelKindOption.GAS) "GAS" else "PETROL"
+      val typedUnit = s.unitPrice.filter { it.isDigit() }
+      val unitToSend = typedUnit.ifEmpty { null }
       val r =
         repo.createFuel(
           amount = amountDigits,
           fuelKind = kindApi,
-          unitPrice = unitDigits,
+          unitPrice = unitToSend,
           latitude = loc?.first?.toString(),
           longitude = loc?.second?.toString(),
           vehiclePhoto = s.vehiclePhoto,
@@ -188,7 +205,7 @@ class FuelViewModel @Inject constructor(
               fuelKind = s.fuelKind,
               defaultGasPrice = gas,
               defaultPetrolPrice = petrol,
-              unitPrice = if (s.fuelKind == FuelKindOption.GAS) gas else petrol,
+              unitPrice = s.defaultPriceForKind(s.fuelKind),
               message = context.getString(R.string.msg_sent),
             )
           refreshHistory()
@@ -221,8 +238,9 @@ private fun filterDigitsWithSpaces(input: String): String {
   return out.toString().trimEnd()
 }
 
-private fun formatPriceNumber(raw: Double?): String {
-  if (raw == null || !raw.isFinite() || raw <= 0) return ""
-  val n = kotlin.math.round(raw).toLong()
-  return n.toString()
+private fun formatPriceNumber(raw: String?): String {
+  if (raw.isNullOrBlank()) return ""
+  val n = raw.trim().replace(',', '.').toDoubleOrNull() ?: return ""
+  if (!n.isFinite() || n <= 0) return ""
+  return kotlin.math.round(n).toLong().toString()
 }
