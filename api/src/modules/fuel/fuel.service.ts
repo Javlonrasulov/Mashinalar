@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { FuelKind, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { OsmFuelService } from '../osm-fuel/osm-fuel.service';
 import { SavedFuelStationService } from '../saved-fuel-station/saved-fuel-station.service';
 
 function mapFuelRow(r: {
@@ -32,6 +33,7 @@ export class FuelService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly savedFuel: SavedFuelStationService,
+    private readonly osmFuel: OsmFuelService,
   ) {}
 
   /** Haydovchi o‘zining so‘nggi zapravka (fuel) yozuvlari */
@@ -56,28 +58,35 @@ export class FuelService {
     return rows.map(mapFuelRow);
   }
 
-  /** Saqlangan zapravkalar ro‘yxati bo‘yicha mos kelish (xarita sahifasidagi nomlar). */
-  resolveSavedStationLabel(
+  /**
+   * Saqlangan (admin) yoki OSM (xarita qatlami) zapravka — qo‘lda qo‘shmasdan ham nom topiladi.
+   */
+  private async resolveNearestStation(
     lat: number,
     lon: number,
-    stations: {
+    savedStations: {
       id: string;
       name: string;
       latitude: Prisma.Decimal;
       longitude: Prisma.Decimal;
       radiusMeters: number;
     }[],
-  ): { id: string; name: string } | null {
-    const hit = this.savedFuel.matchNearestFromRows(lat, lon, stations);
-    return hit ? { id: hit.id, name: hit.name } : null;
+  ): Promise<{ label: string; savedId?: string } | null> {
+    const nearest = await this.osmFuel.nearestFuelStation(lat, lon);
+    if (!nearest.label) return null;
+    const savedHit = this.savedFuel.matchNearestFromRows(
+      lat,
+      lon,
+      savedStations,
+    );
+    return {
+      label: nearest.label,
+      savedId: savedHit?.id,
+    };
   }
 
-  async nearestSavedStation(lat: number, lon: number) {
-    const hit = await this.savedFuel.matchNearest(lat, lon);
-    return {
-      label: hit?.name ?? null,
-      distanceM: hit?.distanceM ?? null,
-    };
+  async nearestFuelStation(lat: number, lon: number) {
+    return this.osmFuel.nearestFuelStation(lat, lon);
   }
 
   /** Eski yozuvlar: stationLabel bo‘sh bo‘lsa, saqlangan zapravkadan to‘ldirish. */
@@ -100,15 +109,15 @@ export class FuelService {
       const lat = Number(r.latitude);
       const lon = Number(r.longitude);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      const hit = this.resolveSavedStationLabel(lat, lon, stations);
+      const hit = await this.resolveNearestStation(lat, lon, stations);
       if (!hit) continue;
       updated += 1;
       updates.push(
         this.prisma.fuelReport.update({
           where: { id: r.id },
           data: {
-            stationLabel: hit.name,
-            savedFuelStationId: hit.id,
+            stationLabel: hit.label,
+            ...(hit.savedId ? { savedFuelStationId: hit.savedId } : {}),
           },
         }),
       );
@@ -174,7 +183,8 @@ export class FuelService {
     ]);
 
     const persistJobs: Promise<unknown>[] = [];
-    const mapped = rows.map((r) => {
+    const mapped = await Promise.all(
+      rows.map(async (r) => {
       let stationLabel = r.stationLabel?.trim() || null;
       let resolvedId = r.savedFuelStationId;
 
@@ -187,10 +197,10 @@ export class FuelService {
         const lat = Number(r.latitude);
         const lon = Number(r.longitude);
         if (Number.isFinite(lat) && Number.isFinite(lon)) {
-          const hit = this.resolveSavedStationLabel(lat, lon, stations);
+          const hit = await this.resolveNearestStation(lat, lon, stations);
           if (hit) {
-            stationLabel = hit.name;
-            resolvedId = hit.id;
+            stationLabel = hit.label;
+            resolvedId = hit.savedId ?? null;
           }
         }
       }
@@ -238,7 +248,8 @@ export class FuelService {
           fullName: r.driver.fullName,
         },
       };
-    });
+    }),
+    );
 
     if (persistJobs.length) {
       await Promise.all(persistJobs);
@@ -308,13 +319,15 @@ export class FuelService {
       Number.isFinite(params.latitude) &&
       Number.isFinite(params.longitude)
     ) {
-      const hit = await this.savedFuel.matchNearest(
+      const savedStations = await this.prisma.savedFuelStation.findMany();
+      const hit = await this.resolveNearestStation(
         params.latitude,
         params.longitude,
+        savedStations,
       );
       if (hit) {
-        savedFuelStationId = hit.id;
-        stationLabel = hit.name;
+        stationLabel = hit.label;
+        savedFuelStationId = hit.savedId;
       }
     }
 

@@ -17,6 +17,13 @@ import {
   type FuelExportMeta,
   ymdFromDatetimeLocal,
 } from '@/lib/fuelReportExport';
+import {
+  buildStationPaletteLookup,
+  fuelStationNameClass,
+  fuelStationRowClass,
+  resolveStationPaletteIndex,
+} from '@/lib/fuelStationRowStyle';
+import type { SavedFuelStationMapItem } from '@/lib/savedFuelStationsMap';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -121,6 +128,7 @@ export function FuelPage() {
   const [photoFs, setPhotoFs] = useState(false);
   const photoStageRef = useRef<HTMLDivElement>(null);
   const [stationByKey, setStationByKey] = useState<Record<string, string | null>>({});
+  const [savedFuelStations, setSavedFuelStations] = useState<SavedFuelStationMapItem[]>([]);
   const [exportMeta, setExportMeta] = useState<FuelExportMeta | null>(() => loadFuelExportMeta());
 
   useEffect(() => {
@@ -208,6 +216,12 @@ export function FuelPage() {
   }, []);
 
   useEffect(() => {
+    api<SavedFuelStationMapItem[]>('/map/saved-fuel-stations')
+      .then(setSavedFuelStations)
+      .catch(() => setSavedFuelStations([]));
+  }, []);
+
+  useEffect(() => {
     return () => {
       if (gasSaveOkTimerRef.current != null) window.clearTimeout(gasSaveOkTimerRef.current);
       if (petrolSaveOkTimerRef.current != null) window.clearTimeout(petrolSaveOkTimerRef.current);
@@ -234,7 +248,7 @@ export function FuelPage() {
         unique.map(async (p) => {
           try {
             const res = await api<{ label: string | null }>(
-              `/fuel-reports/nearest-saved-station?lat=${encodeURIComponent(String(p.lat))}&lon=${encodeURIComponent(String(p.lon))}`,
+              `/fuel-reports/nearest-station?lat=${encodeURIComponent(String(p.lat))}&lon=${encodeURIComponent(String(p.lon))}`,
             );
             const lbl = res.label?.trim() ? res.label.trim() : null;
             return [p.key, lbl] as const;
@@ -336,6 +350,32 @@ export function FuelPage() {
     const lbl = stationByKey[key];
     if (lbl === undefined || !lbl) return t('fuelStationUnknown');
     return lbl;
+  }
+
+  const stationsForPalette = useMemo(() => {
+    const byName = new Map<string, string>();
+    for (const s of savedFuelStations) {
+      const n = s.name.trim();
+      if (n) byName.set(n, s.id);
+    }
+    for (const r of filteredRows) {
+      const lbl = stationLabelForRow(r);
+      if (lbl && lbl !== t('fuelStationUnknown') && !byName.has(lbl)) {
+        byName.set(lbl, lbl);
+      }
+    }
+    return [...byName.entries()].map(([name, id]) => ({ id, name }));
+  }, [savedFuelStations, filteredRows, stationByKey, rows, t]);
+
+  const stationPaletteLookup = useMemo(
+    () => buildStationPaletteLookup(stationsForPalette),
+    [stationsForPalette],
+  );
+
+  function stationPaletteIndexForRow(r: Row): number | null {
+    const lbl = stationLabelForRow(r);
+    if (!lbl || lbl === t('fuelStationUnknown')) return null;
+    return resolveStationPaletteIndex(lbl, stationPaletteLookup);
   }
 
   function rawVolumeForExport(row: Row): string {
@@ -632,61 +672,81 @@ export function FuelPage() {
         </div>
       </div>
 
-      <div className="app-card-pad grid min-w-0 grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
-        <div className="min-w-0 md:col-span-7">
-          <div className="text-sm font-semibold text-slate-900 dark:text-white">{t('gasPriceAllTitle')}</div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('gasPriceAllHint')}</div>
-        </div>
-        <div className="min-w-0 md:col-span-3">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('gasPricePerM3')}</label>
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            className="app-input w-full text-right tabular-nums"
-            value={globalGasPrice}
-            onChange={(e) => setGlobalGasPrice(e.target.value)}
-            placeholder="—"
-          />
-        </div>
-        <div className="md:col-span-2">
-          <button
-            type="button"
-            className="app-btn-primary w-full"
-            disabled={globalGasSaving || !allVehicles.length}
-            onClick={() => void saveGlobalGasPriceForAllVehicles()}
-          >
-            {globalGasSaving ? '…' : t('gasPriceAllSave')}
-          </button>
-        </div>
-      </div>
+      <div className="app-card-pad min-w-0">
+        <div className="grid min-w-0 grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8">
+          <div className="flex min-w-0 flex-col gap-2 sm:border-r sm:border-slate-200 sm:pr-8 dark:sm:border-slate-700">
+            <div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-white">{t('gasPriceAllTitle')}</div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('gasPriceAllHint')}</p>
+            </div>
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1">
+                <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('gasPricePerM3')}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="app-input w-full text-right tabular-nums"
+                  value={globalGasPrice}
+                  onChange={(e) => setGlobalGasPrice(e.target.value)}
+                  placeholder="—"
+                />
+              </div>
+              <button
+                type="button"
+                className="app-btn-primary w-full shrink-0 sm:w-auto"
+                disabled={globalGasSaving || !allVehicles.length}
+                onClick={() => void saveGlobalGasPriceForAllVehicles()}
+              >
+                {globalGasSaving ? '…' : t('gasPriceAllSave')}
+              </button>
+            </div>
+            {gasSaveErr && (
+              <p className="text-xs text-red-600 dark:text-red-400">
+                {t('genericError')}: {gasSaveErr}
+              </p>
+            )}
+            {gasSaveOk && (
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">{t('credentialsSaved')}</p>
+            )}
+          </div>
 
-      <div className="app-card-pad grid min-w-0 grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
-        <div className="min-w-0 md:col-span-7">
-          <div className="text-sm font-semibold text-slate-900 dark:text-white">{t('petrolPriceAllTitle')}</div>
-          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('petrolPriceAllHint')}</div>
-        </div>
-        <div className="min-w-0 md:col-span-3">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('petrolPricePerLiter')}</label>
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            className="app-input w-full text-right tabular-nums"
-            value={globalPetrolPrice}
-            onChange={(e) => setGlobalPetrolPrice(e.target.value)}
-            placeholder="—"
-          />
-        </div>
-        <div className="md:col-span-2">
-          <button
-            type="button"
-            className="app-btn-primary w-full"
-            disabled={globalPetrolSaving || !allVehicles.length}
-            onClick={() => void saveGlobalPetrolPriceForAllVehicles()}
-          >
-            {globalPetrolSaving ? '…' : t('petrolPriceAllSave')}
-          </button>
+          <div className="flex min-w-0 flex-col gap-2">
+            <div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-white">{t('petrolPriceAllTitle')}</div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('petrolPriceAllHint')}</p>
+            </div>
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1">
+                <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('petrolPricePerLiter')}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="app-input w-full text-right tabular-nums"
+                  value={globalPetrolPrice}
+                  onChange={(e) => setGlobalPetrolPrice(e.target.value)}
+                  placeholder="—"
+                />
+              </div>
+              <button
+                type="button"
+                className="app-btn-primary w-full shrink-0 sm:w-auto"
+                disabled={globalPetrolSaving || !allVehicles.length}
+                onClick={() => void saveGlobalPetrolPriceForAllVehicles()}
+              >
+                {globalPetrolSaving ? '…' : t('petrolPriceAllSave')}
+              </button>
+            </div>
+            {petrolSaveErr && (
+              <p className="text-xs text-red-600 dark:text-red-400">
+                {t('genericError')}: {petrolSaveErr}
+              </p>
+            )}
+            {petrolSaveOk && (
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">{t('credentialsSaved')}</p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -695,28 +755,28 @@ export function FuelPage() {
           {t('genericError')}: {vehiclesErr}
         </div>
       )}
-      {gasSaveErr && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          {t('genericError')}: {gasSaveErr}
-        </div>
-      )}
-      {gasSaveOk && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
-          {t('credentialsSaved')}
-        </div>
-      )}
-      {petrolSaveErr && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          {t('genericError')}: {petrolSaveErr}
-        </div>
-      )}
-      {petrolSaveOk && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100">
-          {t('credentialsSaved')}
-        </div>
-      )}
 
       <div className="app-card min-w-0 overflow-hidden">
+        {stationsForPalette.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-800">
+            {stationsForPalette.map((s) => {
+              const idx = resolveStationPaletteIndex(s.name, stationPaletteLookup);
+              return (
+                <span
+                  key={s.id}
+                  className={clsx(
+                    'rounded-md px-2 py-0.5 text-xs',
+                    fuelStationRowClass(idx),
+                    fuelStationNameClass(idx),
+                  )}
+                >
+                  {s.name}
+                </span>
+              );
+            })}
+            <span className="text-xs text-slate-500 dark:text-slate-400">{t('fuelStationUnknown')}</span>
+          </div>
+        )}
         <div className="app-table-wrap">
           <table className="app-table-inner text-sm">
           <thead className="app-table-head">
@@ -742,8 +802,10 @@ export function FuelPage() {
                 </td>
               </tr>
             )}
-            {filteredRows.map((r) => (
-              <tr key={r.id} className="app-table-row">
+            {filteredRows.map((r) => {
+              const stationIdx = stationPaletteIndexForRow(r);
+              return (
+              <tr key={r.id} className={clsx('app-table-row', fuelStationRowClass(stationIdx))}>
                 <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
                 <td className="p-3">{r.driver.fullName}</td>
                 <td className="p-3">{r.amount}</td>
@@ -788,7 +850,7 @@ export function FuelPage() {
                       if (!lbl) {
                         return <span className="text-slate-500 dark:text-slate-400">{t('fuelStationUnknown')}</span>;
                       }
-                      return <span className="text-slate-700 dark:text-slate-200">{lbl}</span>;
+                      return <span className={fuelStationNameClass(stationIdx)}>{lbl}</span>;
                     })()
                   ) : (
                     '—'
@@ -829,7 +891,8 @@ export function FuelPage() {
                   )}
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
         </div>
