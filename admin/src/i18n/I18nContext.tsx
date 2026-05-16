@@ -356,15 +356,6 @@ const DICTS: Record<Lang, Dict> = {
     fuelLegendFilterChipTitle:
       'Босиб — фақат ўшбу заправкани қайта босиб — фильтни ўчириш.',
     fuelLegendFilterEmpty: 'Шу фильтр бўйича сана интервалида ёзув йўқ.',
-    fuelStationMaintenanceTitle: 'Заправка маълумотларини тузатиш',
-    fuelStationMaintenanceHint:
-      'Харитада нуқталар алмашган бўлса, аввал иккала заправкани танлаб нуқталарни алмаштиринг, сўнгра GPS бўйича қайта белгиланг (кўп ёзув бўлса тасир узаоқ тушади).',
-    fuelStationResyncGps: 'GPS бўйича қайта белгилаш',
-    fuelStationResyncDone: '{n} та ёзув янгиланди',
-    fuelStationSwapA: 'Заправка A',
-    fuelStationSwapB: 'Заправка B',
-    fuelStationSwapBtn: 'Харитадаги нуқталарни алмаштириш',
-    fuelStationSwapOk: 'Нуқталар алмаштирилди.',
     expenseType_FUEL: 'Ёқилғи',
     expenseType_REPAIR: 'Таъмир',
     expenseType_OIL: 'Мой',
@@ -814,15 +805,6 @@ const DICTS: Record<Lang, Dict> = {
       'Bosing — faqat bu zapravkalar. Qayta bosing — filtrni o‘chirish.',
     fuelLegendFilterEmpty:
       'Shu filtr bo‘yicha tanlangan kunlar oralig‘ida yozuv yo‘q.',
-    fuelStationMaintenanceTitle: 'Zapravka ma’lumotlarini tuzatish',
-    fuelStationMaintenanceHint:
-      'Xaritada nuqtalar almashgan bo‘lsa, avval A va B zapravkalarni tanlang, nuqtalarni almashtiring, keyin GPS bo‘yicha qayta belgilang (ko‘p yozuv bo‘lsa uzoqroq tushishi mumkin).',
-    fuelStationResyncGps: 'GPS bo‘yicha qayta belgilash',
-    fuelStationResyncDone: '{n} ta yozuv yangilandi',
-    fuelStationSwapA: 'Zapravka A',
-    fuelStationSwapB: 'Zapravka B',
-    fuelStationSwapBtn: 'Xaritadagi nuqtalarni almashtirish',
-    fuelStationSwapOk: 'Nuqtalar almashtirildi.',
     expenseType_FUEL: "Yoqilg'i",
     expenseType_REPAIR: "Ta'mir",
     expenseType_OIL: 'Moy',
@@ -1274,15 +1256,6 @@ const DICTS: Record<Lang, Dict> = {
       'Нажмите — только эта станция. Ещё раз — показать все.',
     fuelLegendFilterEmpty:
       'За этот фильтр в выбранном диапазоне записей нет.',
-    fuelStationMaintenanceTitle: 'Исправление привязки к заправкам',
-    fuelStationMaintenanceHint:
-      'Если на карте точки перепутаны: выберите две заправки и поменяйте координаты местами, затем выполните пересчёт по GPS (много записей — дольше).',
-    fuelStationResyncGps: 'Пересчитать по GPS',
-    fuelStationResyncDone: 'Обновлено записей: {n}',
-    fuelStationSwapA: 'Заправка A',
-    fuelStationSwapB: 'Заправка B',
-    fuelStationSwapBtn: 'Поменять координаты местами',
-    fuelStationSwapOk: 'Координаты обменены.',
     expenseType_FUEL: 'Топливо',
     expenseType_REPAIR: 'Ремонт',
     expenseType_OIL: 'Масло',

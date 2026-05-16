@@ -153,13 +153,6 @@ export function FuelPage() {
   );
   const [savedFuelStations, setSavedFuelStations] = useState<SavedFuelStationMapItem[]>([]);
   const [exportMeta, setExportMeta] = useState<FuelExportMeta | null>(() => loadFuelExportMeta());
-  const [reloadTick, setReloadTick] = useState(0);
-  const [resyncBusy, setResyncBusy] = useState(false);
-  const [swapBusy, setSwapBusy] = useState(false);
-  const [maintenanceMsg, setMaintenanceMsg] = useState<string | null>(null);
-  const [maintenanceErr, setMaintenanceErr] = useState<string | null>(null);
-  const [swapStationA, setSwapStationA] = useState('');
-  const [swapStationB, setSwapStationB] = useState('');
 
   useEffect(() => {
     const fromD = new Date(dateFromValue);
@@ -179,7 +172,7 @@ export function FuelPage() {
     if (fuelKindFilter !== 'ALL') qs.set('fuelKind', fuelKindFilter);
 
     api<Row[]>(`/fuel-reports?${qs.toString()}`).then(setRows).catch(() => {});
-  }, [dateFromValue, dateToValue, fuelKindFilter, reloadTick]);
+  }, [dateFromValue, dateToValue, fuelKindFilter]);
 
   useEffect(() => {
     setVehiclesErr(null);
@@ -498,53 +491,6 @@ export function FuelPage() {
     });
   }, [exportMeta, lang, t]);
 
-  async function resyncStationsFromGps() {
-    setResyncBusy(true);
-    setMaintenanceErr(null);
-    setMaintenanceMsg(null);
-    try {
-      const res = await api<{ scanned: number; updated: number }>(
-        '/fuel-reports/resync-stations-from-gps',
-        { method: 'POST' },
-      );
-      setMaintenanceMsg(t('fuelStationResyncDone', { n: String(res.updated) }));
-      setReloadTick((x) => x + 1);
-      api<SavedFuelStationMapItem[]>('/map/saved-fuel-stations')
-        .then(setSavedFuelStations)
-        .catch(() => {});
-    } catch (e: unknown) {
-      setMaintenanceErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setResyncBusy(false);
-    }
-  }
-
-  async function swapStationCoordinates() {
-    if (!swapStationA || !swapStationB || swapStationA === swapStationB) return;
-    setSwapBusy(true);
-    setMaintenanceErr(null);
-    setMaintenanceMsg(null);
-    try {
-      await api('/map/saved-fuel-stations/swap-coordinates', {
-        method: 'POST',
-        body: JSON.stringify({
-          stationIdA: swapStationA,
-          stationIdB: swapStationB,
-        }),
-      });
-      setMaintenanceMsg(t('fuelStationSwapOk'));
-      api<SavedFuelStationMapItem[]>('/map/saved-fuel-stations')
-        .then(setSavedFuelStations)
-        .catch(() => {});
-      setSwapStationA('');
-      setSwapStationB('');
-    } catch (e: unknown) {
-      setMaintenanceErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSwapBusy(false);
-    }
-  }
-
   function formatReportVolume(row: Row): string {
     if (row.volume != null && row.volume !== '') {
       const v = Number(row.volume);
@@ -842,84 +788,6 @@ export function FuelPage() {
           {t('genericError')}: {vehiclesErr}
         </div>
       )}
-
-      <div className="app-card-pad space-y-4">
-        <div>
-          <div className="text-sm font-semibold text-slate-900 dark:text-white">
-            {t('fuelStationMaintenanceTitle')}
-          </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            {t('fuelStationMaintenanceHint')}
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <button
-            type="button"
-            className="app-btn-primary shrink-0"
-            disabled={resyncBusy}
-            onClick={() => void resyncStationsFromGps()}
-          >
-            {resyncBusy ? '…' : t('fuelStationResyncGps')}
-          </button>
-          {maintenanceMsg && (
-            <span className="text-sm text-emerald-700 dark:text-emerald-300">{maintenanceMsg}</span>
-          )}
-          {maintenanceErr && (
-            <span className="text-sm text-red-600 dark:text-red-400">{maintenanceErr}</span>
-          )}
-        </div>
-        <div className="flex min-w-0 flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:flex-wrap sm:items-end">
-          <div className="min-w-0 sm:w-56">
-            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-              {t('fuelStationSwapA')}
-            </label>
-            <select
-              className="app-select w-full text-sm"
-              value={swapStationA}
-              onChange={(e) => setSwapStationA(e.target.value)}
-              aria-label={t('fuelStationSwapA')}
-            >
-              <option value="">—</option>
-              {savedFuelStations.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {(s.name ?? '').trim() || `${s.latitude.toFixed(3)}, ${s.longitude.toFixed(3)}`}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="min-w-0 sm:w-56">
-            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-              {t('fuelStationSwapB')}
-            </label>
-            <select
-              className="app-select w-full text-sm"
-              value={swapStationB}
-              onChange={(e) => setSwapStationB(e.target.value)}
-              aria-label={t('fuelStationSwapB')}
-            >
-              <option value="">—</option>
-              {savedFuelStations.map((s) => (
-                <option key={`b-${s.id}`} value={s.id}>
-                  {(s.name ?? '').trim() || `${s.latitude.toFixed(3)}, ${s.longitude.toFixed(3)}`}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="button"
-            className="app-btn-ghost shrink-0"
-            disabled={
-              swapBusy ||
-              !swapStationA ||
-              !swapStationB ||
-              swapStationA === swapStationB
-            }
-            onClick={() => void swapStationCoordinates()}
-          >
-            {swapBusy ? '…' : t('fuelStationSwapBtn')}
-          </button>
-        </div>
-      </div>
 
       <div className="app-card min-w-0 overflow-hidden">
         {legendStations.length > 0 && (

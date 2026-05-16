@@ -9,27 +9,28 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.mashinalar.driver.data.local.LanguageStore
-import com.mashinalar.driver.notifications.DailyKmEndReminderWorker
-import com.mashinalar.driver.notifications.DailyKmStartReminderWorker
+import com.mashinalar.driver.notifications.BackgroundWorkScheduler
+import com.mashinalar.driver.notifications.DailyKmReminderScheduler
 import com.mashinalar.driver.notifications.OilReminderWorker
 import com.mashinalar.driver.notifications.TaskAssignedWorker
 import com.mashinalar.driver.tracking.NetworkUploadTrigger
-import com.mashinalar.driver.notifications.BackgroundWorkScheduler
-import com.mashinalar.driver.util.AppZone
 import com.mashinalar.driver.util.LocaleManager
 import dagger.hilt.android.HiltAndroidApp
-import java.time.Duration
-import java.time.ZonedDateTime
-import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 @HiltAndroidApp
 class MashinalarDriverApp : Application() {
   @Inject lateinit var workerFactory: HiltWorkerFactory
   @Inject lateinit var languageStore: LanguageStore
+
+  private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
   override fun onCreate() {
     super.onCreate()
@@ -45,7 +46,10 @@ class MashinalarDriverApp : Application() {
     }
     scheduleLocationUploads()
     scheduleOilReminders()
-    scheduleDailyKmReminders()
+    appScope.launch {
+      DailyKmReminderScheduler.scheduleStart(this@MashinalarDriverApp)
+      DailyKmReminderScheduler.scheduleEnd(this@MashinalarDriverApp)
+    }
     scheduleTaskAssignedNotifications()
     BackgroundWorkScheduler.enqueueTaskCheckNow(this)
   }
@@ -77,42 +81,6 @@ class MashinalarDriverApp : Application() {
       "oil_reminders",
       ExistingPeriodicWorkPolicy.UPDATE,
       req,
-    )
-  }
-
-  private fun scheduleDailyKmReminders() {
-    fun delayUntil(hour: Int, minute: Int): Duration {
-      val zone = AppZone.zone
-      val now = ZonedDateTime.now(zone)
-      var next =
-        now
-          .truncatedTo(ChronoUnit.DAYS)
-          .withHour(hour)
-          .withMinute(minute)
-          .withSecond(0)
-          .withNano(0)
-      if (!next.isAfter(now)) next = next.plusDays(1)
-      return Duration.between(now, next)
-    }
-
-    val startReq =
-      PeriodicWorkRequestBuilder<DailyKmStartReminderWorker>(24, TimeUnit.HOURS)
-        .setInitialDelay(delayUntil(7, 0).toMillis(), TimeUnit.MILLISECONDS)
-        .build()
-    WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-      "daily_km_start_reminder",
-      ExistingPeriodicWorkPolicy.UPDATE,
-      startReq,
-    )
-
-    val endReq =
-      PeriodicWorkRequestBuilder<DailyKmEndReminderWorker>(24, TimeUnit.HOURS)
-        .setInitialDelay(delayUntil(20, 0).toMillis(), TimeUnit.MILLISECONDS)
-        .build()
-    WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-      "daily_km_end_reminder",
-      ExistingPeriodicWorkPolicy.UPDATE,
-      endReq,
     )
   }
 
