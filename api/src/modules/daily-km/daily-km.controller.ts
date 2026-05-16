@@ -92,6 +92,40 @@ export class DailyKmController {
     return this.dailyKm.submissionOverview({ from, to });
   }
 
+  /** Admin: yuborilgan boshlang‘ich / yakuniy KM ni tuzatish (rasm va vaqtlar o‘zgarmaydi) */
+  @Patch('admin/:id/km')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePageAny(ADMIN_PAGES_DAILY_KM_SHARED)
+  async adminPatchKm(
+    @Param('id') id: string,
+    @Body() body: { startKm?: string; endKm?: string },
+    @CurrentUser() user: JwtUser,
+  ) {
+    const patch: { startKm?: number; endKm?: number } = {};
+    if (body.startKm != null && String(body.startKm).trim() !== '') {
+      const n = Number(body.startKm);
+      if (!Number.isFinite(n))
+        throw new BadRequestException('daily_km.invalid_start_km_number');
+      patch.startKm = n;
+    }
+    if (body.endKm != null && String(body.endKm).trim() !== '') {
+      const n = Number(body.endKm);
+      if (!Number.isFinite(n))
+        throw new BadRequestException('daily_km.invalid_end_km_number');
+      patch.endKm = n;
+    }
+    if (patch.startKm === undefined && patch.endKm === undefined) {
+      throw new BadRequestException('daily_km.nothing_to_patch');
+    }
+    await this.dailyKm.adminPatchReportKm({
+      reportId: id,
+      actorUserId: user.userId,
+      ...patch,
+    });
+    return { ok: true as const };
+  }
+
   /** Kun boshlanishi: boshlang‘ich KM + start rasm + lokatsiya + vaqt */
   @Post('start')
   @UseGuards(JwtAuthGuard, RolesGuard)

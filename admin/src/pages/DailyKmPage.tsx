@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, apiUrl } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown, Pencil, Search } from 'lucide-react';
 import { MapContainer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -249,6 +249,23 @@ export function DailyKmPage() {
   const [overviewDayFilter, setOverviewDayFilter] = useState<'all' | 'startPending' | 'endPending' | 'complete'>('all');
   const [expandedOverviewDay, setExpandedOverviewDay] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [kmEdit, setKmEdit] = useState<{ row: DailyKmRow; field: 'start' | 'end'; draft: string } | null>(null);
+  const [kmEditSaving, setKmEditSaving] = useState(false);
+  const [kmEditErr, setKmEditErr] = useState<string | null>(null);
+
+  const reloadDailyKmData = useCallback(() => {
+    const a = toDateInputValueLocal(new Date(tableFromValue));
+    const b = toDateInputValueLocal(new Date(tableToValue));
+    const fromStr = a <= b ? a : b;
+    const toStr = a <= b ? b : a;
+    const q = `from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
+    api<DailyKmRow[]>(`/daily-km-reports?${q}`).then(setRows).catch(() => {});
+    if (isFleetPanelUser && view === 'table') {
+      api<SubmissionOverviewResponse>(`/daily-km-reports/submission-overview?${q}`)
+        .then(setSubmissionOverview)
+        .catch(() => setSubmissionOverview(null));
+    }
+  }, [tableFromValue, tableToValue, isFleetPanelUser, view]);
 
   useEffect(() => {
     if (!canUseGapAuditTab && view === 'gaps') setView('table');
@@ -270,33 +287,8 @@ export function DailyKmPage() {
   }, [view, tableToValue, canUseGapAuditTab]);
 
   useEffect(() => {
-    const a = toDateInputValueLocal(new Date(tableFromValue));
-    const b = toDateInputValueLocal(new Date(tableToValue));
-    const fromStr = a <= b ? a : b;
-    const toStr = a <= b ? b : a;
-    const q = `from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
-    api<DailyKmRow[]>(`/daily-km-reports?${q}`).then(setRows).catch(() => {});
-  }, [tableFromValue, tableToValue]);
-
-  useEffect(() => {
-    if (!isFleetPanelUser || view !== 'table') return;
-    const a = toDateInputValueLocal(new Date(tableFromValue));
-    const b = toDateInputValueLocal(new Date(tableToValue));
-    const fromStr = a <= b ? a : b;
-    const toStr = a <= b ? b : a;
-    const q = `from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
-    let cancelled = false;
-    api<SubmissionOverviewResponse>(`/daily-km-reports/submission-overview?${q}`)
-      .then((d) => {
-        if (!cancelled) setSubmissionOverview(d);
-      })
-      .catch(() => {
-        if (!cancelled) setSubmissionOverview(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isFleetPanelUser, view, tableFromValue, tableToValue]);
+    reloadDailyKmData();
+  }, [reloadDailyKmData]);
 
   useEffect(() => {
     setExpandedOverviewDay(null);
@@ -320,6 +312,41 @@ export function DailyKmPage() {
     document.addEventListener('keydown', onEsc);
     return () => document.removeEventListener('keydown', onEsc);
   }, [mapOpen]);
+
+  useEffect(() => {
+    if (!kmEdit) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') setKmEdit(null);
+    }
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [kmEdit]);
+
+  const submitKmEdit = useCallback(async () => {
+    if (!kmEdit) return;
+    const raw = kmEdit.draft.trim().replace(',', '.');
+    const n = Number(raw);
+    if (!Number.isFinite(n)) {
+      setKmEditErr(t('dailyKmEditInvalidNumber'));
+      return;
+    }
+    setKmEditSaving(true);
+    setKmEditErr(null);
+    try {
+      const body =
+        kmEdit.field === 'start' ? { startKm: String(n) } : { endKm: String(n) };
+      await api<{ ok: boolean }>(`/daily-km-reports/admin/${kmEdit.row.id}/km`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+      setKmEdit(null);
+      reloadDailyKmData();
+    } catch (e) {
+      setKmEditErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setKmEditSaving(false);
+    }
+  }, [kmEdit, t, reloadDailyKmData]);
 
   const mapCenter = useMemo<[number, number]>(() => {
     if (!mapPoint) return [41.31, 69.24];
@@ -815,7 +842,22 @@ export function DailyKmPage() {
                       </td>
                       <td className="border-s border-slate-100 p-3 dark:border-slate-800">
                         <div className="flex flex-col gap-1">
-                          <span className="font-medium tabular-nums text-slate-900 dark:text-slate-100">{r.startKm}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium tabular-nums text-slate-900 dark:text-slate-100">{r.startKm}</span>
+                            {isFleetPanelUser ? (
+                              <button
+                                type="button"
+                                className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800 dark:hover:text-blue-400"
+                                aria-label={t('dailyKmEditStartAria')}
+                                onClick={() => {
+                                  setKmEditErr(null);
+                                  setKmEdit({ row: r, field: 'start', draft: String(r.startKm) });
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" aria-hidden />
+                              </button>
+                            ) : null}
+                          </div>
                           {hasGap && (
                             <span
                               className={
@@ -864,9 +906,30 @@ export function DailyKmPage() {
                           <span className="font-medium leading-snug text-red-800 dark:text-red-200">{t('dailyKmEndPendingShort')}</span>
                         ) : (
                           <div className="flex flex-col items-center justify-center gap-1 py-0.5">
-                            <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-100">
-                              {String(r.endKm)} · {formatDateTimeNoSeconds(r.endRecordedAt)}
-                            </span>
+                            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                                  {String(r.endKm)}
+                                </span>
+                                {isFleetPanelUser ? (
+                                  <button
+                                    type="button"
+                                    className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800 dark:hover:text-blue-400"
+                                    aria-label={t('dailyKmEditEndAria')}
+                                    onClick={() => {
+                                      setKmEditErr(null);
+                                      setKmEdit({ row: r, field: 'end', draft: String(r.endKm) });
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" aria-hidden />
+                                  </button>
+                                ) : null}
+                              </span>
+                              <span className="text-slate-500 dark:text-slate-400">·</span>
+                              <span className="tabular-nums text-slate-700 dark:text-slate-200">
+                                {formatDateTimeNoSeconds(r.endRecordedAt)}
+                              </span>
+                            </div>
                             {drivenKm != null ? (
                               <span
                                 className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold tabular-nums leading-snug text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
@@ -902,7 +965,24 @@ export function DailyKmPage() {
                           <span className="text-xs font-medium leading-snug text-red-800 dark:text-red-100">{t('dailyKmEndPending')}</span>
                         ) : (
                           <div className="flex flex-col gap-1">
-                            <span className="font-medium tabular-nums text-slate-900 dark:text-slate-100">{String(r.endKm)}</span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="font-medium tabular-nums text-slate-900 dark:text-slate-100">
+                                {String(r.endKm)}
+                              </span>
+                              {isFleetPanelUser ? (
+                                <button
+                                  type="button"
+                                  className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800 dark:hover:text-blue-400"
+                                  aria-label={t('dailyKmEditEndAria')}
+                                  onClick={() => {
+                                    setKmEditErr(null);
+                                    setKmEdit({ row: r, field: 'end', draft: String(r.endKm) });
+                                  }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" aria-hidden />
+                                </button>
+                              ) : null}
+                            </span>
                             {drivenKm != null ? (
                               <span className="inline-flex max-w-[200px] items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
                                 {t('dailyKmDrivenLabel')}: {formatDrivenKm(drivenKm)} км
@@ -1101,6 +1181,58 @@ export function DailyKmPage() {
                 <MapBaseLayers />
                 <Marker position={[mapPoint.lat, mapPoint.lon]} />
               </MapContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {kmEdit && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-3 sm:p-6">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/50"
+            aria-label={t('cancel')}
+            onClick={() => !kmEditSaving && setKmEdit(null)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="daily-km-edit-title"
+            className="relative z-[86] w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"
+          >
+            <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+              <h2 id="daily-km-edit-title" className="text-sm font-semibold text-slate-900 dark:text-white">
+                {kmEdit.field === 'start' ? t('dailyKmEditStartTitle') : t('dailyKmEditEndTitle')}
+              </h2>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {kmEdit.row.vehicle.plateNumber} · {kmEdit.row.driver.fullName}
+                <span className="block">{formatDateOnly(kmEdit.row.reportDate)}</span>
+              </p>
+            </div>
+            <div className="space-y-3 px-4 py-4">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400" htmlFor="daily-km-edit-input">
+                {t('dailyKmEditFieldLabel')}
+              </label>
+              <input
+                id="daily-km-edit-input"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                className="app-input w-full tabular-nums"
+                value={kmEdit.draft}
+                disabled={kmEditSaving}
+                onChange={(e) => setKmEdit((prev) => (prev ? { ...prev, draft: e.target.value } : prev))}
+              />
+              <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">{t('dailyKmEditHint')}</p>
+              {kmEditErr ? <p className="text-xs text-red-600 dark:text-red-400">{kmEditErr}</p> : null}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+              <button type="button" className="app-btn-ghost px-3 py-1.5 text-sm" disabled={kmEditSaving} onClick={() => setKmEdit(null)}>
+                {t('cancel')}
+              </button>
+              <button type="button" className="app-btn-primary px-3 py-1.5 text-sm" disabled={kmEditSaving} onClick={() => void submitKmEdit()}>
+                {kmEditSaving ? '…' : t('save')}
+              </button>
             </div>
           </div>
         </div>

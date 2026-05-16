@@ -738,4 +738,91 @@ export class DailyKmService {
     });
     return updated;
   }
+
+  /**
+   * Admin / operator (Kun KM sahifasi): yuborilgan boshlang‘ich yoki yakuniy KM ni tuzatish.
+   * Yakun hali yuborilmagan bo‘lsa, yakuniy KM ni o‘zgartirib bo‘lmaydi.
+   */
+  async adminPatchReportKm(params: {
+    reportId: string;
+    actorUserId: string;
+    startKm?: number;
+    endKm?: number;
+  }) {
+    if (params.startKm === undefined && params.endKm === undefined) {
+      throw new BadRequestException('daily_km.nothing_to_patch');
+    }
+
+    const row = await this.prisma.dailyKmReport.findUnique({
+      where: { id: params.reportId },
+      include: { vehicle: true },
+    });
+    if (!row) throw new NotFoundException('daily_km.not_found');
+
+    if (params.endKm !== undefined && row.endKm == null) {
+      throw new BadRequestException('daily_km.end_not_submitted');
+    }
+
+    const initialKm = Number(row.vehicle.initialKm);
+    if (!Number.isFinite(initialKm)) {
+      throw new BadRequestException('daily_km.invalid_vehicle_baseline');
+    }
+
+    const currentStart = Number(row.startKm);
+    const currentEnd = row.endKm == null ? null : Number(row.endKm);
+
+    const nextStart =
+      params.startKm !== undefined ? params.startKm : currentStart;
+    const nextEnd =
+      params.endKm !== undefined ? params.endKm : currentEnd;
+
+    if (!Number.isFinite(nextStart)) {
+      throw new BadRequestException('daily_km.invalid_start_km_number');
+    }
+
+    const minStart = await minStartKmFromChain(
+      this.prisma,
+      row.vehicleId,
+      row.reportDate,
+      initialKm,
+    );
+    if (nextStart < minStart) {
+      throw new BadRequestException(`daily_km.start_below_max|${minStart}`);
+    }
+    if (nextStart < initialKm) {
+      throw new BadRequestException(`daily_km.start_below_initial|${initialKm}`);
+    }
+
+    if (nextEnd != null) {
+      if (!Number.isFinite(nextEnd)) {
+        throw new BadRequestException('daily_km.invalid_end_km_number');
+      }
+      const minEnd = Math.max(initialKm, nextStart);
+      if (nextEnd < minEnd) {
+        throw new BadRequestException(`daily_km.end_below_min|${minEnd}`);
+      }
+    }
+
+    const data: { startKm?: number; endKm?: number | null } = {};
+    if (params.startKm !== undefined) data.startKm = nextStart;
+    if (params.endKm !== undefined) data.endKm = nextEnd;
+
+    await this.prisma.dailyKmReport.update({
+      where: { id: params.reportId },
+      data,
+    });
+
+    await this.audit.log({
+      actorUserId: params.actorUserId,
+      action: 'dailyKm.admin_patch_km',
+      entity: 'DailyKmReport',
+      entityId: params.reportId,
+      meta: {
+        oldStart: String(row.startKm),
+        oldEnd: row.endKm == null ? null : String(row.endKm),
+        newStart: params.startKm !== undefined ? String(nextStart) : undefined,
+        newEnd: params.endKm !== undefined ? String(nextEnd) : undefined,
+      },
+    });
+  }
 }
