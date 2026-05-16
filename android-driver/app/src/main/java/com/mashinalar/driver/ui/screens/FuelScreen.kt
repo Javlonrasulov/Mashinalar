@@ -266,7 +266,6 @@ fun FuelScreen(
       if (state.vehiclePhoto == null && captureTarget != "vehicle") {
         Button(
           modifier = Modifier.fillMaxWidth(),
-          enabled = amountHasDigits,
           onClick = { scope.launch { prepareThenOpenCapture("vehicle") } },
         ) {
           Text(stringResource(R.string.vehicle_photo))
@@ -284,7 +283,7 @@ fun FuelScreen(
           file = state.vehiclePhoto!!,
           onRetake = { scope.launch { prepareThenOpenCapture("vehicle") } },
           onRemove = { vm.clearVehiclePhoto() },
-          retakeEnabled = amountHasDigits,
+          retakeEnabled = true,
         )
       }
 
