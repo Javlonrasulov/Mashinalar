@@ -118,12 +118,12 @@ export class DailyKmController {
     if (patch.startKm === undefined && patch.endKm === undefined) {
       throw new BadRequestException('daily_km.nothing_to_patch');
     }
-    await this.dailyKm.adminPatchReportKm({
+    const { warnings } = await this.dailyKm.adminPatchReportKm({
       reportId: id,
       actorUserId: user.userId,
       ...patch,
     });
-    return { ok: true as const };
+    return { ok: true as const, warnings };
   }
 
   /** Kun boshlanishi: boshlang‘ich KM + start rasm + lokatsiya + vaqt */

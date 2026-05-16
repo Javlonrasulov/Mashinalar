@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
@@ -304,7 +305,7 @@ export class DailyKmService {
     toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
 
     const vehicles = await this.prisma.vehicle.findMany({
-      where: { drivers: { some: {} } },
+      where: { ...ACTIVE_VEHICLE_WHERE, drivers: { some: {} } },
       select: {
         id: true,
         plateNumber: true,
@@ -579,7 +580,7 @@ export class DailyKmService {
       where: { id: params.driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId || !driver.vehicle)
+    if (!driver?.vehicleId || !driver.vehicle || driver.vehicle.deletedAt)
       throw new BadRequestException('daily_km.no_vehicle');
     const minKm = Number(driver.vehicle.initialKm);
     if (!Number.isFinite(minKm))
@@ -742,13 +743,16 @@ export class DailyKmService {
   /**
    * Admin / operator (Kun KM sahifasi): yuborilgan boshlang‘ich yoki yakuniy KM ni tuzatish.
    * Yakun hali yuborilmagan bo‘lsa, yakuniy KM ni o‘zgartirib bo‘lmaydi.
+   *
+   * Zanjir (oldingi kun) tekshiruvi qo‘llanmaydi — xato ketma-ket kiritilgan bo‘lsa ham
+   * admin bitta yozuvni tuzatishi mumkin; keyingi kunlar uchun ogohlantirish qaytariladi.
    */
   async adminPatchReportKm(params: {
     reportId: string;
     actorUserId: string;
     startKm?: number;
     endKm?: number;
-  }) {
+  }): Promise<{ warnings: { date: string; startKm: number }[] }> {
     if (params.startKm === undefined && params.endKm === undefined) {
       throw new BadRequestException('daily_km.nothing_to_patch');
     }
@@ -779,16 +783,6 @@ export class DailyKmService {
     if (!Number.isFinite(nextStart)) {
       throw new BadRequestException('daily_km.invalid_start_km_number');
     }
-
-    const minStart = await minStartKmFromChain(
-      this.prisma,
-      row.vehicleId,
-      row.reportDate,
-      initialKm,
-    );
-    if (nextStart < minStart) {
-      throw new BadRequestException(`daily_km.start_below_max|${minStart}`);
-    }
     if (nextStart < initialKm) {
       throw new BadRequestException(`daily_km.start_below_initial|${initialKm}`);
     }
@@ -797,9 +791,8 @@ export class DailyKmService {
       if (!Number.isFinite(nextEnd)) {
         throw new BadRequestException('daily_km.invalid_end_km_number');
       }
-      const minEnd = Math.max(initialKm, nextStart);
-      if (nextEnd < minEnd) {
-        throw new BadRequestException(`daily_km.end_below_min|${minEnd}`);
+      if (nextEnd < nextStart) {
+        throw new BadRequestException(`daily_km.end_below_min|${nextStart}`);
       }
     }
 
@@ -812,6 +805,37 @@ export class DailyKmService {
       data,
     });
 
+    const warnings: { date: string; startKm: number }[] = [];
+    const loweredStart =
+      params.startKm !== undefined && nextStart < currentStart - 1e-6;
+    const loweredEnd =
+      params.endKm !== undefined &&
+      currentEnd != null &&
+      nextEnd != null &&
+      nextEnd < currentEnd - 1e-6;
+    const wrongHigh =
+      loweredStart ? currentStart : loweredEnd && currentEnd != null ? currentEnd : null;
+
+    if (wrongHigh != null) {
+      const later = await this.prisma.dailyKmReport.findMany({
+        where: {
+          vehicleId: row.vehicleId,
+          reportDate: { gt: row.reportDate },
+        },
+        orderBy: { reportDate: 'asc' },
+        select: { reportDate: true, startKm: true },
+      });
+      for (const L of later) {
+        const st = Number(L.startKm);
+        if (Number.isFinite(st) && st >= wrongHigh - 1e-6) {
+          warnings.push({
+            date: L.reportDate.toISOString().slice(0, 10),
+            startKm: st,
+          });
+        }
+      }
+    }
+
     await this.audit.log({
       actorUserId: params.actorUserId,
       action: 'dailyKm.admin_patch_km',
@@ -822,7 +846,11 @@ export class DailyKmService {
         oldEnd: row.endKm == null ? null : String(row.endKm),
         newStart: params.startKm !== undefined ? String(nextStart) : undefined,
         newEnd: params.endKm !== undefined ? String(nextEnd) : undefined,
+        chainValidationSkipped: true,
+        followUpWarnings: warnings,
       },
     });
+
+    return { warnings };
   }
 }

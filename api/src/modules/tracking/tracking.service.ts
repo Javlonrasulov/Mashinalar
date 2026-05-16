@@ -5,6 +5,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { LocationPoint, Prisma } from '@prisma/client';
+import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TrackingGateway } from './tracking.gateway';
 import { BatchGpsOffSegmentsDto } from './dto/batch-gps-off-segments.dto';
@@ -70,7 +71,7 @@ export class TrackingService {
       where: { id: driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId)
+    if (!driver?.vehicleId || !driver.vehicle || driver.vehicle.deletedAt)
       throw new BadRequestException('Driver has no vehicle assigned');
 
     const vehicleId = driver.vehicleId;
@@ -204,7 +205,11 @@ export class TrackingService {
     return this.prisma.vehicle.findMany({
       // Return all vehicles that have at least one known coordinate.
       // Online/offline is determined on the client by `lastLocationAt` freshness.
-      where: { lastLatitude: { not: null }, lastLongitude: { not: null } },
+      where: {
+        ...ACTIVE_VEHICLE_WHERE,
+        lastLatitude: { not: null },
+        lastLongitude: { not: null },
+      },
       select: {
         id: true,
         name: true,
@@ -397,7 +402,7 @@ export class TrackingService {
       where: { id: driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId)
+    if (!driver?.vehicleId || !driver.vehicle || driver.vehicle.deletedAt)
       throw new BadRequestException('Driver has no vehicle assigned');
 
     const vehicleId = driver.vehicleId;

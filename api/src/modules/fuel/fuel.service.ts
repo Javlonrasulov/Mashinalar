@@ -367,7 +367,7 @@ export class FuelService {
       where: { id: params.driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId || !driver.vehicle)
+    if (!driver?.vehicleId || !driver.vehicle || driver.vehicle.deletedAt)
       throw new BadRequestException('No vehicle assigned');
 
     const unitPrice = this.resolveUnitPrice(

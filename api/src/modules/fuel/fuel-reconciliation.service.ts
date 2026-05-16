@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { FuelKind, Prisma } from '@prisma/client';
+import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const TZ = 'Asia/Tashkent';
@@ -119,7 +120,10 @@ export class FuelReconciliationService {
     const vehicleIds = new Set<string>([...sysSum.keys(), ...actMap.keys()]);
 
     if (params.includeAllFleet) {
-      const fleet = await this.prisma.vehicle.findMany({ select: { id: true } });
+      const fleet = await this.prisma.vehicle.findMany({
+        where: ACTIVE_VEHICLE_WHERE,
+        select: { id: true },
+      });
       for (const v of fleet) vehicleIds.add(v.id);
     }
 

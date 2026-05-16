@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { TaskStatus } from '@prisma/client';
+import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -52,12 +53,13 @@ export class DashboardService {
 
     const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
     const activeVehicles = await this.prisma.vehicle.count({
-      where: { lastLocationAt: { gte: fifteenMinAgo } },
+      where: { ...ACTIVE_VEHICLE_WHERE, lastLocationAt: { gte: fifteenMinAgo } },
     });
 
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const staleVehicles = await this.prisma.vehicle.findMany({
       where: {
+        ...ACTIVE_VEHICLE_WHERE,
         OR: [{ lastLocationAt: null }, { lastLocationAt: { lt: oneHourAgo } }],
       },
       select: {
@@ -71,6 +73,7 @@ export class DashboardService {
     const in30d = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const insuranceSoon = await this.prisma.vehicle.findMany({
       where: {
+        ...ACTIVE_VEHICLE_WHERE,
         insuranceEndDate: { not: null, lte: in30d, gte: now },
       },
       select: { id: true, plateNumber: true, insuranceEndDate: true },

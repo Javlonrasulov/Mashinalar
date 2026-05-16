@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { OilChangeService } from '../oil-change/oil-change.service';
@@ -20,6 +21,7 @@ export class VehiclesService {
 
   findAll() {
     return this.prisma.vehicle.findMany({
+      where: ACTIVE_VEHICLE_WHERE,
       orderBy: { createdAt: 'desc' },
       include: {
         drivers: { include: { user: { select: { login: true } } } },
@@ -28,12 +30,14 @@ export class VehiclesService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, opts?: { allowDeleted?: boolean }) {
     const v = await this.prisma.vehicle.findUnique({
       where: { id },
       include: { drivers: true, category: true },
     });
-    if (!v) throw new NotFoundException('Vehicle not found');
+    if (!v || (!opts?.allowDeleted && v.deletedAt)) {
+      throw new NotFoundException('Vehicle not found');
+    }
     return v;
   }
 
@@ -42,7 +46,7 @@ export class VehiclesService {
       where: { id: driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId || !driver.vehicle) {
+    if (!driver?.vehicleId || !driver.vehicle || driver.vehicle.deletedAt) {
       return { vehicle: null, oil: null, insurance: null };
     }
 
@@ -273,19 +277,34 @@ export class VehiclesService {
   }
 
   async remove(id: string, actorUserId: string) {
-    await this.findOne(id);
-    await this.prisma.vehicle.delete({ where: { id } });
+    const v = await this.findOne(id);
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.driverVehicleAssignment.updateMany({
+        where: { vehicleId: id, endAt: null },
+        data: { endAt: now },
+      });
+      await tx.driver.updateMany({
+        where: { vehicleId: id },
+        data: { vehicleId: null },
+      });
+      await tx.vehicle.update({
+        where: { id },
+        data: { deletedAt: now },
+      });
+    });
     await this.audit.log({
       actorUserId,
       action: 'vehicle.delete',
       entity: 'Vehicle',
       entityId: id,
+      meta: { plateNumber: v.plateNumber, softDelete: true },
     });
     return { ok: true };
   }
 
   async driverHistory(vehicleId: string) {
-    await this.findOne(vehicleId);
+    await this.findOne(vehicleId, { allowDeleted: true });
     return this.prisma.driverVehicleAssignment.findMany({
       where: { vehicleId },
       orderBy: { startAt: 'desc' },

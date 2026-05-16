@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
@@ -59,7 +60,7 @@ export class OilChangeService {
       where: { id: driverId },
       include: { vehicle: true },
     });
-    if (!driver?.vehicleId || !driver.vehicle) {
+    if (!driver?.vehicleId || !driver.vehicle || driver.vehicle.deletedAt) {
       throw new BadRequestException('oil_change.no_vehicle');
     }
     const vehicle = driver.vehicle;
@@ -130,6 +131,7 @@ export class OilChangeService {
 
   async adminOverview() {
     const vehicles = await this.prisma.vehicle.findMany({
+      where: ACTIVE_VEHICLE_WHERE,
       orderBy: { plateNumber: 'asc' },
       include: {
         drivers: { take: 1, include: { user: { select: { login: true } } } },

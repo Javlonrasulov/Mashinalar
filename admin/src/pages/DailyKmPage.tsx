@@ -252,6 +252,7 @@ export function DailyKmPage() {
   const [kmEdit, setKmEdit] = useState<{ row: DailyKmRow; field: 'start' | 'end'; draft: string } | null>(null);
   const [kmEditSaving, setKmEditSaving] = useState(false);
   const [kmEditErr, setKmEditErr] = useState<string | null>(null);
+  const [kmSaveWarnings, setKmSaveWarnings] = useState<{ date: string; startKm: number }[] | null>(null);
 
   const reloadDailyKmData = useCallback(() => {
     const a = toDateInputValueLocal(new Date(tableFromValue));
@@ -335,11 +336,15 @@ export function DailyKmPage() {
     try {
       const body =
         kmEdit.field === 'start' ? { startKm: String(n) } : { endKm: String(n) };
-      await api<{ ok: boolean }>(`/daily-km-reports/admin/${kmEdit.row.id}/km`, {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      });
+      const res = await api<{ ok: boolean; warnings?: { date: string; startKm: number }[] }>(
+        `/daily-km-reports/admin/${kmEdit.row.id}/km`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        },
+      );
       setKmEdit(null);
+      setKmSaveWarnings(res.warnings?.length ? res.warnings : null);
       reloadDailyKmData();
     } catch (e) {
       setKmEditErr(e instanceof Error ? e.message : String(e));
@@ -771,6 +776,32 @@ export function DailyKmPage() {
           {t('dailyKmGapsHint')}
           <span className="mt-1 block text-slate-500 dark:text-slate-400">{t('dailyKmGapsClickRow')}</span>
         </p>
+      )}
+
+      {view === 'table' && kmSaveWarnings && kmSaveWarnings.length > 0 && (
+        <div
+          role="status"
+          className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100"
+        >
+          <p className="font-semibold">{t('dailyKmEditSavedWithWarnings')}</p>
+          <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
+            {kmSaveWarnings.map((w) => (
+              <li key={w.date}>
+                {t('dailyKmEditLaterDayWarning', {
+                  date: formatYmdLocal(w.date, lang),
+                  km: String(w.startKm),
+                })}
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="mt-2 text-xs font-medium underline hover:no-underline"
+            onClick={() => setKmSaveWarnings(null)}
+          >
+            {t('dailyKmEditDismissWarnings')}
+          </button>
+        </div>
       )}
 
       {view === 'table' && (
