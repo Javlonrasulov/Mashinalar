@@ -1,12 +1,23 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, FileDown, Loader2, RefreshCw, Save } from 'lucide-react';
+﻿import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FileDown,
+  Loader2,
+  Maximize2,
+  RefreshCw,
+  Save,
+  X,
+} from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
 import type { SavedFuelStationMapItem } from '@/lib/savedFuelStationsMap';
 import {
+  downloadFuelReportSnapshotsWorkbook,
   downloadFuelReportXlsx,
-  safeExcelFileBase,
+  snapshotExcelBaseName,
   type FuelReportExportGrid,
 } from '@/lib/fuelReportExcelExport';
 
@@ -53,7 +64,7 @@ function weekdayShort(y: number, month: number, day: number, loc: string): strin
   }).format(d);
 }
 
-/** Farq: abs qiymат четраформ — яшил ↔ сариқ ↔ қизил */
+/** Farq: abs qiymР°С‚ С‡РµС‚СЂР°С„РѕСЂРј вЂ” СЏС€РёР» в†” СЃР°СЂРёТ› в†” Т›РёР·РёР» */
 function diffCellClass(diff: number | null): string {
   if (diff == null || !Number.isFinite(diff)) {
     return 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400';
@@ -77,6 +88,44 @@ function sumNums(arr: (number | null)[]): number | null {
     }
   }
   return any ? Math.round(s * 100) / 100 : null;
+}
+
+const H_SCROLL_STEP = 280;
+
+function parseDraftM3(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed.replace(',', '.'));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function mergeActualWithDraft(
+  vehicleId: string,
+  actualM3ByDay: (number | null)[],
+  draftVendor: Record<string, string>,
+): (number | null)[] {
+  return actualM3ByDay.map((persisted, i) => {
+    const day = i + 1;
+    const dk = `${vehicleId}_${day}`;
+    if (draftVendor[dk] !== undefined) {
+      return parseDraftM3(draftVendor[dk]);
+    }
+    return persisted;
+  });
+}
+
+function hasAnyActual(values: (number | null)[]): boolean {
+  return values.some((x) => x != null && Number.isFinite(x));
+}
+
+const stickyRightTh =
+  'sticky right-0 z-[25] min-w-[4.5rem] border-l border-slate-200/90 bg-slate-50 p-2 text-center font-semibold shadow-[-6px_0_12px_rgba(15,23,42,0.1)] dark:border-slate-700 dark:bg-slate-950/95';
+
+function stickyRightTd(extra?: string) {
+  return clsx(
+    'sticky right-0 z-[15] min-w-[4.5rem] border-l border-slate-200/80 px-1 py-0.5 text-center align-middle shadow-[-6px_0_12px_rgba(15,23,42,0.08)] dark:border-slate-800',
+    extra,
+  );
 }
 
 function stationOptionLabel(
@@ -111,9 +160,12 @@ export function FuelReportPage() {
   const [allFleet, setAllFleet] = useState(true);
   const [snapshots, setSnapshots] = useState<SnapListItem[]>([]);
   const [savingSnap, setSavingSnap] = useState(false);
+  const [exportingSnaps, setExportingSnaps] = useState(false);
   const [snapMsg, setSnapMsg] = useState<string | null>(null);
-  /** vendor katakcha draft — фақат бир вақт ўзгариши */
+  /** vendor katakcha draft вЂ” С„Р°Т›Р°С‚ Р±РёСЂ РІР°Т›С‚ СћР·РіР°СЂРёС€Рё */
   const [draftVendor, setDraftVendor] = useState<Record<string, string>>({});
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [tableFullscreen, setTableFullscreen] = useState(false);
 
   const locale =
     lang === 'ru'
@@ -198,18 +250,19 @@ export function FuelReportPage() {
       total: t('fuelReportColTotal'),
       stationTitle: t('fuelReportExportStation'),
       metaRow: t('fuelReportExportPeriod'),
+      savedAt: t('fuelReportExportSavedAt'),
     }),
     [t],
   );
 
   const exportGridToFile = useCallback(
-    (g: GridResponse, suffix?: string) => {
-      const stamp = `${g.year}-${String(g.month).padStart(2, '0')}`;
-      const nameRaw = `${g.savedStation.name?.trim() || 'zapravka'}_${stamp}${suffix ? `_${suffix}` : ''}`;
+    (g: GridResponse, createdAt?: string) => {
       downloadFuelReportXlsx(
         g as FuelReportExportGrid,
         exportLabels,
-        safeExcelFileBase(nameRaw),
+        snapshotExcelBaseName(g, createdAt),
+        'Hisobot',
+        createdAt,
       );
     },
     [exportLabels],
@@ -226,7 +279,11 @@ export function FuelReportPage() {
     setSnapMsg(null);
     setErr(null);
     try {
-      await api('/fuel-reports/vedomost-snapshot', {
+      const created = await api<{
+        id: string;
+        createdAt: string;
+        payload: { grid: GridResponse };
+      }>('/fuel-reports/vedomost-snapshot', {
         method: 'POST',
         body: JSON.stringify({
           savedFuelStationId: stationId,
@@ -235,30 +292,57 @@ export function FuelReportPage() {
           ...(allFleet ? { all: '1' } : {}),
         }),
       });
-      setSnapMsg(t('fuelReportSnapshotSaved'));
+      exportGridToFile(created.payload.grid, created.createdAt);
+      setSnapMsg(t('fuelReportSnapshotSavedExcel'));
       await loadSnapshots();
-      window.setTimeout(() => setSnapMsg(null), 4000);
+      window.setTimeout(() => setSnapMsg(null), 5000);
     } catch {
       setErr(t('genericError'));
     } finally {
       setSavingSnap(false);
     }
-  }, [stationId, monthStr, allFleet, t, loadSnapshots]);
+  }, [stationId, monthStr, allFleet, t, loadSnapshots, exportGridToFile]);
 
   const exportSnapshotById = useCallback(
     async (id: string) => {
       setErr(null);
       try {
         const res = await api<{
+          createdAt: string;
           payload: { grid: GridResponse };
         }>(`/fuel-reports/vedomost-snapshot/${encodeURIComponent(id)}`);
-        exportGridToFile(res.payload.grid, `tarix_${id.slice(0, 8)}`);
+        exportGridToFile(res.payload.grid, res.createdAt);
       } catch {
         setErr(t('genericError'));
       }
     },
     [exportGridToFile, t],
   );
+
+  const exportAllSnapshotsExcel = useCallback(async () => {
+    if (!snapshots.length || !grid) return;
+    setExportingSnaps(true);
+    setErr(null);
+    try {
+      const full = await Promise.all(
+        snapshots.map((s) =>
+          api<{
+            createdAt: string;
+            payload: { grid: GridResponse };
+          }>(`/fuel-reports/vedomost-snapshot/${encodeURIComponent(s.id)}`),
+        ),
+      );
+      downloadFuelReportSnapshotsWorkbook(
+        full.map((r) => ({ createdAt: r.createdAt, grid: r.payload.grid })),
+        exportLabels,
+        snapshotExcelBaseName(grid, undefined, 'tarix_barchasi'),
+      );
+    } catch {
+      setErr(t('genericError'));
+    } finally {
+      setExportingSnaps(false);
+    }
+  }, [snapshots, grid, exportLabels, t]);
 
   const saveActual = useCallback(
     async (vehicleId: string, day: number, raw: string) => {
@@ -298,6 +382,220 @@ export function FuelReportPage() {
 
   const days =
     grid != null ? Array.from({ length: grid.daysInMonth }, (_, i) => i + 1) : [];
+
+  const scrollTable = useCallback((dir: 'left' | 'right') => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    el.scrollBy({
+      left: dir === 'left' ? -H_SCROLL_STEP : H_SCROLL_STEP,
+      behavior: 'smooth',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!tableFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTableFullscreen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [tableFullscreen]);
+
+  const reportTable =
+    grid && grid.vehicles.length > 0 ? (
+      <>
+        <div className="flex items-center justify-end gap-1 border-b border-slate-200 px-2 py-1.5 dark:border-slate-800">
+          <button
+            type="button"
+            className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+            onClick={() => scrollTable('left')}
+            title={t('fuelReportScrollLeft')}
+            aria-label={t('fuelReportScrollLeft')}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+            onClick={() => scrollTable('right')}
+            title={t('fuelReportScrollRight')}
+            aria-label={t('fuelReportScrollRight')}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+            onClick={() => setTableFullscreen((v) => !v)}
+            title={
+              tableFullscreen ? t('fuelReportExitFullscreen') : t('fuelReportFullscreen')
+            }
+            aria-label={
+              tableFullscreen ? t('fuelReportExitFullscreen') : t('fuelReportFullscreen')
+            }
+          >
+            {tableFullscreen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Maximize2 className="h-5 w-5" />
+            )}
+          </button>
+        </div>
+        <div
+          ref={tableScrollRef}
+          className={clsx(
+            'app-table-wrap overflow-auto overscroll-x-contain',
+            tableFullscreen ? 'min-h-0 flex-1' : 'max-h-[min(70vh,720px)]',
+          )}
+        >
+          <table className="app-table-inner min-w-max text-[11px] sm:text-xs">
+            <thead className="app-table-head sticky top-0 z-10">
+              <tr>
+                <th className="sticky left-0 z-20 min-w-[7rem] bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80">
+                  {t('fuelReportColPlate')}
+                </th>
+                <th className="sticky left-[7rem] z-20 min-w-[7.5rem] bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80">
+                  {t('fuelReportColSource')}
+                </th>
+                {days.map((d) => (
+                  <th
+                    key={d}
+                    className="min-w-[2.65rem] bg-slate-50 p-2 text-center font-normal tabular-nums dark:bg-slate-950/80"
+                  >
+                    <div className="font-semibold tabular-nums">{d}</div>
+                    <div className="text-[9px] font-normal uppercase text-slate-500 dark:text-slate-400">
+                      {weekdayShort(grid.year, grid.month, d, locale)}
+                    </div>
+                  </th>
+                ))}
+                <th className={stickyRightTh}>{t('fuelReportColTotal')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grid.vehicles.map((v) => {
+                const totalSys = sumNums(v.systemM3ByDay);
+                const mergedAct = mergeActualWithDraft(
+                  v.vehicleId,
+                  v.actualM3ByDay,
+                  draftVendor,
+                );
+                const totalAct = sumNums(mergedAct);
+                const actEntered = hasAnyActual(mergedAct);
+                const totalDiff =
+                  actEntered && (totalSys != null || totalAct != null)
+                    ? Math.round(((totalSys ?? 0) - (totalAct ?? 0)) * 100) / 100
+                    : null;
+
+                const rowPad = clsx(
+                  'border-t border-slate-200 px-1 py-0.5 text-center align-middle tabular-nums dark:border-slate-800',
+                );
+                const cellInput = clsx(rowPad, 'min-w-[2.5rem] px-0.5 py-px');
+
+                return (
+                  <Fragment key={v.vehicleId}>
+                    <tr className="bg-rose-50/90 dark:bg-rose-950/25">
+                      <td
+                        rowSpan={2}
+                        className="sticky left-0 z-[16] bg-rose-50/95 p-2 font-mono text-xs font-semibold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-rose-950/35"
+                      >
+                        {v.plateNumber}
+                      </td>
+                      <td className="sticky left-[7rem] z-[16] bg-rose-50/95 p-2 text-left text-[10px] font-medium leading-snug shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-rose-950/35 sm:text-[11px]">
+                        {t('fuelReportRowSystem')}
+                      </td>
+                      {days.map((d) => {
+                        const ix = d - 1;
+                        const val = v.systemM3ByDay[ix];
+                        return (
+                          <td
+                            key={d}
+                            className={clsx(
+                              rowPad,
+                              'text-slate-800 tabular-nums dark:text-slate-100',
+                            )}
+                          >
+                            {val != null ? formatM3(val) : ''}
+                          </td>
+                        );
+                      })}
+                      <td
+                        className={stickyRightTd(
+                          'bg-rose-50/95 font-semibold dark:bg-rose-950/35',
+                        )}
+                        title={String(totalSys ?? '')}
+                      >
+                        {totalSys != null ? formatM3(totalSys) : ''}
+                      </td>
+                    </tr>
+                    <tr className="bg-sky-50/95 dark:bg-sky-950/30">
+                      <td className="sticky left-[7rem] z-[16] bg-sky-50/95 p-2 text-left text-[10px] font-medium shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-sky-950/40 sm:text-[11px]">
+                        {t('fuelReportRowVendor')}
+                      </td>
+                      {days.map((d) => {
+                        const ix = d - 1;
+                        const persisted = v.actualM3ByDay[ix];
+                        const dk = `${v.vehicleId}_${d}`;
+                        const localVal =
+                          draftVendor[dk] !== undefined
+                            ? draftVendor[dk]
+                            : persisted != null
+                              ? formatM3(persisted)
+                              : '';
+                        return (
+                          <td key={d} className={cellInput}>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              className={clsx(
+                                'app-input w-full tabular-nums',
+                                '!min-h-[28px] !px-0.5 !py-px !text-center text-[11px]',
+                              )}
+                              aria-label={`${v.plateNumber} ${t('fuelReportRowVendor')} ${d}`}
+                              placeholder="вЂ”"
+                              value={localVal}
+                              onChange={(e) => {
+                                setDraftVendor((prev) => ({
+                                  ...prev,
+                                  [dk]: e.target.value,
+                                }));
+                              }}
+                              onBlur={(e) => {
+                                void saveActual(v.vehicleId, d, e.target.value.trim());
+                              }}
+                            />
+                          </td>
+                        );
+                      })}
+                      <td
+                        className={stickyRightTd(
+                          clsx(
+                            'font-semibold tabular-nums',
+                            actEntered
+                              ? diffCellClass(totalDiff)
+                              : 'bg-sky-50/95 dark:bg-sky-950/40',
+                          ),
+                        )}
+                        title={
+                          actEntered
+                            ? `${t('fuelReportRowDiff')}: ${totalDiff ?? ''}`
+                            : undefined
+                        }
+                      >
+                        {actEntered && totalDiff != null ? formatM3(totalDiff) : ''}
+                      </td>
+                    </tr>
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </>
+    ) : null;
 
   return (
     <div className="min-w-0 space-y-4">
@@ -419,9 +717,29 @@ export function FuelReportPage() {
       )}
 
       <div className="app-card-pad">
-        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-          {t('fuelReportVedomostHistory')}
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+            {t('fuelReportVedomostHistory')}
+          </h2>
+          {snapshots.length > 0 ? (
+            <button
+              type="button"
+              className="app-btn-ghost inline-flex shrink-0 items-center gap-1.5 py-1.5 text-sm"
+              disabled={exportingSnaps || !grid}
+              onClick={() => void exportAllSnapshotsExcel()}
+            >
+              {exportingSnaps ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <FileDown className="h-4 w-4" aria-hidden />
+              )}
+              {t('fuelReportExportAllSnapshots')}
+            </button>
+          ) : null}
+        </div>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          {t('fuelReportVedomostHistoryHint')}
+        </p>
         {snapshots.length === 0 ? (
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             {t('fuelReportSnapshotEmpty')}
@@ -445,7 +763,7 @@ export function FuelReportPage() {
                   onClick={() => void exportSnapshotById(s.id)}
                 >
                   <FileDown className="h-4 w-4" aria-hidden />
-                  {t('fuelReportExportExcel')}
+                  {t('fuelReportDownloadSnapshotExcel')}
                 </button>
               </li>
             ))}
@@ -466,149 +784,36 @@ export function FuelReportPage() {
         </p>
       ) : null}
 
-      {grid && grid.vehicles.length > 0 ? (
-        <div className="app-card min-w-0 overflow-hidden">
-          <div className="app-table-wrap overflow-x-auto">
-            <table className="app-table-inner min-w-max text-[11px] sm:text-xs">
-              <thead className="app-table-head sticky top-0 z-10">
-                <tr>
-                  <th className="sticky left-0 z-20 min-w-[7rem] bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80">
-                    {t('fuelReportColPlate')}
-                  </th>
-                  <th className="sticky left-[7rem] z-20 min-w-[7.5rem] bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80">
-                    {t('fuelReportColSource')}
-                  </th>
-                  {days.map((d) => (
-                    <th
-                      key={d}
-                      className="min-w-[2.65rem] p-2 text-center font-normal tabular-nums"
-                    >
-                      <div className="font-semibold tabular-nums">{d}</div>
-                      <div className="text-[9px] font-normal uppercase text-slate-500 dark:text-slate-400">
-                        {weekdayShort(grid.year, grid.month, d, locale)}
-                      </div>
-                    </th>
-                  ))}
-                  <th className="min-w-[4rem] p-2 text-center font-semibold">
-                    {t('fuelReportColTotal')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {grid.vehicles.map((v) => {
-                  const totalSys = sumNums(v.systemM3ByDay);
-                  const totalAct = sumNums(v.actualM3ByDay);
-                  const totalDiff =
-                    totalSys != null || totalAct != null
-                      ? Math.round(((totalSys ?? 0) - (totalAct ?? 0)) * 100) / 100
-                      : null;
 
-                  const rowPad = clsx(
-                    'border-t border-slate-200 px-1 py-0.5 text-center align-middle tabular-nums dark:border-slate-800',
-                  );
-                  const cellInput = clsx(rowPad, 'min-w-[2.5rem] px-0.5 py-px');
+      {reportTable && !tableFullscreen ? (
+        <div className="app-card min-w-0 overflow-hidden">{reportTable}</div>
+      ) : null}
 
-                  return (
-                    <Fragment key={v.vehicleId}>
-                      <tr className="bg-rose-50/90 dark:bg-rose-950/25">
-                        <td
-                          rowSpan={3}
-                          className="sticky left-0 bg-rose-50/95 p-2 font-mono text-xs font-semibold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-rose-950/35"
-                        >
-                          {v.plateNumber}
-                        </td>
-                        <td className="sticky left-[7rem] bg-rose-50/95 p-2 text-left text-[10px] font-medium leading-snug shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-rose-950/35 sm:text-[11px]">
-                          {t('fuelReportRowSystem')}
-                        </td>
-                        {days.map((d) => {
-                          const ix = d - 1;
-                          const val = v.systemM3ByDay[ix];
-                          return (
-                            <td
-                              key={d}
-                              className={clsx(
-                                rowPad,
-                                'text-slate-800 tabular-nums dark:text-slate-100',
-                              )}
-                            >
-                              {val != null ? formatM3(val) : ''}
-                            </td>
-                          );
-                        })}
-                        <td className={clsx(rowPad, 'font-semibold')} title={String(totalSys)}>
-                          {totalSys != null ? formatM3(totalSys) : ''}
-                        </td>
-                      </tr>
-                      <tr className="bg-sky-50/95 dark:bg-sky-950/30">
-                        <td className="sticky left-[7rem] bg-sky-50/95 p-2 text-left text-[10px] font-medium shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-sky-950/40 sm:text-[11px]">
-                          {t('fuelReportRowVendor')}
-                        </td>
-                        {days.map((d) => {
-                          const ix = d - 1;
-                          const persisted = v.actualM3ByDay[ix];
-                          const dk = `${v.vehicleId}_${d}`;
-                          const localVal =
-                            draftVendor[dk] !== undefined
-                              ? draftVendor[dk]
-                              : persisted != null
-                                ? formatM3(persisted)
-                                : '';
-                          return (
-                            <td key={d} className={cellInput}>
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                className={clsx(
-                                  'app-input w-full tabular-nums',
-                                  '!min-h-[28px] !px-0.5 !py-px !text-center text-[11px]',
-                                )}
-                                aria-label={`${v.plateNumber} ${t('fuelReportRowVendor')} ${d}`}
-                                placeholder="—"
-                                value={localVal}
-                                onChange={(e) => {
-                                  setDraftVendor((prev) => ({
-                                    ...prev,
-                                    [dk]: e.target.value,
-                                  }));
-                                }}
-                                onBlur={(e) => {
-                                  void saveActual(v.vehicleId, d, e.target.value.trim());
-                                }}
-                              />
-                            </td>
-                          );
-                        })}
-                        <td
-                          className={clsx(
-                            rowPad,
-                            'bg-amber-100/80 font-semibold dark:bg-amber-900/35',
-                          )}
-                        >
-                          {totalAct != null ? formatM3(totalAct) : ''}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="sticky left-[7rem] z-10 border-t border-slate-200 bg-slate-50 p-2 text-left text-[10px] font-medium shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-950/55 sm:text-[11px]">
-                          {t('fuelReportRowDiff')}
-                        </td>
-                        {days.map((d) => {
-                          const ix = d - 1;
-                          const df = v.diffM3ByDay[ix];
-                          return (
-                            <td key={d} className={clsx(rowPad, diffCellClass(df))}>
-                              {df != null && Number.isFinite(df) ? formatM3(df) : ''}
-                            </td>
-                          );
-                        })}
-                        <td className={clsx(rowPad, diffCellClass(totalDiff))}>
-                          {totalDiff != null ? formatM3(totalDiff) : ''}
-                        </td>
-                      </tr>
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+      {reportTable && tableFullscreen ? (
+        <div
+          className="fixed inset-0 z-[200] flex flex-col bg-[var(--background)] p-3 sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('fuelSubNavReport')}
+        >
+          <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-slate-900 dark:text-white">
+              {t('fuelSubNavReport')}
+              {grid
+                ? ` · ${grid.savedStation.name} · ${grid.year}-${String(grid.month).padStart(2, '0')}`
+                : ''}
+            </span>
+            <button
+              type="button"
+              className="app-btn-ghost inline-flex items-center gap-2 py-1.5 text-sm"
+              onClick={() => setTableFullscreen(false)}
+            >
+              <X className="h-4 w-4" aria-hidden />
+              {t('fuelReportExitFullscreen')}
+            </button>
+          </div>
+          <div className="app-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {reportTable}
           </div>
         </div>
       ) : null}
