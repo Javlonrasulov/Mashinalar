@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx-js-style';
+import { computeFuelReportGrandTotals } from '@/lib/fuelReportGrandTotals';
 
 export type FuelReportExportGrid = {
   savedStation: { id: string; name: string };
@@ -19,6 +20,9 @@ export type FuelReportExportLabels = {
   rowEmployees: string;
   rowVendor: string;
   rowDiff: string;
+  rowGrandPlate: string;
+  rowGrandSystem: string;
+  rowGrandVendor: string;
   total: string;
   stationTitle: string;
   metaRow: string;
@@ -30,10 +34,10 @@ type CellStyle = {
   font?: { bold?: boolean; color?: { rgb: string }; sz?: number };
   alignment?: { horizontal?: 'center' | 'left' | 'right'; vertical?: 'center' };
   border?: {
-    top?: { style: 'thin'; color: { rgb: string } };
+    top?: { style: 'thin' | 'medium'; color: { rgb: string } };
     bottom?: { style: 'thin' | 'medium'; color: { rgb: string } };
-    left?: { style: 'thin'; color: { rgb: string } };
-    right?: { style: 'thin'; color: { rgb: string } };
+    left?: { style: 'thin' | 'medium'; color: { rgb: string } };
+    right?: { style: 'thin' | 'medium'; color: { rgb: string } };
   };
 };
 
@@ -42,6 +46,8 @@ const FILL_TOTAL_COL = 'FEF3C7';
 const FILL_TOTAL_HEADER = 'FDE68A';
 const FILL_VENDOR_ROW = 'F0F9FF';
 const FILL_META = 'F8FAFC';
+const FILL_GRAND = 'E2E8F0';
+const FILL_GRAND_VENDOR = 'DBEAFE';
 const BORDER = 'CBD5E1';
 const BORDER_BLOCK = '94A3B8';
 
@@ -253,6 +259,80 @@ function applyFuelReportSheetStyles(
     }
   });
 
+  const vehicleRows = grid.vehicles.length * 2;
+  const grandSysRow = dataStart + vehicleRows;
+  const grandVenRow = grandSysRow + 1;
+  const grand = computeFuelReportGrandTotals(grid.daysInMonth, grid.vehicles);
+
+  const grandPlateStyle = baseDataStyle({
+    fill: { patternType: 'solid', fgColor: { rgb: FILL_GRAND } },
+    font: { bold: true, sz: 11 },
+    alignment: { horizontal: 'left', vertical: 'center' },
+  });
+  const grandLabelStyle = baseDataStyle({
+    fill: { patternType: 'solid', fgColor: { rgb: FILL_GRAND } },
+    font: { bold: true, sz: 11 },
+    alignment: { horizontal: 'left', vertical: 'center' },
+  });
+  const grandVenLabelStyle = baseDataStyle({
+    fill: { patternType: 'solid', fgColor: { rgb: FILL_GRAND_VENDOR } },
+    font: { bold: true, sz: 11 },
+    alignment: { horizontal: 'left', vertical: 'center' },
+  });
+  const grandCellStyle = baseDataStyle({
+    fill: { patternType: 'solid', fgColor: { rgb: FILL_GRAND } },
+    font: { bold: true, sz: 11 },
+  });
+  const grandVenCellStyle = baseDataStyle({
+    fill: { patternType: 'solid', fgColor: { rgb: FILL_GRAND_VENDOR } },
+    font: { bold: true, sz: 11 },
+  });
+
+  setCell(ws, grandSysRow, 0, grandPlateStyle);
+  setCell(ws, grandVenRow, 0, grandPlateStyle);
+  setCell(ws, grandSysRow, 1, grandLabelStyle);
+  setCell(ws, grandVenRow, 1, grandVenLabelStyle);
+
+  for (let d = 0; d < days; d += 1) {
+    const c = 2 + d;
+    setCell(ws, grandSysRow, c, grandCellStyle);
+    setCell(ws, grandVenRow, c, grandVenCellStyle);
+  }
+
+  setCell(ws, grandSysRow, totalCol, totalColStyle({ font: { bold: true, sz: 11 } }));
+
+  const grandBorder: CellStyle['border'] = {
+    top: { style: 'medium', color: { rgb: BORDER_BLOCK } },
+    bottom: { style: 'medium', color: { rgb: BORDER_BLOCK } },
+    left: { style: 'thin', color: { rgb: BORDER } },
+    right: { style: 'thin', color: { rgb: BORDER } },
+  };
+  if (grand.anyVendorEntered) {
+    const diffStyle = diffCellStyle(grand.totalDiff);
+    setCell(ws, grandVenRow, totalCol, {
+      ...(diffStyle ?? totalColStyle({ font: { bold: true, sz: 11 } })),
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: grandBorder,
+    });
+  } else {
+    setCell(
+      ws,
+      grandVenRow,
+      totalCol,
+      totalColStyle({
+        fill: { patternType: 'solid', fgColor: { rgb: FILL_GRAND_VENDOR } },
+        font: { bold: true, sz: 11 },
+      }),
+    );
+  }
+
+  for (let c = 0; c <= lastCol; c += 1) {
+    const cell = ws[XLSX.utils.encode_cell({ r: grandVenRow, c })];
+    if (cell?.s && typeof cell.s === 'object') {
+      cell.s = { ...(cell.s as CellStyle), border: grandBorder };
+    }
+  }
+
   ws['!cols'] = [
     { wch: 11 },
     { wch: 16 },
@@ -328,6 +408,20 @@ function buildSheetRows(
       actEntered ? fmtCell(tDiff) : fmtCell(tAct),
     ]);
   }
+
+  const grand = computeFuelReportGrandTotals(grid.daysInMonth, grid.vehicles);
+  rows.push([
+    labels.rowGrandPlate,
+    labels.rowGrandSystem,
+    ...days.map((d) => fmtCell(grand.systemByDay[d - 1])),
+    fmtCell(grand.totalSystem),
+  ]);
+  rows.push([
+    labels.rowGrandPlate,
+    labels.rowGrandVendor,
+    ...days.map((d) => fmtCell(grand.vendorByDay[d - 1])),
+    grand.anyVendorEntered ? fmtCell(grand.totalDiff) : fmtCell(grand.totalVendor),
+  ]);
 
   return rows;
 }

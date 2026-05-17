@@ -34,6 +34,27 @@ export const FUEL_STATION_PALETTE = [
   },
 ] as const;
 
+/** Excel qator fon va zapravka ustuni matni (UI palitrasi bilan mos). */
+export const FUEL_STATION_EXCEL_PALETTE: ReadonlyArray<{ fill: string; font: string }> = [
+  { fill: 'EFF6FF', font: '1E3A8A' },
+  { fill: 'F5F3FF', font: '5B21B6' },
+  { fill: 'ECFDF5', font: '064E3B' },
+  { fill: 'FFFBEB', font: '78350F' },
+  { fill: 'FFF1F2', font: '9F1239' },
+  { fill: 'F0FDFA', font: '115E59' },
+  { fill: 'FFF7ED', font: '9A3412' },
+  { fill: 'ECFEFF', font: '155E75' },
+];
+
+export function excelColorsForStationPalette(
+  index: number | null,
+): { fill: string; font: string } | null {
+  if (index == null || index < 0 || index >= FUEL_STATION_EXCEL_PALETTE.length) {
+    return null;
+  }
+  return FUEL_STATION_EXCEL_PALETTE[index];
+}
+
 export function normalizeStationLabelKey(label: string): string {
   return label
     .replace(/[«»""'']/g, '')

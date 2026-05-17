@@ -22,6 +22,7 @@ import {
   snapshotExcelBaseName,
   type FuelReportExportGrid,
 } from '@/lib/fuelReportExcelExport';
+import { computeFuelReportGrandTotals } from '@/lib/fuelReportGrandTotals';
 
 type GridVehicle = {
   vehicleId: string;
@@ -273,6 +274,9 @@ export function FuelReportPage() {
       rowEmployees: t('fuelReportRowSystem'),
       rowVendor: t('fuelReportRowVendor'),
       rowDiff: t('fuelReportRowDiff'),
+      rowGrandPlate: t('fuelReportGrandTotalPlate'),
+      rowGrandSystem: t('fuelReportRowGrandSystem'),
+      rowGrandVendor: t('fuelReportRowGrandVendor'),
       total: t('fuelReportColTotal'),
       stationTitle: t('fuelReportExportStation'),
       metaRow: t('fuelReportExportPeriod'),
@@ -483,6 +487,19 @@ export function FuelReportPage() {
   const days =
     grid != null ? Array.from({ length: grid.daysInMonth }, (_, i) => i + 1) : [];
 
+  const grandTotals = useMemo(() => {
+    if (!grid) return null;
+    const vehicles = grid.vehicles.map((v) => ({
+      systemM3ByDay: v.systemM3ByDay,
+      actualM3ByDay: mergeActualWithDraft(
+        v.vehicleId,
+        v.actualM3ByDay,
+        draftVendor,
+      ),
+    }));
+    return computeFuelReportGrandTotals(grid.daysInMonth, vehicles);
+  }, [grid, draftVendor]);
+
   const scrollTable = useCallback((dir: 'left' | 'right') => {
     const el = tableScrollRef.current;
     if (!el) return;
@@ -677,6 +694,75 @@ export function FuelReportPage() {
                   </tbody>
                 );
               })}
+            {grandTotals ? (
+              <tfoot className="fuel-report-grand-total border-t-2 border-slate-400 dark:border-slate-500">
+                <tr className="bg-slate-200/95 dark:bg-slate-800/80">
+                  <td
+                    rowSpan={2}
+                    className="sticky left-0 z-[18] border-b border-slate-300 bg-slate-200/95 p-2 text-xs font-bold uppercase tracking-wide text-slate-800 shadow-[2px_0_4px_rgba(15,23,42,0.08)] dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100"
+                  >
+                    {t('fuelReportGrandTotalPlate')}
+                  </td>
+                  <td className="sticky left-[7rem] z-[18] bg-slate-200/95 p-2 text-left text-[10px] font-bold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-800/90 sm:text-[11px]">
+                    {t('fuelReportRowGrandSystem')}
+                  </td>
+                  {days.map((d) => {
+                    const val = grandTotals.systemByDay[d - 1];
+                    return (
+                      <td
+                        key={`g-sys-${d}`}
+                        className="border-t border-slate-300 px-1 py-1.5 text-center text-xs font-bold tabular-nums text-slate-900 dark:border-slate-600 dark:text-slate-50"
+                      >
+                        {val != null ? formatM3(val) : ''}
+                      </td>
+                    );
+                  })}
+                  <td
+                    className={clsx(
+                      stickyRightTdBase,
+                      'border-t-2 border-amber-400/90 bg-amber-200 font-bold dark:border-amber-600 dark:bg-amber-900/55',
+                    )}
+                  >
+                    {grandTotals.totalSystem != null
+                      ? formatM3(grandTotals.totalSystem)
+                      : ''}
+                  </td>
+                </tr>
+                <tr className="bg-slate-300/90 dark:bg-slate-700/80">
+                  <td className="sticky left-[7rem] z-[18] bg-slate-300/90 p-2 text-left text-[10px] font-bold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-700/90 sm:text-[11px]">
+                    {t('fuelReportRowGrandVendor')}
+                  </td>
+                  {days.map((d) => {
+                    const val = grandTotals.vendorByDay[d - 1];
+                    return (
+                      <td
+                        key={`g-ven-${d}`}
+                        className="border-b border-slate-300 px-1 py-1.5 text-center text-xs font-bold tabular-nums text-slate-900 dark:border-slate-600 dark:text-slate-50"
+                      >
+                        {val != null ? formatM3(val) : ''}
+                      </td>
+                    );
+                  })}
+                  <td
+                    className={
+                      grandTotals.anyVendorEntered
+                        ? diffTotalCellClass(grandTotals.totalDiff)
+                        : clsx(
+                            stickyRightTdBase,
+                            'border-b-2 border-amber-400/90 bg-amber-200 font-bold dark:border-amber-600 dark:bg-amber-900/55',
+                          )
+                    }
+                  >
+                    {grandTotals.anyVendorEntered &&
+                    grandTotals.totalDiff != null
+                      ? formatM3(grandTotals.totalDiff)
+                      : grandTotals.totalVendor != null
+                        ? formatM3(grandTotals.totalVendor)
+                        : ''}
+                  </td>
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </div>
       </>

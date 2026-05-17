@@ -443,6 +443,8 @@ export function FuelPage() {
     const data = rows.map((r) => {
       const lat = r.latitude ? Number(r.latitude) : NaN;
       const lon = r.longitude ? Number(r.longitude) : NaN;
+      const location =
+        Number.isFinite(lat) && Number.isFinite(lon) ? `${lat}, ${lon}` : '';
       return {
         plate: r.vehicle.plateNumber,
         driver: r.driver.fullName,
@@ -451,19 +453,22 @@ export function FuelPage() {
         unitPrice: r.unitPrice?.trim() ?? '',
         volume: rawVolumeForExport(r),
         createdAt: formatDateTimeNoSeconds(r.createdAt),
-        latitude: Number.isFinite(lat) ? String(lat) : '',
-        longitude: Number.isFinite(lon) ? String(lon) : '',
+        location,
         station: stationLabelForRow(r),
+        stationPaletteIndex: stationPaletteIndexForRow(r),
         vehiclePhotoUrl: r.vehiclePhotoUrl ? apiUrl(r.vehiclePhotoUrl) : '',
         receiptPhotoUrl: r.receiptPhotoUrl ? apiUrl(r.receiptPhotoUrl) : '',
       };
     });
 
-    const count = downloadFuelReportsExcel(headers, data, fromYmd, toYmd);
-    if (count <= 0) return;
-
     const lo = fromYmd <= toYmd ? fromYmd : toYmd;
     const hi = fromYmd <= toYmd ? toYmd : fromYmd;
+    const count = downloadFuelReportsExcel(headers, data, fromYmd, toYmd, {
+      period: t('fuelExportSheetPeriod'),
+      rowCount: t('fuelExportSheetRowCount'),
+    });
+    if (count <= 0) return;
+
     const meta: FuelExportMeta = {
       exportedAt: new Date().toISOString(),
       fromYmd: lo,
