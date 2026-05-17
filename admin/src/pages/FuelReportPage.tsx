@@ -281,21 +281,37 @@ export function FuelReportPage() {
     [t],
   );
 
+  const gridForExcel = useCallback(
+    (g: GridResponse): GridResponse => ({
+      ...g,
+      vehicles: g.vehicles.map((v) => ({
+        ...v,
+        actualM3ByDay: mergeActualWithDraft(
+          v.vehicleId,
+          v.actualM3ByDay,
+          draftVendor,
+        ),
+      })),
+    }),
+    [draftVendor],
+  );
+
   const exportGridToFile = useCallback(
-    (g: GridResponse, createdAt?: string) => {
+    (g: GridResponse, createdAt?: string, mergeDraft = false) => {
+      const payload = mergeDraft ? gridForExcel(g) : g;
       downloadFuelReportXlsx(
-        g as FuelReportExportGrid,
+        payload as FuelReportExportGrid,
         exportLabels,
-        snapshotExcelBaseName(g, createdAt),
+        snapshotExcelBaseName(payload, createdAt),
         'Hisobot',
         createdAt,
       );
     },
-    [exportLabels],
+    [exportLabels, gridForExcel],
   );
 
   const exportCurrentGrid = useCallback(() => {
-    if (grid) exportGridToFile(grid);
+    if (grid) exportGridToFile(grid, undefined, true);
   }, [grid, exportGridToFile]);
 
   const stationOptions = useMemo(

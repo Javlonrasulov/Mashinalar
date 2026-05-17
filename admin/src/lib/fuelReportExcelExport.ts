@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 export type FuelReportExportGrid = {
   savedStation: { id: string; name: string };
@@ -25,6 +25,26 @@ export type FuelReportExportLabels = {
   savedAt?: string;
 };
 
+type CellStyle = {
+  fill?: { patternType: 'solid'; fgColor: { rgb: string } };
+  font?: { bold?: boolean; color?: { rgb: string }; sz?: number };
+  alignment?: { horizontal?: 'center' | 'left' | 'right'; vertical?: 'center' };
+  border?: {
+    top?: { style: 'thin'; color: { rgb: string } };
+    bottom?: { style: 'thin' | 'medium'; color: { rgb: string } };
+    left?: { style: 'thin'; color: { rgb: string } };
+    right?: { style: 'thin'; color: { rgb: string } };
+  };
+};
+
+const FILL_HEADER = 'F1F5F9';
+const FILL_TOTAL_COL = 'FEF3C7';
+const FILL_TOTAL_HEADER = 'FDE68A';
+const FILL_VENDOR_ROW = 'F0F9FF';
+const FILL_META = 'F8FAFC';
+const BORDER = 'CBD5E1';
+const BORDER_BLOCK = '94A3B8';
+
 function fmtCell(n: number | null | undefined): number | string {
   if (n == null || !Number.isFinite(n)) return '';
   const r = Math.round(n * 100) / 100;
@@ -45,6 +65,205 @@ function sumNums(arr: (number | null)[]): number | null {
 
 function hasAnyActual(values: (number | null)[]): boolean {
   return values.some((x) => x != null && Number.isFinite(x));
+}
+
+function diffCellStyle(diff: number | null): CellStyle | null {
+  if (diff == null || !Number.isFinite(diff)) return null;
+  const a = Math.abs(diff);
+  if (a <= 0.35) {
+    return {
+      fill: { patternType: 'solid', fgColor: { rgb: 'A7F3D0' } },
+      font: { bold: true, color: { rgb: '064E3B' } },
+    };
+  }
+  if (a <= 1.2) {
+    return {
+      fill: { patternType: 'solid', fgColor: { rgb: 'D9F99D' } },
+      font: { bold: true, color: { rgb: '365314' } },
+    };
+  }
+  if (a <= 3) {
+    return {
+      fill: { patternType: 'solid', fgColor: { rgb: 'FCD34D' } },
+      font: { bold: true, color: { rgb: '78350F' } },
+    };
+  }
+  /* > 3 m³ — UI dagi qizil (red-400/600) */
+  return {
+    fill: { patternType: 'solid', fgColor: { rgb: 'EF4444' } },
+    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+  };
+}
+
+function baseDataStyle(extra?: CellStyle): CellStyle {
+  return {
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: BORDER } },
+      bottom: { style: 'thin', color: { rgb: BORDER } },
+      left: { style: 'thin', color: { rgb: BORDER } },
+      right: { style: 'thin', color: { rgb: BORDER } },
+    },
+    ...extra,
+  };
+}
+
+function totalColStyle(extra?: CellStyle): CellStyle {
+  return baseDataStyle({
+    fill: { patternType: 'solid', fgColor: { rgb: FILL_TOTAL_COL } },
+    font: { bold: true },
+    ...extra,
+  });
+}
+
+function setCell(ws: XLSX.WorkSheet, r: number, c: number, style: CellStyle) {
+  const addr = XLSX.utils.encode_cell({ r, c });
+  const cell = ws[addr];
+  if (!cell) return;
+  cell.s = style;
+}
+
+function metaRowCount(savedAtIso?: string, labels?: FuelReportExportLabels): number {
+  let n = 2;
+  if (labels?.savedAt && savedAtIso) n += 1;
+  return n + 2;
+}
+
+function applyFuelReportSheetStyles(
+  ws: XLSX.WorkSheet,
+  grid: FuelReportExportGrid,
+  savedAtIso?: string,
+  labels?: FuelReportExportLabels,
+) {
+  const days = grid.daysInMonth;
+  const totalCol = 2 + days;
+  const lastCol = totalCol;
+  const headerRow = metaRowCount(savedAtIso, labels) - 1;
+  const dataStart = headerRow + 1;
+
+  const metaStyle: CellStyle = {
+    fill: { patternType: 'solid', fgColor: { rgb: FILL_META } },
+    font: { sz: 11 },
+    alignment: { vertical: 'center' },
+  };
+  for (let r = 0; r < headerRow; r += 1) {
+    setCell(ws, r, 0, metaStyle);
+    setCell(ws, r, 1, metaStyle);
+  }
+
+  const headerStyle: CellStyle = {
+    fill: { patternType: 'solid', fgColor: { rgb: FILL_HEADER } },
+    font: { bold: true, sz: 11 },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: BORDER } },
+      bottom: { style: 'medium', color: { rgb: BORDER_BLOCK } },
+      left: { style: 'thin', color: { rgb: BORDER } },
+      right: { style: 'thin', color: { rgb: BORDER } },
+    },
+  };
+  const headerTotalStyle: CellStyle = {
+    ...headerStyle,
+    fill: { patternType: 'solid', fgColor: { rgb: FILL_TOTAL_HEADER } },
+  };
+  for (let c = 0; c <= lastCol; c += 1) {
+    setCell(ws, headerRow, c, c === totalCol ? headerTotalStyle : headerStyle);
+  }
+  setCell(ws, headerRow, 0, { ...headerStyle, alignment: { horizontal: 'left', vertical: 'center' } });
+  setCell(ws, headerRow, 1, { ...headerStyle, alignment: { horizontal: 'left', vertical: 'center' } });
+
+  grid.vehicles.forEach((v, vi) => {
+    const sysRow = dataStart + vi * 2;
+    const venRow = sysRow + 1;
+    const tSys = sumNums(v.systemM3ByDay);
+    const tAct = sumNums(v.actualM3ByDay);
+    const actEntered = hasAnyActual(v.actualM3ByDay);
+    const tDiff =
+      actEntered && (tSys != null || tAct != null)
+        ? Math.round(((tSys ?? 0) - (tAct ?? 0)) * 100) / 100
+        : null;
+
+    const plateStyle = baseDataStyle({
+      font: { bold: true },
+      alignment: { horizontal: 'left', vertical: 'center' },
+    });
+    setCell(ws, sysRow, 0, plateStyle);
+    setCell(ws, venRow, 0, plateStyle);
+
+    setCell(ws, sysRow, 1, baseDataStyle({ alignment: { horizontal: 'left', vertical: 'center' } }));
+    setCell(
+      ws,
+      venRow,
+      1,
+      baseDataStyle({
+        fill: { patternType: 'solid', fgColor: { rgb: FILL_VENDOR_ROW } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+      }),
+    );
+
+    for (let d = 0; d < days; d += 1) {
+      const c = 2 + d;
+      setCell(ws, sysRow, c, baseDataStyle());
+      setCell(
+        ws,
+        venRow,
+        c,
+        baseDataStyle({
+          fill: { patternType: 'solid', fgColor: { rgb: FILL_VENDOR_ROW } },
+        }),
+      );
+    }
+
+    setCell(ws, sysRow, totalCol, totalColStyle());
+    const venTotalBorder: CellStyle['border'] = {
+      top: { style: 'thin', color: { rgb: BORDER } },
+      bottom: { style: 'medium', color: { rgb: BORDER_BLOCK } },
+      left: { style: 'thin', color: { rgb: BORDER } },
+      right: { style: 'thin', color: { rgb: BORDER } },
+    };
+    if (actEntered) {
+      const diffStyle = diffCellStyle(tDiff);
+      setCell(ws, venRow, totalCol, {
+        ...(diffStyle ?? totalColStyle()),
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: venTotalBorder,
+      });
+    } else {
+      setCell(
+        ws,
+        venRow,
+        totalCol,
+        totalColStyle({
+          fill: { patternType: 'solid', fgColor: { rgb: FILL_VENDOR_ROW } },
+        }),
+      );
+    }
+
+    for (let c = 0; c <= lastCol; c += 1) {
+      const borderBottom: CellStyle['border'] = {
+        top: { style: 'thin', color: { rgb: BORDER } },
+        bottom: { style: 'medium', color: { rgb: BORDER_BLOCK } },
+        left: { style: 'thin', color: { rgb: BORDER } },
+        right: { style: 'thin', color: { rgb: BORDER } },
+      };
+      const cell = ws[XLSX.utils.encode_cell({ r: venRow, c })];
+      if (cell?.s && typeof cell.s === 'object') {
+        cell.s = { ...(cell.s as CellStyle), border: borderBottom };
+      }
+    }
+  });
+
+  ws['!cols'] = [
+    { wch: 11 },
+    { wch: 16 },
+    ...Array.from({ length: days }, () => ({ wch: 5 })),
+    { wch: 9 },
+  ];
+
+  const lastDataRow = dataStart + grid.vehicles.length * 2 - 1;
+  if (lastDataRow >= dataStart) {
+    ws['!freeze'] = { xSplit: 2, ySplit: headerRow + 1, topLeftCell: 'C2', activePane: 'bottomRight' };
+  }
 }
 
 /** Excel fayl nomidan хавфли белгиларни олиб ташлайди */
@@ -113,6 +332,16 @@ function buildSheetRows(
   return rows;
 }
 
+function buildStyledSheet(
+  grid: FuelReportExportGrid,
+  labels: FuelReportExportLabels,
+  savedAtIso?: string,
+): XLSX.WorkSheet {
+  const ws = XLSX.utils.aoa_to_sheet(buildSheetRows(grid, labels, savedAtIso));
+  applyFuelReportSheetStyles(ws, grid, savedAtIso, labels);
+  return ws;
+}
+
 export function snapshotExcelBaseName(
   grid: FuelReportExportGrid,
   createdAt?: string,
@@ -139,7 +368,7 @@ export function downloadFuelReportXlsx(
   sheetName = 'Hisobot',
   savedAtIso?: string,
 ) {
-  const ws = XLSX.utils.aoa_to_sheet(buildSheetRows(grid, labels, savedAtIso));
+  const ws = buildStyledSheet(grid, labels, savedAtIso);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
   XLSX.writeFile(wb, `${safeExcelFileBase(fileBaseName)}.xlsx`);
@@ -162,9 +391,7 @@ export function downloadFuelReportSnapshotsWorkbook(
       n += 1;
     }
     used.add(sn);
-    const ws = XLSX.utils.aoa_to_sheet(
-      buildSheetRows(item.grid, labels, item.createdAt),
-    );
+    const ws = buildStyledSheet(item.grid, labels, item.createdAt);
     XLSX.utils.book_append_sheet(wb, ws, sn);
   });
   XLSX.writeFile(wb, `${safeExcelFileBase(fileBaseName)}.xlsx`);
