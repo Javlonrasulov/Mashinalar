@@ -210,6 +210,27 @@ export class FuelController {
     return this.reconciliation.getVedomostSnapshot(id.trim());
   }
 
+  @Put('vedomost-snapshot/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
+  updateVedomostSnapshot(
+    @Param('id') id: string,
+    @Body() body: { all?: string },
+  ) {
+    return this.reconciliation.updateVedomostSnapshot(id.trim(), {
+      includeAllFleet: body.all === '1',
+    });
+  }
+
+  @Post('vedomost-snapshot/:id/apply')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('FUEL')
+  applyVedomostSnapshot(@Param('id') id: string) {
+    return this.reconciliation.applyVedomostSnapshotToMonthActuals(id.trim());
+  }
+
   /** Барча ёзувлар учун GPS → сақланган заправка номи ёки OSM (координата тузатилгандан кейин). */
   @Post('resync-stations-from-gps')
   @UseGuards(JwtAuthGuard, RolesGuard)

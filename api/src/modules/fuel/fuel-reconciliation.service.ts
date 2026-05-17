@@ -297,12 +297,75 @@ export class FuelReconciliationService {
     const rows = await this.prisma.fuelVedomostSnapshot.findMany({
       where: { savedFuelStationId, year, month },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, createdAt: true },
+      select: { id: true, createdAt: true, year: true, month: true },
     });
     return rows.map((r) => ({
       id: r.id,
       createdAt: r.createdAt.toISOString(),
+      year: r.year,
+      month: r.month,
     }));
+  }
+
+  async updateVedomostSnapshot(
+    id: string,
+    params?: { includeAllFleet?: boolean },
+  ) {
+    const row = await this.prisma.fuelVedomostSnapshot.findUnique({
+      where: { id },
+    });
+    if (!row) throw new NotFoundException('Snapshot not found');
+    const prev = row.payload as unknown as VedomostSnapshotPayload;
+    const includeAllFleet =
+      params?.includeAllFleet ?? prev.includeAllFleet === true;
+    const grid = await this.getMonthlyGrid({
+      savedFuelStationId: row.savedFuelStationId,
+      year: row.year,
+      month: row.month,
+      includeAllFleet,
+    });
+    const payload: VedomostSnapshotPayload = {
+      capturedAt: new Date().toISOString(),
+      includeAllFleet,
+      grid,
+    };
+    await this.prisma.fuelVedomostSnapshot.update({
+      where: { id },
+      data: { payload: payload as unknown as Prisma.InputJsonValue },
+    });
+    return {
+      id: row.id,
+      createdAt: row.createdAt.toISOString(),
+      year: row.year,
+      month: row.month,
+      payload,
+    };
+  }
+
+  async applyVedomostSnapshotToMonthActuals(id: string) {
+    const row = await this.prisma.fuelVedomostSnapshot.findUnique({
+      where: { id },
+    });
+    if (!row) throw new NotFoundException('Snapshot not found');
+    const { grid } = row.payload as unknown as VedomostSnapshotPayload;
+    const { savedFuelStationId } = row;
+    const { year, month } = grid;
+    let applied = 0;
+    for (const v of grid.vehicles) {
+      for (let day = 1; day <= grid.daysInMonth; day++) {
+        const actualM3 = v.actualM3ByDay[day - 1] ?? null;
+        await this.upsertMonthActual({
+          savedFuelStationId,
+          vehicleId: v.vehicleId,
+          year,
+          month,
+          day,
+          actualM3,
+        });
+        applied += 1;
+      }
+    }
+    return { ok: true, applied };
   }
 
   async getVedomostSnapshot(id: string): Promise<{

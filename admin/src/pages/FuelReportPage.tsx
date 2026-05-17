@@ -1,11 +1,11 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileDown,
   Loader2,
   Maximize2,
+  Pencil,
   RefreshCw,
   Save,
   X,
@@ -13,6 +13,8 @@ import {
 import { clsx } from 'clsx';
 import { api } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
+import { MonthField } from '@/components/MonthField';
+import { SelectField } from '@/components/SelectField';
 import type { SavedFuelStationMapItem } from '@/lib/savedFuelStationsMap';
 import {
   downloadFuelReportSnapshotsWorkbook,
@@ -64,20 +66,6 @@ function weekdayShort(y: number, month: number, day: number, loc: string): strin
   }).format(d);
 }
 
-/** Farq: abs qiymР°С‚ С‡РµС‚СЂР°С„РѕСЂРј вЂ” СЏС€РёР» в†” СЃР°СЂРёТ› в†” Т›РёР·РёР» */
-function diffCellClass(diff: number | null): string {
-  if (diff == null || !Number.isFinite(diff)) {
-    return 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400';
-  }
-  const a = Math.abs(diff);
-  if (a <= 0.35)
-    return 'bg-emerald-500/35 text-emerald-950 dark:bg-emerald-400/35 dark:text-emerald-50';
-  if (a <= 1.2) return 'bg-lime-400/35 text-lime-950 dark:bg-lime-300/30 dark:text-lime-50';
-  if (a <= 3)
-    return 'bg-amber-400/45 text-amber-950 dark:bg-amber-300/35 dark:text-amber-950';
-  return 'bg-red-500/45 text-white dark:bg-red-500/40 dark:text-red-50';
-}
-
 function sumNums(arr: (number | null)[]): number | null {
   let s = 0;
   let any = false;
@@ -119,12 +107,38 @@ function hasAnyActual(values: (number | null)[]): boolean {
 }
 
 const stickyRightTh =
-  'sticky right-0 z-[25] min-w-[4.5rem] border-l border-slate-200/90 bg-slate-50 p-2 text-center font-semibold shadow-[-6px_0_12px_rgba(15,23,42,0.1)] dark:border-slate-700 dark:bg-slate-950/95';
+  'sticky right-0 z-[25] min-w-[4.75rem] border-l-2 border-amber-400/90 bg-amber-200 p-2 text-center text-xs font-bold uppercase tracking-wide text-amber-950 shadow-[-6px_0_12px_rgba(15,23,42,0.12)] dark:border-amber-600 dark:bg-amber-900/55 dark:text-amber-50';
+
+const stickyRightTdBase =
+  'sticky right-0 z-[15] min-w-[4.75rem] border-l-2 border-amber-300/85 bg-amber-100 px-1 py-0.5 text-center align-middle font-semibold tabular-nums text-amber-950 shadow-[-6px_0_12px_rgba(15,23,42,0.1)] dark:border-amber-700/80 dark:bg-amber-950/40 dark:text-amber-50';
 
 function stickyRightTd(extra?: string) {
+  return clsx(stickyRightTdBase, extra);
+}
+
+/** Жами ustunidagi farq — sariq fon ustida rang */
+function diffTotalCellClass(diff: number | null): string {
+  const base = stickyRightTdBase;
+  if (diff == null || !Number.isFinite(diff)) return base;
+  const a = Math.abs(diff);
+  if (a <= 0.35)
+    return clsx(
+      base,
+      '!bg-emerald-200/90 !text-emerald-950 dark:!bg-emerald-800/50 dark:!text-emerald-100',
+    );
+  if (a <= 1.2)
+    return clsx(
+      base,
+      '!bg-lime-200/95 !text-lime-950 dark:!bg-lime-800/45 dark:!text-lime-100',
+    );
+  if (a <= 3)
+    return clsx(
+      base,
+      '!bg-amber-300 !text-amber-950 dark:!bg-amber-700/70 dark:!text-amber-50',
+    );
   return clsx(
-    'sticky right-0 z-[15] min-w-[4.5rem] border-l border-slate-200/80 px-1 py-0.5 text-center align-middle shadow-[-6px_0_12px_rgba(15,23,42,0.08)] dark:border-slate-800',
-    extra,
+    base,
+    '!bg-red-400/85 !text-white dark:!bg-red-600/70 dark:!text-red-50',
   );
 }
 
@@ -140,7 +154,13 @@ function stationOptionLabel(
   });
 }
 
-type SnapListItem = { id: string; createdAt: string };
+type SnapListItem = { id: string; createdAt: string; year: number; month: number };
+
+function formatMonthLong(y: number, m: number, loc: string): string {
+  return new Intl.DateTimeFormat(loc, { month: 'long', year: 'numeric' }).format(
+    new Date(y, m - 1, 1),
+  );
+}
 
 export function FuelReportPage() {
   const { t, lang } = useI18n();
@@ -162,9 +182,10 @@ export function FuelReportPage() {
   const [savingSnap, setSavingSnap] = useState(false);
   const [exportingSnaps, setExportingSnaps] = useState(false);
   const [snapMsg, setSnapMsg] = useState<string | null>(null);
-  /** vendor katakcha draft вЂ” С„Р°Т›Р°С‚ Р±РёСЂ РІР°Т›С‚ СћР·РіР°СЂРёС€Рё */
+  const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null);
   const [draftVendor, setDraftVendor] = useState<Record<string, string>>({});
   const tableScrollRef = useRef<HTMLDivElement>(null);
+  const skipEditClearRef = useRef(false);
   const [tableFullscreen, setTableFullscreen] = useState(false);
 
   const locale =
@@ -176,6 +197,11 @@ export function FuelReportPage() {
 
   useEffect(() => {
     setDraftVendor({});
+    if (skipEditClearRef.current) {
+      skipEditClearRef.current = false;
+      return;
+    }
+    setEditingSnapshotId(null);
   }, [stationId, monthStr]);
 
   useEffect(() => {
@@ -272,6 +298,15 @@ export function FuelReportPage() {
     if (grid) exportGridToFile(grid);
   }, [grid, exportGridToFile]);
 
+  const stationOptions = useMemo(
+    () =>
+      stations.map((s) => ({
+        value: s.id,
+        label: stationOptionLabel(s, t),
+      })),
+    [stations, t],
+  );
+
   const saveVedomostSnapshot = useCallback(async () => {
     const parsed = parseMonthInput(monthStr);
     if (!stationId || !parsed) return;
@@ -279,21 +314,28 @@ export function FuelReportPage() {
     setSnapMsg(null);
     setErr(null);
     try {
-      const created = await api<{
-        id: string;
-        createdAt: string;
-        payload: { grid: GridResponse };
-      }>('/fuel-reports/vedomost-snapshot', {
-        method: 'POST',
-        body: JSON.stringify({
-          savedFuelStationId: stationId,
-          year: parsed.y,
-          month: parsed.m,
-          ...(allFleet ? { all: '1' } : {}),
-        }),
+      const body = JSON.stringify({
+        ...(allFleet ? { all: '1' } : {}),
       });
-      exportGridToFile(created.payload.grid, created.createdAt);
-      setSnapMsg(t('fuelReportSnapshotSavedExcel'));
+      if (editingSnapshotId) {
+        await api(`/fuel-reports/vedomost-snapshot/${encodeURIComponent(editingSnapshotId)}`, {
+          method: 'PUT',
+          body,
+        });
+        setEditingSnapshotId(null);
+        setSnapMsg(t('fuelReportSnapshotUpdated'));
+      } else {
+        await api('/fuel-reports/vedomost-snapshot', {
+          method: 'POST',
+          body: JSON.stringify({
+            savedFuelStationId: stationId,
+            year: parsed.y,
+            month: parsed.m,
+            ...(allFleet ? { all: '1' } : {}),
+          }),
+        });
+        setSnapMsg(t('fuelReportSnapshotSaved'));
+      }
       await loadSnapshots();
       window.setTimeout(() => setSnapMsg(null), 5000);
     } catch {
@@ -301,7 +343,49 @@ export function FuelReportPage() {
     } finally {
       setSavingSnap(false);
     }
-  }, [stationId, monthStr, allFleet, t, loadSnapshots, exportGridToFile]);
+  }, [stationId, monthStr, allFleet, editingSnapshotId, t, loadSnapshots]);
+
+  const loadSnapshotForEdit = useCallback(
+    async (id: string) => {
+      setErr(null);
+      setSnapMsg(null);
+      try {
+        const res = await api<{
+          payload: { grid: GridResponse; includeAllFleet: boolean };
+        }>(`/fuel-reports/vedomost-snapshot/${encodeURIComponent(id)}`);
+        const g = res.payload.grid;
+        skipEditClearRef.current = true;
+        setStationId(g.savedStation.id);
+        setMonthStr(monthInputValue(g.year, g.month));
+        setAllFleet(res.payload.includeAllFleet === true);
+        setDraftVendor({});
+        await api(`/fuel-reports/vedomost-snapshot/${encodeURIComponent(id)}/apply`, {
+          method: 'POST',
+        });
+        const qs = new URLSearchParams({
+          savedFuelStationId: g.savedStation.id,
+          year: String(g.year),
+          month: String(g.month),
+        });
+        if (res.payload.includeAllFleet) qs.set('all', '1');
+        const data = await api<GridResponse>(
+          `/fuel-reports/station-month-grid?${qs.toString()}`,
+        );
+        setGrid(data);
+        setEditingSnapshotId(id);
+        setSnapMsg(t('fuelReportEditingSnapshot'));
+      } catch {
+        setErr(t('genericError'));
+      }
+    },
+    [t],
+  );
+
+  const cancelSnapshotEdit = useCallback(() => {
+    setEditingSnapshotId(null);
+    setSnapMsg(null);
+    void loadGrid();
+  }, [loadGrid]);
 
   const exportSnapshotById = useCallback(
     async (id: string) => {
@@ -521,12 +605,7 @@ export function FuelReportPage() {
                           </td>
                         );
                       })}
-                      <td
-                        className={stickyRightTd(
-                          'bg-rose-50/95 font-semibold dark:bg-rose-950/35',
-                        )}
-                        title={String(totalSys ?? '')}
-                      >
+                      <td className={stickyRightTd()} title={String(totalSys ?? '')}>
                         {totalSys != null ? formatM3(totalSys) : ''}
                       </td>
                     </tr>
@@ -567,14 +646,9 @@ export function FuelReportPage() {
                         );
                       })}
                       <td
-                        className={stickyRightTd(
-                          clsx(
-                            'font-semibold tabular-nums',
-                            actEntered
-                              ? diffCellClass(totalDiff)
-                              : 'bg-sky-50/95 dark:bg-sky-950/40',
-                          ),
-                        )}
+                        className={
+                          actEntered ? diffTotalCellClass(totalDiff) : stickyRightTd()
+                        }
                         title={
                           actEntered
                             ? `${t('fuelReportRowDiff')}: ${totalDiff ?? ''}`
@@ -610,41 +684,26 @@ export function FuelReportPage() {
             >
               {t('fuelReportPickStation')}
             </label>
-            <div className="relative">
-              <select
-                id="fuel-report-station"
-                className="app-select w-full appearance-none py-2 pl-3 pr-9 text-sm"
-                value={stationId}
-                onChange={(e) => setStationId(e.target.value)}
-              >
-                {!stations.length && (
-                  <option value="">{t('fuelReportNoStations')}</option>
-                )}
-                {stations.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {stationOptionLabel(s, t)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                aria-hidden
-              />
-            </div>
+            <SelectField
+              id="fuel-report-station"
+              value={stationId}
+              onChange={setStationId}
+              options={stationOptions}
+              placeholder={t('fuelReportNoStations')}
+              disabled={!stations.length}
+            />
           </div>
-          <div className="flex w-full flex-col gap-1 sm:w-40 sm:max-w-[11rem]">
+          <div className="flex w-full flex-col gap-1 sm:w-52 sm:max-w-[14rem]">
             <label
               className="text-xs font-medium text-slate-500 dark:text-slate-400"
               htmlFor="fuel-report-month"
             >
               {t('fuelReportPickMonth')}
             </label>
-            <input
+            <MonthField
               id="fuel-report-month"
-              type="month"
-              className="app-input w-full text-sm tabular-nums"
               value={monthStr}
-              onChange={(e) => setMonthStr(e.target.value)}
+              onChange={setMonthStr}
             />
           </div>
           <label className="flex min-h-[40px] max-w-xl cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
@@ -663,8 +722,16 @@ export function FuelReportPage() {
             className="app-btn-ghost inline-flex h-10 w-10 items-center justify-center p-0"
             onClick={() => void saveVedomostSnapshot()}
             disabled={savingSnap || !stationId || loading}
-            title={t('fuelReportSaveVedomost')}
-            aria-label={t('fuelReportSaveVedomost')}
+            title={
+              editingSnapshotId
+                ? t('fuelReportUpdateVedomost')
+                : t('fuelReportSaveVedomost')
+            }
+            aria-label={
+              editingSnapshotId
+                ? t('fuelReportUpdateVedomost')
+                : t('fuelReportSaveVedomost')
+            }
           >
             {savingSnap ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -696,6 +763,16 @@ export function FuelReportPage() {
               <RefreshCw className="h-5 w-5" />
             )}
           </button>
+          {editingSnapshotId ? (
+            <button
+              type="button"
+              className="app-btn-ghost inline-flex h-10 items-center gap-1.5 px-2 text-sm"
+              onClick={cancelSnapshotEdit}
+            >
+              <X className="h-4 w-4" aria-hidden />
+              <span className="hidden sm:inline">{t('fuelReportCancelEdit')}</span>
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -746,20 +823,42 @@ export function FuelReportPage() {
                 key={s.id}
                 className="flex flex-wrap items-center justify-between gap-2 py-2 first:pt-0"
               >
-                <span className="text-sm tabular-nums text-slate-700 dark:text-slate-200">
-                  {new Date(s.createdAt).toLocaleString(locale, {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                  })}
-                </span>
-                <button
-                  type="button"
-                  className="app-btn-ghost inline-flex shrink-0 items-center gap-1.5 py-1.5 text-sm"
-                  onClick={() => void exportSnapshotById(s.id)}
-                >
-                  <FileDown className="h-4 w-4" aria-hidden />
-                  {t('fuelReportDownloadSnapshotExcel')}
-                </button>
+                <div className="min-w-0 text-sm text-slate-700 dark:text-slate-200">
+                  <span className="font-medium text-slate-900 dark:text-slate-50">
+                    {t('fuelReportSnapshotForMonth', {
+                      month: formatMonthLong(s.year, s.month, locale),
+                    })}
+                  </span>
+                  <span className="mt-0.5 block tabular-nums text-slate-500 dark:text-slate-400">
+                    {new Date(s.createdAt).toLocaleString(locale, {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
+                  </span>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-1">
+                  <button
+                    type="button"
+                    className={clsx(
+                      'app-btn-ghost inline-flex items-center gap-1.5 py-1.5 text-sm',
+                      editingSnapshotId === s.id &&
+                        'ring-2 ring-blue-500/60 dark:ring-blue-400/50',
+                    )}
+                    onClick={() => void loadSnapshotForEdit(s.id)}
+                    disabled={editingSnapshotId === s.id}
+                  >
+                    <Pencil className="h-4 w-4" aria-hidden />
+                    {t('fuelReportEditSnapshot')}
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn-ghost inline-flex items-center gap-1.5 py-1.5 text-sm"
+                    onClick={() => void exportSnapshotById(s.id)}
+                  >
+                    <FileDown className="h-4 w-4" aria-hidden />
+                    {t('fuelReportDownloadSnapshotExcel')}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
