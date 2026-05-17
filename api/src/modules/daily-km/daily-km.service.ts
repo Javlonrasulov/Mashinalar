@@ -405,28 +405,28 @@ export class DailyKmService {
             driverName,
             driverPhone,
           });
+          const hasEnd = rep!.endKm != null;
+          if (hasEnd) {
+            endSubmittedList.push({
+              vehicleId: f.vehicleId,
+              plateNumber: f.plateNumber,
+              driverName,
+              driverPhone,
+            });
+          } else {
+            endMissingList.push({
+              vehicleId: f.vehicleId,
+              plateNumber: f.plateNumber,
+              driverName,
+              driverPhone,
+            });
+          }
         } else {
           startMissingList.push({
             vehicleId: f.vehicleId,
             plateNumber: f.plateNumber,
             driverName: f.driverName,
             driverPhone: f.driverPhone,
-          });
-        }
-        const hasEnd = rep != null && rep.endKm != null;
-        if (hasEnd) {
-          endSubmittedList.push({
-            vehicleId: f.vehicleId,
-            plateNumber: f.plateNumber,
-            driverName,
-            driverPhone,
-          });
-        } else {
-          endMissingList.push({
-            vehicleId: f.vehicleId,
-            plateNumber: f.plateNumber,
-            driverName,
-            driverPhone,
           });
         }
       }

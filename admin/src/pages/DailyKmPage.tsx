@@ -293,7 +293,19 @@ export function DailyKmPage() {
 
   useEffect(() => {
     setExpandedOverviewDay(null);
-  }, [tableFromValue, tableToValue, overviewDayFilter, searchQuery]);
+  }, [tableFromValue, tableToValue, searchQuery]);
+
+  useEffect(() => {
+    if (overviewDayFilter === 'all') {
+      setExpandedOverviewDay(null);
+      return;
+    }
+    let days = submissionOverview?.days ?? [];
+    if (overviewDayFilter === 'startPending') days = days.filter((d) => d.startMissing > 0);
+    else if (overviewDayFilter === 'endPending') days = days.filter((d) => d.endMissing > 0);
+    else if (overviewDayFilter === 'complete') days = days.filter((d) => d.startMissing === 0 && d.endMissing === 0);
+    setExpandedOverviewDay(days[0]?.date ?? null);
+  }, [overviewDayFilter, submissionOverview]);
 
   useEffect(() => {
     if (view !== 'gaps' || !canUseGapAuditTab) return;
@@ -586,7 +598,7 @@ export function DailyKmPage() {
               </p>
             </div>
             <div className="w-full shrink-0 sm:w-[220px]">
-              <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmFilterLabel')}</span>
+              <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('dailyKmOverviewFilterLabel')}</span>
               <SelectField value={overviewDayFilter} onChange={setOverviewDayFilter} options={overviewDayFilterOptions} />
             </div>
           </div>
@@ -612,6 +624,14 @@ export function DailyKmPage() {
                 )}
                 {filteredSubmissionDays.map((d) => {
                   const open = expandedOverviewDay === d.date;
+                  const showStartMissingPanel =
+                    overviewDayFilter === 'all' || overviewDayFilter === 'startPending';
+                  const showStartOkPanel =
+                    overviewDayFilter === 'all' || overviewDayFilter === 'complete';
+                  const showEndMissingPanel =
+                    overviewDayFilter === 'all' || overviewDayFilter === 'endPending';
+                  const showEndOkPanel =
+                    overviewDayFilter === 'all' || overviewDayFilter === 'complete';
                   return (
                     <Fragment key={d.date}>
                       <tr
@@ -662,6 +682,7 @@ export function DailyKmPage() {
                         <tr className="bg-slate-50/95 dark:bg-slate-950/40">
                           <td colSpan={6} className="p-4">
                             <div className="grid gap-3 sm:grid-cols-2">
+                              {showStartMissingPanel ? (
                               <div className="overflow-hidden rounded-xl border border-amber-200/90 dark:border-amber-900/50">
                                 <div className="border-b border-amber-200/80 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
                                   {t('dailyKmOverviewPanelStartMissing')} ({d.startMissing})
@@ -686,6 +707,8 @@ export function DailyKmPage() {
                                   )}
                                 </ul>
                               </div>
+                              ) : null}
+                              {showStartOkPanel ? (
                               <div className="overflow-hidden rounded-xl border border-emerald-200/90 dark:border-emerald-900/50">
                                 <div className="border-b border-emerald-200/80 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-950 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
                                   {t('dailyKmOverviewPanelStartOk')} ({d.startSubmitted})
@@ -710,6 +733,8 @@ export function DailyKmPage() {
                                   )}
                                 </ul>
                               </div>
+                              ) : null}
+                              {showEndMissingPanel ? (
                               <div className="overflow-hidden rounded-xl border border-amber-200/90 dark:border-amber-900/50">
                                 <div className="border-b border-amber-200/80 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
                                   {t('dailyKmOverviewPanelEndMissing')} ({d.endMissing})
@@ -734,6 +759,8 @@ export function DailyKmPage() {
                                   )}
                                 </ul>
                               </div>
+                              ) : null}
+                              {showEndOkPanel ? (
                               <div className="overflow-hidden rounded-xl border border-emerald-200/90 dark:border-emerald-900/50">
                                 <div className="border-b border-emerald-200/80 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-950 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
                                   {t('dailyKmOverviewPanelEndOk')} ({d.endSubmitted})
@@ -758,7 +785,8 @@ export function DailyKmPage() {
                                   )}
                                 </ul>
                               </div>
-                            </div>
+
+                              ) : null}                            </div>
                           </td>
                         </tr>
                       )}

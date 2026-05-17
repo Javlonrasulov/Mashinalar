@@ -100,6 +100,22 @@
     @apply w-full min-w-[760px];
   }
 
+  /* Ҳисобот: ҳар бир машина блоки */
+  .fuel-report-vehicle-block {
+    @apply border-b-[3px] border-slate-300/95 dark:border-slate-600;
+  }
+
+  .fuel-report-vehicle-block:last-child {
+    @apply border-b-0;
+  }
+
+  .fuel-report-vendor-input {
+    @apply w-full min-h-[30px] rounded-md border border-sky-300/90 bg-white px-1 py-1 text-center text-xs font-medium tabular-nums text-slate-900 shadow-sm outline-none transition
+      placeholder:text-slate-500 placeholder:text-xs placeholder:font-normal
+      focus:border-blue-500 focus:ring-2 focus:ring-blue-200/80
+      dark:border-sky-700 dark:bg-slate-950/90 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-blue-400 dark:focus:ring-blue-900/50;
+  }
+
   /* Leaflet: doimiy mashina yorlig‘i (kichik, popup emas) */
   .leaflet-tooltip.map-marker-tooltip {
     margin-top: -4px;

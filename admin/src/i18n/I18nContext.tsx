@@ -56,6 +56,7 @@ const DICTS: Record<Lang, Dict> = {
     fuelReportColSource: 'Манба',
     fuelReportRowSystem: 'Ходимлар',
     fuelReportRowVendor: 'Ведомость (заправка)',
+    fuelReportVendorPlaceholder: 'м³',
     fuelReportRowDiff: 'Фарк',
     fuelReportColTotal: 'Жами',
     fuelReportAllFleet:
@@ -157,6 +158,7 @@ const DICTS: Record<Lang, Dict> = {
     dailyKmSearchPlaceholder: 'Рақам, ҳайдовчи, телефон ёки сана…',
     dailyKmOverviewTitle: 'Кун КМ — юбориш',
     dailyKmOverviewHint: 'Ҳисоб: ҳайдовчиси бириктирилган ҳар бир транспорт. Кунни босинг — батафсил кўринади.',
+    dailyKmOverviewFilterLabel: 'Кунлар фильтри',
     dailyKmOverviewFilterAll: 'Барча кунлар',
     dailyKmOverviewFilterStartPending: 'Бошланиш кутмоқда',
     dailyKmOverviewFilterEndPending: 'Тугаш кутмоқда',
@@ -526,6 +528,7 @@ const DICTS: Record<Lang, Dict> = {
     fuelReportColSource: 'Manba',
     fuelReportRowSystem: 'Xodimlar',
     fuelReportRowVendor: 'Vedomost (zapravka)',
+    fuelReportVendorPlaceholder: 'm³',
     fuelReportRowDiff: 'Farq',
     fuelReportColTotal: 'Jami',
     fuelReportAllFleet:
@@ -627,6 +630,7 @@ const DICTS: Record<Lang, Dict> = {
     dailyKmSearchPlaceholder: 'Raqam, haydovchi, telefon yoki sana…',
     dailyKmOverviewTitle: 'Kun KM — yuborish',
     dailyKmOverviewHint: "Hisob: haydovchisi biriktirilgan har bir transport. Kunning ustiga bosing — batafsil ro'yxat ochiladi.",
+    dailyKmOverviewFilterLabel: 'Kunlar filtri',
     dailyKmOverviewFilterAll: 'Barcha kunlar',
     dailyKmOverviewFilterStartPending: 'Boshlanish kutilmoqda',
     dailyKmOverviewFilterEndPending: 'Tugash kutilmoqda',
@@ -997,6 +1001,7 @@ const DICTS: Record<Lang, Dict> = {
     fuelReportColSource: 'Источник',
     fuelReportRowSystem: 'Ходимлар',
     fuelReportRowVendor: 'Ведомость (заправка)',
+    fuelReportVendorPlaceholder: 'м³',
     fuelReportRowDiff: 'Разница',
     fuelReportColTotal: 'Итого',
     fuelReportAllFleet:
@@ -1098,6 +1103,7 @@ const DICTS: Record<Lang, Dict> = {
     dailyKmSearchPlaceholder: 'Номер, водитель, телефон или дата…',
     dailyKmOverviewTitle: 'Км за день — отправка',
     dailyKmOverviewHint: 'Учитывается каждый транспорт с назначенным водителем. Нажмите дату — раскроется список.',
+    dailyKmOverviewFilterLabel: 'Фильтр по дням',
     dailyKmOverviewFilterAll: 'Все дни',
     dailyKmOverviewFilterStartPending: 'Ждёт начала',
     dailyKmOverviewFilterEndPending: 'Ждёт окончания',

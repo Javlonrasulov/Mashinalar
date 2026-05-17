@@ -1,4 +1,4 @@
-﻿import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronLeft,
@@ -475,8 +475,7 @@ export function FuelReportPage() {
                 <th className={stickyRightTh}>{t('fuelReportColTotal')}</th>
               </tr>
             </thead>
-            <tbody>
-              {grid.vehicles.map((v) => {
+            {grid.vehicles.map((v) => {
                 const totalSys = sumNums(v.systemM3ByDay);
                 const mergedAct = mergeActualWithDraft(
                   v.vehicleId,
@@ -496,11 +495,11 @@ export function FuelReportPage() {
                 const cellInput = clsx(rowPad, 'min-w-[2.5rem] px-0.5 py-px');
 
                 return (
-                  <Fragment key={v.vehicleId}>
+                  <tbody key={v.vehicleId} className="fuel-report-vehicle-block">
                     <tr className="bg-rose-50/90 dark:bg-rose-950/25">
                       <td
                         rowSpan={2}
-                        className="sticky left-0 z-[16] bg-rose-50/95 p-2 font-mono text-xs font-semibold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-rose-950/35"
+                        className="sticky left-0 z-[16] border-b border-slate-200/80 bg-rose-50/95 p-2 font-mono text-xs font-semibold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-rose-950/35"
                       >
                         {v.plateNumber}
                       </td>
@@ -550,12 +549,9 @@ export function FuelReportPage() {
                             <input
                               type="text"
                               inputMode="decimal"
-                              className={clsx(
-                                'app-input w-full tabular-nums',
-                                '!min-h-[28px] !px-0.5 !py-px !text-center text-[11px]',
-                              )}
+                              className="fuel-report-vendor-input"
                               aria-label={`${v.plateNumber} ${t('fuelReportRowVendor')} ${d}`}
-                              placeholder="вЂ”"
+                              placeholder={t('fuelReportVendorPlaceholder')}
                               value={localVal}
                               onChange={(e) => {
                                 setDraftVendor((prev) => ({
@@ -588,10 +584,9 @@ export function FuelReportPage() {
                         {actEntered && totalDiff != null ? formatM3(totalDiff) : ''}
                       </td>
                     </tr>
-                  </Fragment>
+                  </tbody>
                 );
               })}
-            </tbody>
           </table>
         </div>
       </>
