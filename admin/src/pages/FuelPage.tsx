@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Car, Download, Fuel, Maximize2, Receipt, X } from 'lucide-react';
+import { Car, Download, Fuel, Loader2, Maximize2, Receipt, X } from 'lucide-react';
 import clsx from 'clsx';
 import { api, apiUrl } from '@/lib/api';
 import { fuelPumpLeafletIcon, fuelStationsApiPathForPoint, type FuelStationMapItem } from '@/lib/fuelStationsMap';
@@ -153,6 +153,7 @@ export function FuelPage() {
   );
   const [savedFuelStations, setSavedFuelStations] = useState<SavedFuelStationMapItem[]>([]);
   const [exportMeta, setExportMeta] = useState<FuelExportMeta | null>(() => loadFuelExportMeta());
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   useEffect(() => {
     const fromD = new Date(dateFromValue);
@@ -420,8 +421,8 @@ export function FuelPage() {
     return Number.isFinite(v) && v > 0 ? String(v) : '';
   }
 
-  function handleExportExcel() {
-    if (!rows.length) return;
+  async function handleExportExcel() {
+    if (!rows.length || exportingExcel) return;
     const fromYmd = ymdFromDatetimeLocal(dateFromValue);
     const toYmd = ymdFromDatetimeLocal(dateToValue);
     if (!fromYmd || !toYmd) return;
@@ -434,49 +435,46 @@ export function FuelPage() {
       t('colUnitPriceUsed'),
       t('colVolume'),
       t('colTime'),
-      t('colLocation'),
       t('colFuelStation'),
       t('colVehiclePhoto'),
       t('colReceipt'),
     ];
 
-    const data = rows.map((r) => {
-      const lat = r.latitude ? Number(r.latitude) : NaN;
-      const lon = r.longitude ? Number(r.longitude) : NaN;
-      const location =
-        Number.isFinite(lat) && Number.isFinite(lon) ? `${lat}, ${lon}` : '';
-      return {
-        plate: r.vehicle.plateNumber,
-        driver: r.driver.fullName,
-        amount: r.amount,
-        fuelKind: fuelKindLabel(r),
-        unitPrice: r.unitPrice?.trim() ?? '',
-        volume: rawVolumeForExport(r),
-        createdAt: formatDateTimeNoSeconds(r.createdAt),
-        location,
-        station: stationLabelForRow(r),
-        stationPaletteIndex: stationPaletteIndexForRow(r),
-        vehiclePhotoUrl: r.vehiclePhotoUrl ? apiUrl(r.vehiclePhotoUrl) : '',
-        receiptPhotoUrl: r.receiptPhotoUrl ? apiUrl(r.receiptPhotoUrl) : '',
-      };
-    });
+    const data = rows.map((r) => ({
+      plate: r.vehicle.plateNumber,
+      driver: r.driver.fullName,
+      amount: r.amount,
+      fuelKind: fuelKindLabel(r),
+      unitPrice: r.unitPrice?.trim() ?? '',
+      volume: rawVolumeForExport(r),
+      createdAt: formatDateTimeNoSeconds(r.createdAt),
+      station: stationLabelForRow(r),
+      stationPaletteIndex: stationPaletteIndexForRow(r),
+      vehiclePhotoPath: r.vehiclePhotoUrl?.trim() ?? '',
+      receiptPhotoPath: r.receiptPhotoUrl?.trim() ?? '',
+    }));
 
     const lo = fromYmd <= toYmd ? fromYmd : toYmd;
     const hi = fromYmd <= toYmd ? toYmd : fromYmd;
-    const count = downloadFuelReportsExcel(headers, data, fromYmd, toYmd, {
-      period: t('fuelExportSheetPeriod'),
-      rowCount: t('fuelExportSheetRowCount'),
-    });
-    if (count <= 0) return;
+    setExportingExcel(true);
+    try {
+      const count = await downloadFuelReportsExcel(headers, data, fromYmd, toYmd, {
+        period: t('fuelExportSheetPeriod'),
+        rowCount: t('fuelExportSheetRowCount'),
+      });
+      if (count <= 0) return;
 
-    const meta: FuelExportMeta = {
-      exportedAt: new Date().toISOString(),
-      fromYmd: lo,
-      toYmd: hi,
-      rowCount: count,
-    };
-    saveFuelExportMeta(meta);
-    setExportMeta(meta);
+      const meta: FuelExportMeta = {
+        exportedAt: new Date().toISOString(),
+        fromYmd: lo,
+        toYmd: hi,
+        rowCount: count,
+      };
+      saveFuelExportMeta(meta);
+      setExportMeta(meta);
+    } finally {
+      setExportingExcel(false);
+    }
   }
 
   const exportMetaLabel = useMemo(() => {
@@ -700,12 +698,16 @@ export function FuelPage() {
           <button
             type="button"
             className="app-btn-ghost shrink-0"
-            disabled={!rows.length}
+            disabled={!rows.length || exportingExcel}
             title={!rows.length ? t('fuelExportNoRows') : undefined}
-            onClick={handleExportExcel}
+            onClick={() => void handleExportExcel()}
           >
-            <Download className="h-4 w-4 shrink-0" aria-hidden />
-            {t('fuelExportExcel')}
+            {exportingExcel ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+            ) : (
+              <Download className="h-4 w-4 shrink-0" aria-hidden />
+            )}
+            {exportingExcel ? '…' : t('fuelExportExcel')}
           </button>
         </div>
       </div>
