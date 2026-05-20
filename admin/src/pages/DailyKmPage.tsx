@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { api, apiUrl } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
-import { ChevronDown, Copy, Pencil, Search } from 'lucide-react';
+import { ChevronDown, Copy, Maximize2, Pencil, Search, X } from 'lucide-react';
 import { MapContainer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -319,6 +319,9 @@ export function DailyKmPage() {
   const [kmEditErr, setKmEditErr] = useState<string | null>(null);
   const [kmSaveWarnings, setKmSaveWarnings] = useState<{ date: string; startKm: number }[] | null>(null);
   const [overviewCopiedKey, setOverviewCopiedKey] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<{ src: string; title: string } | null>(null);
+  const [photoFs, setPhotoFs] = useState(false);
+  const photoStageRef = useRef<HTMLDivElement>(null);
 
   const copyOverviewList = useCallback(
     async (key: string, list: SubmissionListRow[], dateYmd: string, panelTitle: string) => {
@@ -451,6 +454,28 @@ export function DailyKmPage() {
     if (!mapPoint) return [41.31, 69.24];
     return [mapPoint.lat, mapPoint.lon];
   }, [mapPoint]);
+
+  useEffect(() => {
+    if (!photo) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPhoto(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [photo]);
+
+  useEffect(() => {
+    if (!photo) {
+      setPhotoFs(false);
+      return;
+    }
+    const onFs = () => {
+      const el = photoStageRef.current;
+      setPhotoFs(Boolean(el && document.fullscreenElement === el));
+    };
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, [photo]);
 
   const searchTrim = searchQuery.trim().toLowerCase();
   const matchesSearch = (parts: (string | null | undefined)[]): boolean => {
@@ -941,6 +966,9 @@ export function DailyKmPage() {
           <table className="app-table-inner min-w-[1140px] text-sm">
             <thead className="app-table-head">
               <tr>
+                <th rowSpan={2} className="w-10 p-3 text-center align-bottom tabular-nums">
+                  {t('dailyKmColNo')}
+                </th>
                 <th rowSpan={2} className="p-3 align-bottom">
                   {t('plate')}
                 </th>
@@ -970,10 +998,10 @@ export function DailyKmPage() {
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map((r) => {
+              {visibleRows.map((r, rowIndex) => {
                 const endPending = isDailyKmEndMissing(r);
                 const lateDays = endLateCalendarDays(r.reportDate, r.endRecordedAt);
-                /** Jadval: 2 + сана + 4 бошланиш + 5 тугаш. Иккинчи `tr`да `colSpan` 4 — бошланиш блоки ости. */
+                /** Jadval: № + 2 + сана + 4 бошланиш + 5 тугаш. Иккинчи `tr`да `colSpan` 4 — бошланиш блоки ости. */
                 const pendingEndCell =
                   'border-t border-red-100 bg-red-50 dark:border-red-900/55 dark:bg-red-950/50';
                 const row2FillerWhenPending =
@@ -986,6 +1014,12 @@ export function DailyKmPage() {
                 return (
                   <Fragment key={r.id}>
                     <tr className="app-table-row">
+                      <td
+                        rowSpan={2}
+                        className="w-10 p-3 text-center align-top text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400"
+                      >
+                        {rowIndex + 1}
+                      </td>
                       <td rowSpan={2} className="p-3 align-top font-mono">
                         {r.vehicle.plateNumber}
                       </td>
@@ -1048,14 +1082,18 @@ export function DailyKmPage() {
                       </td>
                       <td className="p-3">
                         {r.startOdometerUrl ? (
-                          <a
-                            className="text-blue-600 hover:underline dark:text-blue-400"
-                            href={apiUrl(r.startOdometerUrl)}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                            onClick={() =>
+                              setPhoto({
+                                src: apiUrl(r.startOdometerUrl as string),
+                                title: `${r.vehicle.plateNumber} — ${t('dailyKmColStartPhoto')}`,
+                              })
+                            }
                           >
                             {t('dailyKmViewPhoto')}
-                          </a>
+                          </button>
                         ) : (
                           '—'
                         )}
@@ -1177,14 +1215,18 @@ export function DailyKmPage() {
                         {endPending ? (
                           <span className="text-red-600 dark:text-red-300">—</span>
                         ) : r.endOdometerUrl ? (
-                          <a
-                            className="text-blue-600 hover:underline dark:text-blue-400"
-                            href={apiUrl(r.endOdometerUrl)}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                            onClick={() =>
+                              setPhoto({
+                                src: apiUrl(r.endOdometerUrl as string),
+                                title: `${r.vehicle.plateNumber} — ${t('dailyKmColEndPhoto')}`,
+                              })
+                            }
                           >
                             {t('dailyKmViewPhoto')}
-                          </a>
+                          </button>
                         ) : (
                           '—'
                         )}
@@ -1346,6 +1388,72 @@ export function DailyKmPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {photo && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[6000] bg-slate-900/60 backdrop-blur-[1px]"
+            aria-label={t('cancel')}
+            onClick={() => setPhoto(null)}
+          />
+          <div className="fixed left-1/2 top-1/2 z-[6100] w-[min(96vw,980px)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                  {photo.title}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  className="app-btn-ghost inline-flex items-center gap-2 px-3 py-2"
+                  onClick={async () => {
+                    const el = photoStageRef.current;
+                    if (!el) return;
+                    try {
+                      if (document.fullscreenElement === el) await document.exitFullscreen();
+                      else await el.requestFullscreen();
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                >
+                  <Maximize2 size={16} aria-hidden />
+                  <span className="hidden sm:inline">
+                    {photoFs ? t('exitFullScreen') : t('fullScreen')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+                  aria-label={t('cancel')}
+                  onClick={async () => {
+                    try {
+                      if (document.fullscreenElement) await document.exitFullscreen();
+                    } catch {
+                      /* ignore */
+                    }
+                    setPhoto(null);
+                  }}
+                >
+                  <X size={18} aria-hidden />
+                </button>
+              </div>
+            </div>
+            <div
+              ref={photoStageRef}
+              className="flex min-h-[min(78vh,820px)] items-center justify-center bg-slate-950 [:fullscreen]:min-h-screen [:fullscreen]:w-screen"
+            >
+              <img
+                src={photo.src}
+                alt=""
+                className="max-h-[min(78vh,820px)] max-w-full object-contain [:fullscreen]:max-h-full [:fullscreen]:max-w-full [:fullscreen]:object-cover"
+              />
+            </div>
+          </div>
+        </>
       )}
 
       {kmEdit && (

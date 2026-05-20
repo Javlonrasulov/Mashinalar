@@ -77,6 +77,7 @@ export class FuelReconciliationService {
       select: {
         vehicleId: true,
         volume: true,
+        amount: true,
         createdAt: true,
         vehicle: { select: { plateNumber: true } },
       },
@@ -84,6 +85,7 @@ export class FuelReconciliationService {
 
     type Key = string;
     const sysSum = new Map<Key, Map<number, number>>();
+    const sysAmtSum = new Map<Key, Map<number, number>>();
     function addVol(vehicleId: string, day: number, v: number) {
       let m = sysSum.get(vehicleId);
       if (!m) {
@@ -92,13 +94,22 @@ export class FuelReconciliationService {
       }
       m.set(day, (m.get(day) ?? 0) + v);
     }
+    function addAmt(vehicleId: string, day: number, a: number) {
+      let m = sysAmtSum.get(vehicleId);
+      if (!m) {
+        m = new Map<number, number>();
+        sysAmtSum.set(vehicleId, m);
+      }
+      m.set(day, (m.get(day) ?? 0) + a);
+    }
 
     for (const r of reports) {
       const { y: ry, m: rm, day: rd } = tashkentYmd(r.createdAt);
       if (ry !== year || rm !== month || rd < 1 || rd > dim) continue;
       const vol = Number(r.volume);
-      if (!Number.isFinite(vol) || vol <= 0) continue;
-      addVol(r.vehicleId, rd, vol);
+      if (Number.isFinite(vol) && vol > 0) addVol(r.vehicleId, rd, vol);
+      const amt = Number(r.amount);
+      if (Number.isFinite(amt) && amt > 0) addAmt(r.vehicleId, rd, amt);
     }
 
     const actualRows = await this.prisma.fuelStationMonthActual.findMany({
@@ -129,11 +140,17 @@ export class FuelReconciliationService {
 
     const vehiclesMeta = await this.prisma.vehicle.findMany({
       where: { id: { in: [...vehicleIds] } },
-      select: { id: true, plateNumber: true },
+      select: { id: true, plateNumber: true, gasPricePerM3: true },
       orderBy: { plateNumber: 'asc' },
     });
 
     const plateById = new Map(vehiclesMeta.map((v) => [v.id, v.plateNumber]));
+    const gasPriceById = new Map(
+      vehiclesMeta.map((v) => [
+        v.id,
+        v.gasPricePerM3 != null ? Number(v.gasPricePerM3) : null,
+      ]),
+    );
 
     const vehicles = [...vehicleIds]
       .map((id) => ({
@@ -149,17 +166,37 @@ export class FuelReconciliationService {
       daysInMonth: dim,
       vehicles: vehicles.map((v) => {
         const sm = sysSum.get(v.id);
+        const sa = sysAmtSum.get(v.id);
         const am = actMap.get(v.id);
+        const gasPrice = gasPriceById.get(v.id) ?? null;
         const systemM3ByDay: (number | null)[] = [];
+        const systemAmountByDay: (number | null)[] = [];
         const actualM3ByDay: (number | null)[] = [];
+        const vendorAmountByDay: (number | null)[] = [];
         const diffM3ByDay: (number | null)[] = [];
         for (let d = 1; d <= dim; d += 1) {
           const s = sm?.get(d);
           const a = am?.get(d);
           const sv = s != null && Number.isFinite(s) && s > 0 ? s : null;
           const av = a != null && Number.isFinite(a) && a > 0 ? a : null;
+          const rawAmt = sa?.get(d);
+          const sav =
+            rawAmt != null && Number.isFinite(rawAmt) && rawAmt > 0
+              ? Math.round(rawAmt)
+              : null;
+          let vav: number | null = null;
+          if (
+            av != null &&
+            gasPrice != null &&
+            Number.isFinite(gasPrice) &&
+            gasPrice > 0
+          ) {
+            vav = Math.round(av * gasPrice);
+          }
           systemM3ByDay.push(sv);
+          systemAmountByDay.push(sav);
           actualM3ByDay.push(av);
+          vendorAmountByDay.push(vav);
           if (sv == null && av == null) {
             diffM3ByDay.push(null);
           } else if (sv == null && av != null) {
@@ -173,8 +210,14 @@ export class FuelReconciliationService {
         return {
           vehicleId: v.id,
           plateNumber: v.plateNumber,
+          gasPricePerM3:
+            gasPrice != null && Number.isFinite(gasPrice) && gasPrice > 0
+              ? gasPrice
+              : null,
           systemM3ByDay,
+          systemAmountByDay,
           actualM3ByDay,
+          vendorAmountByDay,
           diffM3ByDay,
         };
       }),

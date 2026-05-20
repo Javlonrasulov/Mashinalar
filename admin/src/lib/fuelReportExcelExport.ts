@@ -9,12 +9,15 @@ export type FuelReportExportGrid = {
   vehicles: {
     plateNumber: string;
     systemM3ByDay: (number | null)[];
+    systemAmountByDay?: (number | null)[];
     actualM3ByDay: (number | null)[];
+    vendorAmountByDay?: (number | null)[];
     diffM3ByDay?: (number | null)[];
   }[];
 };
 
 export type FuelReportExportLabels = {
+  no: string;
   plate: string;
   source: string;
   rowEmployees: string;
@@ -32,7 +35,11 @@ export type FuelReportExportLabels = {
 type CellStyle = {
   fill?: { patternType: 'solid'; fgColor: { rgb: string } };
   font?: { bold?: boolean; color?: { rgb: string }; sz?: number };
-  alignment?: { horizontal?: 'center' | 'left' | 'right'; vertical?: 'center' };
+  alignment?: {
+    horizontal?: 'center' | 'left' | 'right';
+    vertical?: 'center';
+    wrapText?: boolean;
+  };
   border?: {
     top?: { style: 'thin' | 'medium'; color: { rgb: string } };
     bottom?: { style: 'thin' | 'medium'; color: { rgb: string } };
@@ -55,6 +62,35 @@ function fmtCell(n: number | null | undefined): number | string {
   if (n == null || !Number.isFinite(n)) return '';
   const r = Math.round(n * 100) / 100;
   return r;
+}
+
+function fmtSum(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '';
+  return new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(
+    Math.round(n),
+  );
+}
+
+function fmtDual(m3: number | null | undefined, sum: number | null | undefined): string | number {
+  const a = fmtCell(m3);
+  const b = fmtSum(sum);
+  if (a === '' && b === '') return '';
+  if (b === '') return typeof a === 'number' ? a : '';
+  if (a === '') return b;
+  return `${a}\n${b}`;
+}
+
+function sumAmounts(arr: (number | null)[] | undefined): number | null {
+  if (!arr) return null;
+  let s = 0;
+  let any = false;
+  for (const x of arr) {
+    if (x != null && Number.isFinite(x)) {
+      any = true;
+      s += x;
+    }
+  }
+  return any ? Math.round(s) : null;
 }
 
 function sumNums(arr: (number | null)[]): number | null {
@@ -103,7 +139,7 @@ function diffCellStyle(diff: number | null): CellStyle | null {
 
 function baseDataStyle(extra?: CellStyle): CellStyle {
   return {
-    alignment: { horizontal: 'center', vertical: 'center' },
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
     border: {
       top: { style: 'thin', color: { rgb: BORDER } },
       bottom: { style: 'thin', color: { rgb: BORDER } },
@@ -142,7 +178,10 @@ function applyFuelReportSheetStyles(
   labels?: FuelReportExportLabels,
 ) {
   const days = grid.daysInMonth;
-  const totalCol = 2 + days;
+  const COL_NO = 0;
+  const COL_PLATE = 1;
+  const COL_SOURCE = 2;
+  const totalCol = 3 + days;
   const lastCol = totalCol;
   const headerRow = metaRowCount(savedAtIso, labels) - 1;
   const dataStart = headerRow + 1;
@@ -175,8 +214,18 @@ function applyFuelReportSheetStyles(
   for (let c = 0; c <= lastCol; c += 1) {
     setCell(ws, headerRow, c, c === totalCol ? headerTotalStyle : headerStyle);
   }
-  setCell(ws, headerRow, 0, { ...headerStyle, alignment: { horizontal: 'left', vertical: 'center' } });
-  setCell(ws, headerRow, 1, { ...headerStyle, alignment: { horizontal: 'left', vertical: 'center' } });
+  setCell(ws, headerRow, COL_NO, {
+    ...headerStyle,
+    alignment: { horizontal: 'center', vertical: 'center' },
+  });
+  setCell(ws, headerRow, COL_PLATE, {
+    ...headerStyle,
+    alignment: { horizontal: 'left', vertical: 'center' },
+  });
+  setCell(ws, headerRow, COL_SOURCE, {
+    ...headerStyle,
+    alignment: { horizontal: 'left', vertical: 'center' },
+  });
 
   grid.vehicles.forEach((v, vi) => {
     const sysRow = dataStart + vi * 2;
@@ -189,18 +238,24 @@ function applyFuelReportSheetStyles(
         ? Math.round(((tSys ?? 0) - (tAct ?? 0)) * 100) / 100
         : null;
 
+    const noStyle = baseDataStyle({
+      font: { bold: true },
+      alignment: { horizontal: 'center', vertical: 'center' },
+    });
     const plateStyle = baseDataStyle({
       font: { bold: true },
       alignment: { horizontal: 'left', vertical: 'center' },
     });
-    setCell(ws, sysRow, 0, plateStyle);
-    setCell(ws, venRow, 0, plateStyle);
+    setCell(ws, sysRow, COL_NO, noStyle);
+    setCell(ws, venRow, COL_NO, noStyle);
+    setCell(ws, sysRow, COL_PLATE, plateStyle);
+    setCell(ws, venRow, COL_PLATE, plateStyle);
 
-    setCell(ws, sysRow, 1, baseDataStyle({ alignment: { horizontal: 'left', vertical: 'center' } }));
+    setCell(ws, sysRow, COL_SOURCE, baseDataStyle({ alignment: { horizontal: 'left', vertical: 'center' } }));
     setCell(
       ws,
       venRow,
-      1,
+      COL_SOURCE,
       baseDataStyle({
         fill: { patternType: 'solid', fgColor: { rgb: FILL_VENDOR_ROW } },
         alignment: { horizontal: 'left', vertical: 'center' },
@@ -208,7 +263,7 @@ function applyFuelReportSheetStyles(
     );
 
     for (let d = 0; d < days; d += 1) {
-      const c = 2 + d;
+      const c = 3 + d;
       setCell(ws, sysRow, c, baseDataStyle());
       setCell(
         ws,
@@ -288,13 +343,15 @@ function applyFuelReportSheetStyles(
     font: { bold: true, sz: 11 },
   });
 
-  setCell(ws, grandSysRow, 0, grandPlateStyle);
-  setCell(ws, grandVenRow, 0, grandPlateStyle);
-  setCell(ws, grandSysRow, 1, grandLabelStyle);
-  setCell(ws, grandVenRow, 1, grandVenLabelStyle);
+  setCell(ws, grandSysRow, COL_NO, grandCellStyle);
+  setCell(ws, grandVenRow, COL_NO, grandCellStyle);
+  setCell(ws, grandSysRow, COL_PLATE, grandPlateStyle);
+  setCell(ws, grandVenRow, COL_PLATE, grandPlateStyle);
+  setCell(ws, grandSysRow, COL_SOURCE, grandLabelStyle);
+  setCell(ws, grandVenRow, COL_SOURCE, grandVenLabelStyle);
 
   for (let d = 0; d < days; d += 1) {
-    const c = 2 + d;
+    const c = 3 + d;
     setCell(ws, grandSysRow, c, grandCellStyle);
     setCell(ws, grandVenRow, c, grandVenCellStyle);
   }
@@ -334,15 +391,21 @@ function applyFuelReportSheetStyles(
   }
 
   ws['!cols'] = [
+    { wch: 4 },
     { wch: 11 },
     { wch: 16 },
     ...Array.from({ length: days }, () => ({ wch: 5 })),
-    { wch: 9 },
+    { wch: 12 },
   ];
 
   const lastDataRow = dataStart + grid.vehicles.length * 2 - 1;
   if (lastDataRow >= dataStart) {
-    ws['!freeze'] = { xSplit: 2, ySplit: headerRow + 1, topLeftCell: 'C2', activePane: 'bottomRight' };
+    ws['!freeze'] = {
+      xSplit: 3,
+      ySplit: headerRow + 1,
+      topLeftCell: 'D2',
+      activePane: 'bottomRight',
+    };
   }
 }
 
@@ -366,6 +429,7 @@ function buildSheetRows(
 ): (string | number)[][] {
   const days = Array.from({ length: grid.daysInMonth }, (_, i) => i + 1);
   const head: (string | number)[] = [
+    labels.no,
     labels.plate,
     labels.source,
     ...days.map((d) => d),
@@ -386,41 +450,62 @@ function buildSheetRows(
 
   const rows: (string | number)[][] = [...meta];
 
-  for (const v of grid.vehicles) {
+  for (let vi = 0; vi < grid.vehicles.length; vi += 1) {
+    const v = grid.vehicles[vi]!;
     const tSys = sumNums(v.systemM3ByDay);
+    const tSysAmt = sumAmounts(v.systemAmountByDay);
     const tAct = sumNums(v.actualM3ByDay);
+    const tVenAmt = sumAmounts(v.vendorAmountByDay);
     const actEntered = hasAnyActual(v.actualM3ByDay);
     const tDiff =
       actEntered && (tSys != null || tAct != null)
         ? Math.round(((tSys ?? 0) - (tAct ?? 0)) * 100) / 100
         : null;
+    const tAmtDiff =
+      actEntered && (tSysAmt != null || tVenAmt != null)
+        ? (tSysAmt ?? 0) - (tVenAmt ?? 0)
+        : null;
 
     rows.push([
+      vi + 1,
       v.plateNumber,
       labels.rowEmployees,
-      ...days.map((d) => fmtCell(v.systemM3ByDay[d - 1])),
-      fmtCell(tSys),
+      ...days.map((d) =>
+        fmtDual(v.systemM3ByDay[d - 1], v.systemAmountByDay?.[d - 1]),
+      ),
+      fmtDual(tSys, tSysAmt),
     ]);
     rows.push([
+      vi + 1,
       v.plateNumber,
       labels.rowVendor,
-      ...days.map((d) => fmtCell(v.actualM3ByDay[d - 1])),
-      actEntered ? fmtCell(tDiff) : fmtCell(tAct),
+      ...days.map((d) =>
+        fmtDual(v.actualM3ByDay[d - 1], v.vendorAmountByDay?.[d - 1]),
+      ),
+      actEntered ? fmtDual(tDiff, tAmtDiff) : fmtDual(tAct, tVenAmt),
     ]);
   }
 
   const grand = computeFuelReportGrandTotals(grid.daysInMonth, grid.vehicles);
   rows.push([
+    '',
     labels.rowGrandPlate,
     labels.rowGrandSystem,
-    ...days.map((d) => fmtCell(grand.systemByDay[d - 1])),
-    fmtCell(grand.totalSystem),
+    ...days.map((d) =>
+      fmtDual(grand.systemByDay[d - 1], grand.systemAmountByDay[d - 1]),
+    ),
+    fmtDual(grand.totalSystem, grand.totalSystemAmount),
   ]);
   rows.push([
+    '',
     labels.rowGrandPlate,
     labels.rowGrandVendor,
-    ...days.map((d) => fmtCell(grand.vendorByDay[d - 1])),
-    grand.anyVendorEntered ? fmtCell(grand.totalDiff) : fmtCell(grand.totalVendor),
+    ...days.map((d) =>
+      fmtDual(grand.vendorByDay[d - 1], grand.vendorAmountByDay[d - 1]),
+    ),
+    grand.anyVendorEntered
+      ? fmtDual(grand.totalDiff, grand.totalAmountDiff)
+      : fmtDual(grand.totalVendor, grand.totalVendorAmount),
   ]);
 
   return rows;

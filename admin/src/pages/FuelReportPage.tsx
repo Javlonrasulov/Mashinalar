@@ -27,8 +27,11 @@ import { computeFuelReportGrandTotals } from '@/lib/fuelReportGrandTotals';
 type GridVehicle = {
   vehicleId: string;
   plateNumber: string;
+  gasPricePerM3: number | null;
   systemM3ByDay: (number | null)[];
+  systemAmountByDay: (number | null)[];
   actualM3ByDay: (number | null)[];
+  vendorAmountByDay: (number | null)[];
   diffM3ByDay: (number | null)[];
 };
 
@@ -57,6 +60,44 @@ function formatM3(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '';
   const r = Math.round(n * 100) / 100;
   return String(r).replace(/\.00$/, '');
+}
+
+function formatSum(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '';
+  return new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(
+    Math.round(n),
+  );
+}
+
+function vendorAmountsFromM3(
+  m3ByDay: (number | null)[],
+  gasPricePerM3: number | null,
+): (number | null)[] {
+  return m3ByDay.map((m3) => {
+    if (
+      m3 == null ||
+      gasPricePerM3 == null ||
+      !Number.isFinite(gasPricePerM3) ||
+      gasPricePerM3 <= 0
+    ) {
+      return null;
+    }
+    return Math.round(m3 * gasPricePerM3);
+  });
+}
+
+function M3SummaCell({ m3, sum }: { m3: number | null; sum: number | null }) {
+  if (m3 == null && sum == null) return null;
+  return (
+    <div className="flex flex-col items-center justify-center gap-px leading-tight">
+      {m3 != null ? <span>{formatM3(m3)}</span> : null}
+      {sum != null ? (
+        <span className="text-[9px] font-normal text-slate-500 dark:text-slate-400">
+          {formatSum(sum)}
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 function weekdayShort(y: number, month: number, day: number, loc: string): string {
@@ -107,11 +148,18 @@ function hasAnyActual(values: (number | null)[]): boolean {
   return values.some((x) => x != null && Number.isFinite(x));
 }
 
+const stickyColNoHead =
+  'sticky left-0 z-20 min-w-[2.25rem] max-w-[2.25rem] bg-slate-50 p-2 text-center shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80';
+const stickyColPlateHead =
+  'sticky left-[2.25rem] z-20 min-w-[7rem] bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80';
+const stickyColSourceHead =
+  'sticky left-[9.5rem] z-20 min-w-[7.5rem] bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80';
+
 const stickyRightTh =
-  'sticky right-0 z-[25] min-w-[4.75rem] border-l-2 border-amber-400/90 bg-amber-200 p-2 text-center text-xs font-bold uppercase tracking-wide text-amber-950 shadow-[-6px_0_12px_rgba(15,23,42,0.12)] dark:border-amber-600 dark:bg-amber-900/55 dark:text-amber-50';
+  'sticky right-0 z-[25] min-w-[5.5rem] border-l-2 border-amber-400/90 bg-amber-200 p-2 text-center text-xs font-bold uppercase tracking-wide text-amber-950 shadow-[-6px_0_12px_rgba(15,23,42,0.12)] dark:border-amber-600 dark:bg-amber-900/55 dark:text-amber-50';
 
 const stickyRightTdBase =
-  'sticky right-0 z-[15] min-w-[4.75rem] border-l-2 border-amber-300/85 bg-amber-100 px-1 py-0.5 text-center align-middle font-semibold tabular-nums text-amber-950 shadow-[-6px_0_12px_rgba(15,23,42,0.1)] dark:border-amber-700/80 dark:bg-amber-950/40 dark:text-amber-50';
+  'sticky right-0 z-[15] min-w-[5.5rem] border-l-2 border-amber-300/85 bg-amber-100 px-1 py-0.5 text-center align-middle font-semibold tabular-nums text-amber-950 shadow-[-6px_0_12px_rgba(15,23,42,0.1)] dark:border-amber-700/80 dark:bg-amber-950/40 dark:text-amber-50';
 
 function stickyRightTd(extra?: string) {
   return clsx(stickyRightTdBase, extra);
@@ -269,6 +317,7 @@ export function FuelReportPage() {
 
   const exportLabels = useMemo(
     () => ({
+      no: t('fuelReportColNo'),
       plate: t('fuelReportColPlate'),
       source: t('fuelReportColSource'),
       rowEmployees: t('fuelReportRowSystem'),
@@ -288,14 +337,21 @@ export function FuelReportPage() {
   const gridForExcel = useCallback(
     (g: GridResponse): GridResponse => ({
       ...g,
-      vehicles: g.vehicles.map((v) => ({
-        ...v,
-        actualM3ByDay: mergeActualWithDraft(
+      vehicles: g.vehicles.map((v) => {
+        const actualM3ByDay = mergeActualWithDraft(
           v.vehicleId,
           v.actualM3ByDay,
           draftVendor,
-        ),
-      })),
+        );
+        return {
+          ...v,
+          actualM3ByDay,
+          vendorAmountByDay: vendorAmountsFromM3(
+            actualM3ByDay,
+            v.gasPricePerM3,
+          ),
+        };
+      }),
     }),
     [draftVendor],
   );
@@ -489,14 +545,22 @@ export function FuelReportPage() {
 
   const grandTotals = useMemo(() => {
     if (!grid) return null;
-    const vehicles = grid.vehicles.map((v) => ({
-      systemM3ByDay: v.systemM3ByDay,
-      actualM3ByDay: mergeActualWithDraft(
+    const vehicles = grid.vehicles.map((v) => {
+      const actualM3ByDay = mergeActualWithDraft(
         v.vehicleId,
         v.actualM3ByDay,
         draftVendor,
-      ),
-    }));
+      );
+      return {
+        systemM3ByDay: v.systemM3ByDay,
+        actualM3ByDay,
+        systemAmountByDay: v.systemAmountByDay,
+        vendorAmountByDay: vendorAmountsFromM3(
+          actualM3ByDay,
+          v.gasPricePerM3,
+        ),
+      };
+    });
     return computeFuelReportGrandTotals(grid.daysInMonth, vehicles);
   }, [grid, draftVendor]);
 
@@ -572,12 +636,9 @@ export function FuelReportPage() {
           <table className="app-table-inner min-w-max text-[11px] sm:text-xs">
             <thead className="app-table-head sticky top-0 z-10">
               <tr>
-                <th className="sticky left-0 z-20 min-w-[7rem] bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80">
-                  {t('fuelReportColPlate')}
-                </th>
-                <th className="sticky left-[7rem] z-20 min-w-[7.5rem] bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80">
-                  {t('fuelReportColSource')}
-                </th>
+                <th className={stickyColNoHead}>{t('fuelReportColNo')}</th>
+                <th className={stickyColPlateHead}>{t('fuelReportColPlate')}</th>
+                <th className={stickyColSourceHead}>{t('fuelReportColSource')}</th>
                 {days.map((d) => (
                   <th
                     key={d}
@@ -589,21 +650,36 @@ export function FuelReportPage() {
                     </div>
                   </th>
                 ))}
-                <th className={stickyRightTh}>{t('fuelReportColTotal')}</th>
+                <th className={stickyRightTh}>
+                  <div>{t('fuelReportColTotal')}</div>
+                  <div className="mt-0.5 text-[9px] font-normal normal-case tracking-normal text-amber-900/80 dark:text-amber-100/80">
+                    {t('fuelReportColTotalHint')}
+                  </div>
+                </th>
               </tr>
             </thead>
-            {grid.vehicles.map((v) => {
+            {grid.vehicles.map((v, vi) => {
                 const totalSys = sumNums(v.systemM3ByDay);
+                const totalSysAmt = sumNums(v.systemAmountByDay);
                 const mergedAct = mergeActualWithDraft(
                   v.vehicleId,
                   v.actualM3ByDay,
                   draftVendor,
                 );
+                const mergedVenAmt = vendorAmountsFromM3(
+                  mergedAct,
+                  v.gasPricePerM3,
+                );
                 const totalAct = sumNums(mergedAct);
+                const totalVenAmt = sumNums(mergedVenAmt);
                 const actEntered = hasAnyActual(mergedAct);
                 const totalDiff =
                   actEntered && (totalSys != null || totalAct != null)
                     ? Math.round(((totalSys ?? 0) - (totalAct ?? 0)) * 100) / 100
+                    : null;
+                const totalAmtDiff =
+                  actEntered && (totalSysAmt != null || totalVenAmt != null)
+                    ? (totalSysAmt ?? 0) - (totalVenAmt ?? 0)
                     : null;
 
                 const rowPad = clsx(
@@ -616,16 +692,21 @@ export function FuelReportPage() {
                     <tr className="bg-rose-50/90 dark:bg-rose-950/25">
                       <td
                         rowSpan={2}
-                        className="sticky left-0 z-[16] border-b border-slate-200/80 bg-rose-50/95 p-2 font-mono text-xs font-semibold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-rose-950/35"
+                        className="sticky left-0 z-[16] border-b border-slate-200/80 bg-rose-50/95 p-1.5 text-center text-xs font-bold tabular-nums text-slate-600 shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-rose-950/35 dark:text-slate-300"
+                      >
+                        {vi + 1}
+                      </td>
+                      <td
+                        rowSpan={2}
+                        className="sticky left-[2.25rem] z-[16] border-b border-slate-200/80 bg-rose-50/95 p-2 font-mono text-xs font-semibold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-rose-950/35"
                       >
                         {v.plateNumber}
                       </td>
-                      <td className="sticky left-[7rem] z-[16] bg-rose-50/95 p-2 text-left text-[10px] font-medium leading-snug shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-rose-950/35 sm:text-[11px]">
+                      <td className="sticky left-[9.5rem] z-[16] bg-rose-50/95 p-2 text-left text-[10px] font-medium leading-snug shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-rose-950/35 sm:text-[11px]">
                         {t('fuelReportRowSystem')}
                       </td>
                       {days.map((d) => {
                         const ix = d - 1;
-                        const val = v.systemM3ByDay[ix];
                         return (
                           <td
                             key={d}
@@ -634,16 +715,19 @@ export function FuelReportPage() {
                               'text-slate-800 tabular-nums dark:text-slate-100',
                             )}
                           >
-                            {val != null ? formatM3(val) : ''}
+                            <M3SummaCell
+                              m3={v.systemM3ByDay[ix]}
+                              sum={v.systemAmountByDay[ix]}
+                            />
                           </td>
                         );
                       })}
-                      <td className={stickyRightTd()} title={String(totalSys ?? '')}>
-                        {totalSys != null ? formatM3(totalSys) : ''}
+                      <td className={stickyRightTd()}>
+                        <M3SummaCell m3={totalSys} sum={totalSysAmt} />
                       </td>
                     </tr>
                     <tr className="bg-sky-50/95 dark:bg-sky-950/30">
-                      <td className="sticky left-[7rem] z-[16] bg-sky-50/95 p-2 text-left text-[10px] font-medium shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-sky-950/40 sm:text-[11px]">
+                      <td className="sticky left-[9.5rem] z-[16] bg-sky-50/95 p-2 text-left text-[10px] font-medium shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-sky-950/40 sm:text-[11px]">
                         {t('fuelReportRowVendor')}
                       </td>
                       {days.map((d) => {
@@ -656,6 +740,11 @@ export function FuelReportPage() {
                             : persisted != null
                               ? formatM3(persisted)
                               : '';
+                        const dayM3 =
+                          draftVendor[dk] !== undefined
+                            ? parseDraftM3(draftVendor[dk])
+                            : persisted;
+                        const daySum = mergedVenAmt[ix];
                         return (
                           <td key={d} className={cellInput}>
                             <input
@@ -675,6 +764,11 @@ export function FuelReportPage() {
                                 void saveActual(v.vehicleId, d, e.target.value.trim());
                               }}
                             />
+                            {dayM3 != null && daySum != null ? (
+                              <div className="pb-0.5 text-center text-[9px] tabular-nums text-slate-500 dark:text-slate-400">
+                                {formatSum(daySum)}
+                              </div>
+                            ) : null}
                           </td>
                         );
                       })}
@@ -688,7 +782,11 @@ export function FuelReportPage() {
                             : undefined
                         }
                       >
-                        {actEntered && totalDiff != null ? formatM3(totalDiff) : ''}
+                        {actEntered ? (
+                          <M3SummaCell m3={totalDiff} sum={totalAmtDiff} />
+                        ) : (
+                          <M3SummaCell m3={totalAct} sum={totalVenAmt} />
+                        )}
                       </td>
                     </tr>
                   </tbody>
@@ -699,21 +797,28 @@ export function FuelReportPage() {
                 <tr className="bg-slate-200/95 dark:bg-slate-800/80">
                   <td
                     rowSpan={2}
-                    className="sticky left-0 z-[18] border-b border-slate-300 bg-slate-200/95 p-2 text-xs font-bold uppercase tracking-wide text-slate-800 shadow-[2px_0_4px_rgba(15,23,42,0.08)] dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100"
+                    className="sticky left-0 z-[18] border-b border-slate-300 bg-slate-200/95 shadow-[2px_0_4px_rgba(15,23,42,0.08)] dark:border-slate-600 dark:bg-slate-800/90"
+                  />
+                  <td
+                    rowSpan={2}
+                    className="sticky left-[2.25rem] z-[18] border-b border-slate-300 bg-slate-200/95 p-2 text-xs font-bold uppercase tracking-wide text-slate-800 shadow-[2px_0_4px_rgba(15,23,42,0.08)] dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100"
                   >
                     {t('fuelReportGrandTotalPlate')}
                   </td>
-                  <td className="sticky left-[7rem] z-[18] bg-slate-200/95 p-2 text-left text-[10px] font-bold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-800/90 sm:text-[11px]">
+                  <td className="sticky left-[9.5rem] z-[18] bg-slate-200/95 p-2 text-left text-[10px] font-bold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-800/90 sm:text-[11px]">
                     {t('fuelReportRowGrandSystem')}
                   </td>
                   {days.map((d) => {
-                    const val = grandTotals.systemByDay[d - 1];
+                    const ix = d - 1;
                     return (
                       <td
                         key={`g-sys-${d}`}
                         className="border-t border-slate-300 px-1 py-1.5 text-center text-xs font-bold tabular-nums text-slate-900 dark:border-slate-600 dark:text-slate-50"
                       >
-                        {val != null ? formatM3(val) : ''}
+                        <M3SummaCell
+                          m3={grandTotals.systemByDay[ix]}
+                          sum={grandTotals.systemAmountByDay[ix]}
+                        />
                       </td>
                     );
                   })}
@@ -723,23 +828,27 @@ export function FuelReportPage() {
                       'border-t-2 border-amber-400/90 bg-amber-200 font-bold dark:border-amber-600 dark:bg-amber-900/55',
                     )}
                   >
-                    {grandTotals.totalSystem != null
-                      ? formatM3(grandTotals.totalSystem)
-                      : ''}
+                    <M3SummaCell
+                      m3={grandTotals.totalSystem}
+                      sum={grandTotals.totalSystemAmount}
+                    />
                   </td>
                 </tr>
                 <tr className="bg-slate-300/90 dark:bg-slate-700/80">
-                  <td className="sticky left-[7rem] z-[18] bg-slate-300/90 p-2 text-left text-[10px] font-bold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-700/90 sm:text-[11px]">
+                  <td className="sticky left-[9.5rem] z-[18] bg-slate-300/90 p-2 text-left text-[10px] font-bold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-700/90 sm:text-[11px]">
                     {t('fuelReportRowGrandVendor')}
                   </td>
                   {days.map((d) => {
-                    const val = grandTotals.vendorByDay[d - 1];
+                    const ix = d - 1;
                     return (
                       <td
                         key={`g-ven-${d}`}
                         className="border-b border-slate-300 px-1 py-1.5 text-center text-xs font-bold tabular-nums text-slate-900 dark:border-slate-600 dark:text-slate-50"
                       >
-                        {val != null ? formatM3(val) : ''}
+                        <M3SummaCell
+                          m3={grandTotals.vendorByDay[ix]}
+                          sum={grandTotals.vendorAmountByDay[ix]}
+                        />
                       </td>
                     );
                   })}
@@ -753,12 +862,17 @@ export function FuelReportPage() {
                           )
                     }
                   >
-                    {grandTotals.anyVendorEntered &&
-                    grandTotals.totalDiff != null
-                      ? formatM3(grandTotals.totalDiff)
-                      : grandTotals.totalVendor != null
-                        ? formatM3(grandTotals.totalVendor)
-                        : ''}
+                    {grandTotals.anyVendorEntered ? (
+                      <M3SummaCell
+                        m3={grandTotals.totalDiff}
+                        sum={grandTotals.totalAmountDiff}
+                      />
+                    ) : (
+                      <M3SummaCell
+                        m3={grandTotals.totalVendor}
+                        sum={grandTotals.totalVendorAmount}
+                      />
+                    )}
                   </td>
                 </tr>
               </tfoot>
