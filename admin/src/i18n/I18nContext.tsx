@@ -61,7 +61,7 @@ const DICTS: Record<Lang, Dict> = {
     fuelReportExportPeriod: 'Ой',
     fuelReportEmptyMonth:
       'Бу ой ва заправка учун тизимда ёзув йўқ ва ведомость ҳам киритилмаган. Ёзувлар бошқа заправкага боғланган бўлиши мумкин.',
-    fuelReportColNo: '№',
+    fuelReportColNo: 'Т/р',
     fuelReportColPlate: 'Рақам',
     fuelReportColSource: 'Манба',
     fuelReportRowSystem: 'Ходимлар',
@@ -552,7 +552,7 @@ const DICTS: Record<Lang, Dict> = {
     fuelReportExportPeriod: 'Oy',
     fuelReportEmptyMonth:
       'Bu oy va zapravkada tizim yozuvi yo‘q va vedomost ham kiritilmagan.',
-    fuelReportColNo: '№',
+    fuelReportColNo: 'T/r',
     fuelReportColPlate: 'Raqam',
     fuelReportColSource: 'Manba',
     fuelReportRowSystem: 'Xodimlar',

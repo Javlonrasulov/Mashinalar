@@ -148,12 +148,16 @@ function hasAnyActual(values: (number | null)[]): boolean {
   return values.some((x) => x != null && Number.isFinite(x));
 }
 
-const stickyColNoHead =
-  'sticky left-0 z-20 min-w-[2.25rem] max-w-[2.25rem] bg-slate-50 p-2 text-center shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80';
-const stickyColPlateHead =
-  'sticky left-[2.25rem] z-20 min-w-[7rem] bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80';
-const stickyColSourceHead =
-  'sticky left-[9.5rem] z-20 min-w-[7.5rem] bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/80';
+/** № | рақам | манба — sticky chap; left qiymatlari colgroup kengliklariga mos */
+const stickyColNo =
+  'sticky left-0 z-[22] w-12 min-w-12 border-r border-slate-200/90 bg-slate-50 p-2 text-center text-xs font-bold tabular-nums shadow-[2px_0_4px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-950/90';
+const stickyColPlate =
+  'sticky left-12 z-[21] w-28 min-w-28 border-r border-slate-200/80 bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-slate-950/85';
+const stickyColSource =
+  'sticky left-[10rem] z-[21] w-32 min-w-32 bg-slate-50 p-2 text-left shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-950/85';
+const stickyColNoHead = clsx(stickyColNo, 'text-slate-500 uppercase dark:text-slate-400');
+const stickyColPlateHead = clsx(stickyColPlate, 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400');
+const stickyColSourceHead = clsx(stickyColSource, 'text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400');
 
 const stickyRightTh =
   'sticky right-0 z-[25] min-w-[5.5rem] border-l-2 border-amber-400/90 bg-amber-200 p-2 text-center text-xs font-bold uppercase tracking-wide text-amber-950 shadow-[-6px_0_12px_rgba(15,23,42,0.12)] dark:border-amber-600 dark:bg-amber-900/55 dark:text-amber-50';
@@ -634,6 +638,15 @@ export function FuelReportPage() {
           )}
         >
           <table className="app-table-inner min-w-max text-[11px] sm:text-xs">
+            <colgroup>
+              <col className="w-12" />
+              <col className="w-28" />
+              <col className="w-32" />
+              {days.map((d) => (
+                <col key={`c-${d}`} className="w-[2.75rem]" />
+              ))}
+              <col className="w-[5.5rem]" />
+            </colgroup>
             <thead className="app-table-head sticky top-0 z-10">
               <tr>
                 <th className={stickyColNoHead}>{t('fuelReportColNo')}</th>
@@ -692,17 +705,28 @@ export function FuelReportPage() {
                     <tr className="bg-rose-50/90 dark:bg-rose-950/25">
                       <td
                         rowSpan={2}
-                        className="sticky left-0 z-[16] border-b border-slate-200/80 bg-rose-50/95 p-1.5 text-center text-xs font-bold tabular-nums text-slate-600 shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-rose-950/35 dark:text-slate-300"
+                        className={clsx(
+                          stickyColNo,
+                          'border-b border-slate-200/80 bg-rose-50/95 text-slate-800 dark:border-slate-700 dark:bg-rose-950/40 dark:text-slate-100',
+                        )}
                       >
                         {vi + 1}
                       </td>
                       <td
                         rowSpan={2}
-                        className="sticky left-[2.25rem] z-[16] border-b border-slate-200/80 bg-rose-50/95 p-2 font-mono text-xs font-semibold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:border-slate-700 dark:bg-rose-950/35"
+                        className={clsx(
+                          stickyColPlate,
+                          'border-b border-slate-200/80 bg-rose-50/95 font-mono font-semibold dark:border-slate-700 dark:bg-rose-950/35',
+                        )}
                       >
                         {v.plateNumber}
                       </td>
-                      <td className="sticky left-[9.5rem] z-[16] bg-rose-50/95 p-2 text-left text-[10px] font-medium leading-snug shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-rose-950/35 sm:text-[11px]">
+                      <td
+                        className={clsx(
+                          stickyColSource,
+                          'bg-rose-50/95 text-[10px] font-medium leading-snug dark:bg-rose-950/35 sm:text-[11px]',
+                        )}
+                      >
                         {t('fuelReportRowSystem')}
                       </td>
                       {days.map((d) => {
@@ -727,7 +751,12 @@ export function FuelReportPage() {
                       </td>
                     </tr>
                     <tr className="bg-sky-50/95 dark:bg-sky-950/30">
-                      <td className="sticky left-[9.5rem] z-[16] bg-sky-50/95 p-2 text-left text-[10px] font-medium shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-sky-950/40 sm:text-[11px]">
+                      <td
+                        className={clsx(
+                          stickyColSource,
+                          'bg-sky-50/95 text-[10px] font-medium dark:bg-sky-950/40 sm:text-[11px]',
+                        )}
+                      >
                         {t('fuelReportRowVendor')}
                       </td>
                       {days.map((d) => {
@@ -797,15 +826,26 @@ export function FuelReportPage() {
                 <tr className="bg-slate-200/95 dark:bg-slate-800/80">
                   <td
                     rowSpan={2}
-                    className="sticky left-0 z-[18] border-b border-slate-300 bg-slate-200/95 shadow-[2px_0_4px_rgba(15,23,42,0.08)] dark:border-slate-600 dark:bg-slate-800/90"
+                    className={clsx(
+                      stickyColNo,
+                      'border-b border-slate-300 bg-slate-200/95 dark:border-slate-600 dark:bg-slate-800/90',
+                    )}
                   />
                   <td
                     rowSpan={2}
-                    className="sticky left-[2.25rem] z-[18] border-b border-slate-300 bg-slate-200/95 p-2 text-xs font-bold uppercase tracking-wide text-slate-800 shadow-[2px_0_4px_rgba(15,23,42,0.08)] dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100"
+                    className={clsx(
+                      stickyColPlate,
+                      'border-b border-slate-300 bg-slate-200/95 text-xs font-bold uppercase tracking-wide text-slate-800 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100',
+                    )}
                   >
                     {t('fuelReportGrandTotalPlate')}
                   </td>
-                  <td className="sticky left-[9.5rem] z-[18] bg-slate-200/95 p-2 text-left text-[10px] font-bold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-800/90 sm:text-[11px]">
+                  <td
+                    className={clsx(
+                      stickyColSource,
+                      'bg-slate-200/95 text-[10px] font-bold dark:bg-slate-800/90 sm:text-[11px]',
+                    )}
+                  >
                     {t('fuelReportRowGrandSystem')}
                   </td>
                   {days.map((d) => {
@@ -835,7 +875,12 @@ export function FuelReportPage() {
                   </td>
                 </tr>
                 <tr className="bg-slate-300/90 dark:bg-slate-700/80">
-                  <td className="sticky left-[9.5rem] z-[18] bg-slate-300/90 p-2 text-left text-[10px] font-bold shadow-[2px_0_4px_rgba(15,23,42,0.06)] dark:bg-slate-700/90 sm:text-[11px]">
+                  <td
+                    className={clsx(
+                      stickyColSource,
+                      'bg-slate-300/90 text-[10px] font-bold dark:bg-slate-700/90 sm:text-[11px]',
+                    )}
+                  >
                     {t('fuelReportRowGrandVendor')}
                   </td>
                   {days.map((d) => {

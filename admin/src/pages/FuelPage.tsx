@@ -428,6 +428,7 @@ export function FuelPage() {
     if (!fromYmd || !toYmd) return;
 
     const headers = [
+      t('fuelReportColNo'),
       t('plate'),
       t('fullName'),
       t('amount'),
@@ -845,6 +846,9 @@ export function FuelPage() {
           <table className="app-table-inner text-sm">
           <thead className="app-table-head">
             <tr>
+              <th className="w-12 min-w-12 p-3 text-center font-bold tabular-nums">
+                {t('fuelReportColNo')}
+              </th>
               <th className="p-3">{t('plate')}</th>
               <th className="p-3">{t('fullName')}</th>
               <th className="p-3">{t('amount')}</th>
@@ -870,10 +874,13 @@ export function FuelPage() {
                 </td>
               </tr>
             )}
-            {displayRows.map((r) => {
+            {displayRows.map((r, rowIndex) => {
               const stationIdx = stationPaletteIndexForRow(r);
               return (
               <tr key={r.id} className={clsx('app-table-row', fuelStationRowClass(stationIdx))}>
+                <td className="p-3 text-center text-sm font-bold tabular-nums text-slate-600 dark:text-slate-300">
+                  {rowIndex + 1}
+                </td>
                 <td className="p-3 font-mono">{r.vehicle.plateNumber}</td>
                 <td className="p-3">{r.driver.fullName}</td>
                 <td className="p-3">{r.amount}</td>

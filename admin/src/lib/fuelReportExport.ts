@@ -69,11 +69,12 @@ const FILL_GAS = 'FFF0F9FF';
 const FILL_PETROL = 'FFFFF7ED';
 const BORDER = 'FFCBD5E1';
 
-const COL_COUNT = 10;
-const COL_STATION = 8;
-const COL_FUEL_KIND = 4;
-const COL_VEHICLE_PHOTO = 9;
-const COL_RECEIPT_PHOTO = 10;
+const COL_COUNT = 11;
+const COL_NO = 1;
+const COL_STATION = 9;
+const COL_FUEL_KIND = 5;
+const COL_VEHICLE_PHOTO = 10;
+const COL_RECEIPT_PHOTO = 11;
 
 const HEADER_ROW = 4;
 const DATA_START_ROW = 5;
@@ -147,7 +148,10 @@ function styleHeaderRow(row: ExcelJS.Row) {
     const cell = row.getCell(c);
     cell.fill = argbFill(FILL_HEADER);
     cell.font = { bold: true, size: 11 };
-    cell.alignment = { vertical: 'middle', horizontal: c <= 2 ? 'left' : 'center' };
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: c === COL_NO ? 'center' : c <= 3 ? 'left' : 'center',
+    };
     cell.border = thinBorder();
   }
 }
@@ -169,18 +173,19 @@ function styleDataRow(row: ExcelJS.Row, data: FuelExportRow) {
 
   for (let c = 1; c <= COL_COUNT; c += 1) {
     const cell = row.getCell(c);
+    const isNo = c === COL_NO;
     const isStation = c === COL_STATION;
     const isKind = c === COL_FUEL_KIND;
     const isPhoto = c === COL_VEHICLE_PHOTO || c === COL_RECEIPT_PHOTO;
     cell.fill = argbFill(isKind ? kindFill : rowFillArgb);
     cell.font = {
-      bold: isStation,
+      bold: isStation || isNo,
       size: 11,
       color: { argb: isStation ? `FF${stationFont}` : 'FF0F172A' },
     };
     cell.alignment = {
       vertical: 'middle',
-      horizontal: isPhoto || c > 2 ? 'center' : 'left',
+      horizontal: isNo ? 'center' : isPhoto || c > 3 ? 'center' : 'left',
       wrapText: c === COL_STATION,
     };
     cell.border = thinBorder();
@@ -219,14 +224,15 @@ export async function downloadFuelReportsExcel(
     views: [{ state: 'frozen', ySplit: DATA_START_ROW - 1 }],
   });
 
-  ws.getColumn(1).width = 11;
-  ws.getColumn(2).width = 22;
-  ws.getColumn(3).width = 12;
-  ws.getColumn(4).width = 10;
+  ws.getColumn(COL_NO).width = 5;
+  ws.getColumn(2).width = 11;
+  ws.getColumn(3).width = 22;
+  ws.getColumn(4).width = 12;
   ws.getColumn(5).width = 10;
-  ws.getColumn(6).width = 8;
-  ws.getColumn(7).width = 18;
-  ws.getColumn(8).width = 28;
+  ws.getColumn(6).width = 10;
+  ws.getColumn(7).width = 8;
+  ws.getColumn(8).width = 18;
+  ws.getColumn(COL_STATION).width = 28;
   ws.getColumn(COL_VEHICLE_PHOTO).width = IMAGE_COL_WIDTH;
   ws.getColumn(COL_RECEIPT_PHOTO).width = IMAGE_COL_WIDTH;
 
@@ -262,6 +268,7 @@ export async function downloadFuelReportsExcel(
     const rowNum = DATA_START_ROW + i;
     const row = ws.getRow(rowNum);
     row.values = [
+      i + 1,
       item.plate,
       item.driver,
       item.amount,
