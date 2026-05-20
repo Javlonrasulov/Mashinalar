@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { api, apiUrl } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
-import { ChevronDown, Pencil, Search } from 'lucide-react';
+import { ChevronDown, Copy, Pencil, Search } from 'lucide-react';
 import { MapContainer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -109,6 +109,71 @@ type GapAuditRow = {
 };
 
 type SubmissionListRow = { vehicleId: string; plateNumber: string; driverName: string; driverPhone?: string | null };
+
+function formatSubmissionRowsForCopy(rows: SubmissionListRow[]): string {
+  return rows
+    .map((r) => {
+      const phone = (r.driverPhone ?? '').trim();
+      return phone ? `${r.plateNumber}\t${r.driverName}\t${phone}` : `${r.plateNumber}\t${r.driverName}`;
+    })
+    .join('\n');
+}
+
+function OverviewMissingPanelHeader({
+  title,
+  count,
+  rows,
+  dateYmd,
+  dateLabel,
+  copyKey,
+  copiedKey,
+  copyLabel,
+  copiedLabel,
+  onCopy,
+  tone,
+}: {
+  title: string;
+  count: number;
+  rows: SubmissionListRow[];
+  dateYmd: string;
+  dateLabel: string;
+  copyKey: string;
+  copiedKey: string | null;
+  copyLabel: string;
+  copiedLabel: string;
+  onCopy: (key: string, rows: SubmissionListRow[], dateYmd: string, panelTitle: string) => void;
+  tone: 'amber';
+}) {
+  const border =
+    tone === 'amber'
+      ? 'border-amber-200/80 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/30'
+      : '';
+  const btn =
+    tone === 'amber'
+      ? 'text-amber-950 hover:bg-amber-100/80 dark:text-amber-100 dark:hover:bg-amber-900/50'
+      : '';
+  return (
+    <div className={`flex items-center justify-between gap-2 border-b px-3 py-2 ${border}`}>
+      <span className="min-w-0 truncate text-xs font-semibold text-amber-950 dark:text-amber-100">
+        {title} ({count})
+      </span>
+      {rows.length > 0 ? (
+        <button
+          type="button"
+          title={copyLabel}
+          className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${btn}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopy(copyKey, rows, dateYmd, dateLabel);
+          }}
+        >
+          <Copy className="h-3.5 w-3.5" aria-hidden />
+          {copiedKey === copyKey ? copiedLabel : copyLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 type SubmissionOverviewDay = {
   date: string;
@@ -253,6 +318,23 @@ export function DailyKmPage() {
   const [kmEditSaving, setKmEditSaving] = useState(false);
   const [kmEditErr, setKmEditErr] = useState<string | null>(null);
   const [kmSaveWarnings, setKmSaveWarnings] = useState<{ date: string; startKm: number }[] | null>(null);
+  const [overviewCopiedKey, setOverviewCopiedKey] = useState<string | null>(null);
+
+  const copyOverviewList = useCallback(
+    async (key: string, list: SubmissionListRow[], dateYmd: string, panelTitle: string) => {
+      if (!list.length) return;
+      const dateStr = formatYmdLocal(dateYmd, lang);
+      const text = `${dateStr} — ${panelTitle}\n${formatSubmissionRowsForCopy(list)}`;
+      try {
+        await navigator.clipboard.writeText(text);
+        setOverviewCopiedKey(key);
+        window.setTimeout(() => setOverviewCopiedKey((k) => (k === key ? null : k)), 2000);
+      } catch {
+        /* ignore */
+      }
+    },
+    [lang],
+  );
 
   const reloadDailyKmData = useCallback(() => {
     const a = toDateInputValueLocal(new Date(tableFromValue));
@@ -684,9 +766,19 @@ export function DailyKmPage() {
                             <div className="grid gap-3 sm:grid-cols-2">
                               {showStartMissingPanel ? (
                               <div className="overflow-hidden rounded-xl border border-amber-200/90 dark:border-amber-900/50">
-                                <div className="border-b border-amber-200/80 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-                                  {t('dailyKmOverviewPanelStartMissing')} ({d.startMissing})
-                                </div>
+                                <OverviewMissingPanelHeader
+                                  title={t('dailyKmOverviewPanelStartMissing')}
+                                  count={d.startMissing}
+                                  rows={d.startMissingList}
+                                  dateYmd={d.date}
+                                  dateLabel={t('dailyKmOverviewPanelStartMissing')}
+                                  copyKey={`start:${d.date}`}
+                                  copiedKey={overviewCopiedKey}
+                                  copyLabel={t('dailyKmOverviewCopy')}
+                                  copiedLabel={t('dailyKmOverviewCopied')}
+                                  onCopy={copyOverviewList}
+                                  tone="amber"
+                                />
                                 <ul className="max-h-48 divide-y divide-slate-200/80 overflow-y-auto dark:divide-slate-700/80">
                                   {d.startMissingList.length === 0 ? (
                                     <li className="px-3 py-3 text-center text-xs text-slate-500 dark:text-slate-400">{t('dailyKmOverviewEmptyList')}</li>
@@ -736,9 +828,19 @@ export function DailyKmPage() {
                               ) : null}
                               {showEndMissingPanel ? (
                               <div className="overflow-hidden rounded-xl border border-amber-200/90 dark:border-amber-900/50">
-                                <div className="border-b border-amber-200/80 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-                                  {t('dailyKmOverviewPanelEndMissing')} ({d.endMissing})
-                                </div>
+                                <OverviewMissingPanelHeader
+                                  title={t('dailyKmOverviewPanelEndMissing')}
+                                  count={d.endMissing}
+                                  rows={d.endMissingList}
+                                  dateYmd={d.date}
+                                  dateLabel={t('dailyKmOverviewPanelEndMissing')}
+                                  copyKey={`end:${d.date}`}
+                                  copiedKey={overviewCopiedKey}
+                                  copyLabel={t('dailyKmOverviewCopy')}
+                                  copiedLabel={t('dailyKmOverviewCopied')}
+                                  onCopy={copyOverviewList}
+                                  tone="amber"
+                                />
                                 <ul className="max-h-48 divide-y divide-slate-200/80 overflow-y-auto dark:divide-slate-700/80">
                                   {d.endMissingList.length === 0 ? (
                                     <li className="px-3 py-3 text-center text-xs text-slate-500 dark:text-slate-400">{t('dailyKmOverviewEmptyList')}</li>
@@ -786,7 +888,8 @@ export function DailyKmPage() {
                                 </ul>
                               </div>
 
-                              ) : null}                            </div>
+                              ) : null}
+                            </div>
                           </td>
                         </tr>
                       )}
