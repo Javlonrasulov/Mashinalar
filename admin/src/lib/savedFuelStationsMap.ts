@@ -1,5 +1,15 @@
 import L from 'leaflet';
 
+export const DEFAULT_SAVED_FUEL_RADIUS_M = 500;
+export const MIN_SAVED_FUEL_RADIUS_M = 50;
+export const MAX_SAVED_FUEL_RADIUS_M = 5000;
+
+export function parseSavedFuelRadiusMeters(raw: string): number | null {
+  const n = Math.round(Number(String(raw).trim()));
+  if (!Number.isFinite(n) || n < MIN_SAVED_FUEL_RADIUS_M || n > MAX_SAVED_FUEL_RADIUS_M) return null;
+  return n;
+}
+
 export type SavedFuelStationMapItem = {
   id: string;
   name: string;

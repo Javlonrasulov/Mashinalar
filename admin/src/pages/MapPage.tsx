@@ -26,12 +26,27 @@ import { DateTimeField } from '@/components/DateTimeField';
 import { LEAFLET_MAP_MAX_ZOOM, MapBaseLayers } from '@/components/MapBaseLayers';
 import { fuelPumpLeafletIcon, type FuelStationMapItem } from '@/lib/fuelStationsMap';
 import {
+  DEFAULT_SAVED_FUEL_RADIUS_M,
+  MAX_SAVED_FUEL_RADIUS_M,
+  MIN_SAVED_FUEL_RADIUS_M,
+  parseSavedFuelRadiusMeters,
   savedFuelLeafletIcon,
   type SavedFuelStationMapItem,
 } from '@/lib/savedFuelStationsMap';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 import clsx from 'clsx';
-import { Check, ChevronsUpDown, Fuel, Loader2, MapPin, RefreshCw, Search, X } from 'lucide-react';
+import {
+  Check,
+  ChevronsUpDown,
+  Fuel,
+  Loader2,
+  MapPin,
+  Maximize2,
+  Minimize2,
+  RefreshCw,
+  Search,
+  X,
+} from 'lucide-react';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -315,6 +330,16 @@ function buildGpsPowerTimeline(offRows: GpsOffRow[], rangeFrom: Date, rangeTo: D
 
 type RefreshUi = 'idle' | 'loading' | 'success';
 
+/** To‘liq ekrandan keyin Leaflet o‘lchamini qayta hisoblaydi. */
+function MapInvalidateSize({ tick }: { tick: number }) {
+  const map = useMap();
+  useEffect(() => {
+    const id = window.setTimeout(() => map.invalidateSize(), 80);
+    return () => window.clearTimeout(id);
+  }, [tick, map]);
+  return null;
+}
+
 function MapClickForStation({
   active,
   onPick,
@@ -347,6 +372,8 @@ export function MapPage() {
   const [stationSaveErr, setStationSaveErr] = useState<string | null>(null);
   const [editingSavedStation, setEditingSavedStation] = useState<SavedFuelStationMapItem | null>(null);
   const [editStationName, setEditStationName] = useState('');
+  const [editStationRadius, setEditStationRadius] = useState(String(DEFAULT_SAVED_FUEL_RADIUS_M));
+  const [newStationRadius, setNewStationRadius] = useState(String(DEFAULT_SAVED_FUEL_RADIUS_M));
   const [savingEditStation, setSavingEditStation] = useState(false);
   const [editStationErr, setEditStationErr] = useState<string | null>(null);
   const [vehicleQuery, setVehicleQuery] = useState('');
@@ -354,6 +381,9 @@ export function MapPage() {
   const [presenceFilter, setPresenceFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [vehicleOpen, setVehicleOpen] = useState(false);
   const vehicleRef = useRef<HTMLDivElement>(null);
+  const mapStageRef = useRef<HTMLDivElement>(null);
+  const [mapFs, setMapFs] = useState(false);
+  const [mapResizeTick, setMapResizeTick] = useState(0);
   /** MapAutoFit: bir xil filtr/marshrut uchun qayta fitBounds chaqirilmasin. */
   const lastMapFitKeyRef = useRef<string | null>(null);
   const [refreshUi, setRefreshUi] = useState<RefreshUi>('idle');
@@ -395,14 +425,56 @@ export function MapPage() {
       .catch(() => setSavedFuelStations([]));
   }, []);
 
+  const editRadiusPreviewM = useMemo(
+    () => parseSavedFuelRadiusMeters(editStationRadius),
+    [editStationRadius],
+  );
+
+  const canSaveNewStation =
+    Boolean(newStationName.trim()) && parseSavedFuelRadiusMeters(newStationRadius) != null;
+  const canSaveEditStation =
+    Boolean(editStationName.trim()) && parseSavedFuelRadiusMeters(editStationRadius) != null;
+
+  function savedStationDisplayRadius(s: SavedFuelStationMapItem): number {
+    if (editingSavedStation?.id === s.id && editRadiusPreviewM != null) return editRadiusPreviewM;
+    return s.radiusMeters;
+  }
+
   useEffect(() => {
     loadSavedFuelStations();
   }, [loadSavedFuelStations]);
+
+  useEffect(() => {
+    const sync = () => {
+      const el = mapStageRef.current;
+      setMapFs(Boolean(el && document.fullscreenElement === el));
+      setMapResizeTick((n) => n + 1);
+      window.setTimeout(() => window.dispatchEvent(new Event('resize')), 120);
+    };
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+
+  async function toggleMapFullscreen() {
+    const el = mapStageRef.current;
+    if (!el) return;
+    try {
+      if (document.fullscreenElement === el) await document.exitFullscreen();
+      else await el.requestFullscreen();
+    } catch {
+      /* ignore */
+    }
+  }
 
   async function savePendingStation() {
     if (!pendingStation) return;
     const name = newStationName.trim();
     if (!name) return;
+    const radiusMeters = parseSavedFuelRadiusMeters(newStationRadius);
+    if (radiusMeters == null) {
+      setStationSaveErr(t('mapSavedFuelRadiusInvalid'));
+      return;
+    }
     setSavingStation(true);
     setStationSaveErr(null);
     try {
@@ -412,13 +484,16 @@ export function MapPage() {
           name,
           latitude: pendingStation.lat,
           longitude: pendingStation.lon,
+          radiusMeters,
         }),
       });
       setPendingStation(null);
       setNewStationName('');
+      setNewStationRadius(String(DEFAULT_SAVED_FUEL_RADIUS_M));
       setPlaceStationMode(false);
       setEditingSavedStation(null);
       setEditStationName('');
+      setEditStationRadius(String(DEFAULT_SAVED_FUEL_RADIUS_M));
       setEditStationErr(null);
       loadSavedFuelStations();
     } catch (e) {
@@ -432,15 +507,21 @@ export function MapPage() {
     if (!editingSavedStation) return;
     const name = editStationName.trim();
     if (!name) return;
+    const radiusMeters = parseSavedFuelRadiusMeters(editStationRadius);
+    if (radiusMeters == null) {
+      setEditStationErr(t('mapSavedFuelRadiusInvalid'));
+      return;
+    }
     setSavingEditStation(true);
     setEditStationErr(null);
     try {
       await api(`/map/saved-fuel-stations/${encodeURIComponent(editingSavedStation.id)}`, {
         method: 'PATCH',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, radiusMeters }),
       });
       setEditingSavedStation(null);
       setEditStationName('');
+      setEditStationRadius(String(DEFAULT_SAVED_FUEL_RADIUS_M));
       loadSavedFuelStations();
     } catch (e) {
       setEditStationErr(e instanceof Error ? e.message : String(e));
@@ -453,6 +534,7 @@ export function MapPage() {
     if (editingSavedStation?.id === id) {
       setEditingSavedStation(null);
       setEditStationName('');
+      setEditStationRadius(String(DEFAULT_SAVED_FUEL_RADIUS_M));
       setEditStationErr(null);
     }
     try {
@@ -1099,8 +1181,33 @@ export function MapPage() {
       </div>
 
       <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1fr_min(22rem,100%)] lg:items-stretch">
-        <div className="app-card relative z-0 h-[min(52vh,520px)] min-h-[260px] w-full min-w-0 overflow-hidden p-0 sm:min-h-[320px] lg:h-[min(70vh,640px)] lg:min-h-[400px]">
+        <div
+          ref={mapStageRef}
+          className={clsx(
+            'app-card relative z-0 h-[min(52vh,520px)] min-h-[260px] w-full min-w-0 overflow-hidden p-0 sm:min-h-[320px] lg:h-[min(70vh,640px)] lg:min-h-[400px]',
+            '[:fullscreen]:!fixed [:fullscreen]:!inset-0 [:fullscreen]:z-[500] [:fullscreen]:!h-screen [:fullscreen]:!max-h-none [:fullscreen]:!min-h-0 [:fullscreen]:!w-screen',
+            '[:fullscreen]:rounded-none [:fullscreen]:bg-white dark:[:fullscreen]:bg-slate-950',
+          )}
+        >
           <div className="absolute right-2 top-2 z-[410] flex flex-col gap-2">
+            <button
+              type="button"
+              className={clsx(
+                'flex h-10 w-10 items-center justify-center rounded-[10px] border-2 border-slate-900 bg-white shadow-md transition hover:bg-slate-50 dark:border-slate-200 dark:bg-white dark:hover:bg-slate-100',
+                mapFs &&
+                  'border-blue-600 bg-blue-50 ring-2 ring-blue-400/90 ring-offset-2 ring-offset-white dark:ring-offset-slate-900',
+              )}
+              aria-pressed={mapFs}
+              aria-label={mapFs ? t('exitFullScreen') : t('fullScreen')}
+              title={mapFs ? t('exitFullScreen') : t('fullScreen')}
+              onClick={() => void toggleMapFullscreen()}
+            >
+              {mapFs ? (
+                <Minimize2 className="h-5 w-5 text-slate-900" strokeWidth={2.25} aria-hidden />
+              ) : (
+                <Maximize2 className="h-5 w-5 text-slate-900" strokeWidth={2.25} aria-hidden />
+              )}
+            </button>
             <button
               type="button"
               className={clsx(
@@ -1140,6 +1247,7 @@ export function MapPage() {
                     setStationSaveErr(null);
                     setEditingSavedStation(null);
                     setEditStationName('');
+                    setEditStationRadius(String(DEFAULT_SAVED_FUEL_RADIUS_M));
                     setEditStationErr(null);
                   }
                   return next;
@@ -1169,6 +1277,21 @@ export function MapPage() {
                   if (e.key === 'Enter') void savePendingStation();
                 }}
               />
+              <label className="mb-1 mt-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                {t('mapSavedFuelRadiusLabel')}
+              </label>
+              <input
+                type="number"
+                min={MIN_SAVED_FUEL_RADIUS_M}
+                max={MAX_SAVED_FUEL_RADIUS_M}
+                step={50}
+                className="app-input w-full text-sm"
+                value={newStationRadius}
+                onChange={(e) => setNewStationRadius(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void savePendingStation();
+                }}
+              />
               {stationSaveErr && (
                 <p className="mt-1 text-xs text-red-600 dark:text-red-400">{stationSaveErr}</p>
               )}
@@ -1176,7 +1299,7 @@ export function MapPage() {
                 <button
                   type="button"
                   className="app-btn-primary text-sm"
-                  disabled={savingStation || !newStationName.trim()}
+                  disabled={savingStation || !canSaveNewStation}
                   onClick={() => void savePendingStation()}
                 >
                   {savingStation ? <Loader2 className="h-4 w-4 animate-spin" /> : t('mapSavedFuelSave')}
@@ -1188,6 +1311,7 @@ export function MapPage() {
                   onClick={() => {
                     setPendingStation(null);
                     setNewStationName('');
+                    setNewStationRadius(String(DEFAULT_SAVED_FUEL_RADIUS_M));
                     setStationSaveErr(null);
                   }}
                 >
@@ -1214,6 +1338,21 @@ export function MapPage() {
                   if (e.key === 'Enter') void saveEditedStation();
                 }}
               />
+              <label className="mb-1 mt-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                {t('mapSavedFuelRadiusLabel')}
+              </label>
+              <input
+                type="number"
+                min={MIN_SAVED_FUEL_RADIUS_M}
+                max={MAX_SAVED_FUEL_RADIUS_M}
+                step={50}
+                className="app-input w-full text-sm"
+                value={editStationRadius}
+                onChange={(e) => setEditStationRadius(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void saveEditedStation();
+                }}
+              />
               {editStationErr && (
                 <p className="mt-1 text-xs text-red-600 dark:text-red-400">{editStationErr}</p>
               )}
@@ -1221,7 +1360,7 @@ export function MapPage() {
                 <button
                   type="button"
                   className="app-btn-primary text-sm"
-                  disabled={savingEditStation || !editStationName.trim()}
+                  disabled={savingEditStation || !canSaveEditStation}
                   onClick={() => void saveEditedStation()}
                 >
                   {savingEditStation ? <Loader2 className="h-4 w-4 animate-spin" /> : t('mapSavedFuelSave')}
@@ -1233,6 +1372,7 @@ export function MapPage() {
                   onClick={() => {
                     setEditingSavedStation(null);
                     setEditStationName('');
+                    setEditStationRadius(String(DEFAULT_SAVED_FUEL_RADIUS_M));
                     setEditStationErr(null);
                   }}
                 >
@@ -1249,14 +1389,17 @@ export function MapPage() {
             scrollWheelZoom
           >
             <MapBaseLayers />
+            <MapInvalidateSize tick={mapResizeTick} />
             <MapClickForStation
               active={placeStationMode && !pendingStation}
               onPick={(lat, lon) => {
                 setEditingSavedStation(null);
                 setEditStationName('');
+                setEditStationRadius(String(DEFAULT_SAVED_FUEL_RADIUS_M));
                 setEditStationErr(null);
                 setPendingStation({ lat, lon });
                 setNewStationName('');
+                setNewStationRadius(String(DEFAULT_SAVED_FUEL_RADIUS_M));
                 setStationSaveErr(null);
               }}
             />
@@ -1325,7 +1468,7 @@ export function MapPage() {
               <Fragment key={s.id}>
                 <Circle
                   center={[s.latitude, s.longitude]}
-                  radius={s.radiusMeters}
+                  radius={savedStationDisplayRadius(s)}
                   pathOptions={{
                     color: '#7c3aed',
                     fillColor: '#a78bfa',
@@ -1338,7 +1481,10 @@ export function MapPage() {
                     <div className="map-fuel-popup-body">
                       <div className="font-semibold">{s.name}</div>
                       <p className="mt-1 text-xs text-slate-600">
-                        {t('mapSavedFuelRadius').replace('{n}', String(s.radiusMeters))}
+                        {t('mapSavedFuelRadius').replace(
+                          '{n}',
+                          String(savedStationDisplayRadius(s)),
+                        )}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                         <button
@@ -1349,6 +1495,7 @@ export function MapPage() {
                             setPlaceStationMode(false);
                             setEditingSavedStation(s);
                             setEditStationName(s.name);
+                            setEditStationRadius(String(s.radiusMeters));
                             setEditStationErr(null);
                           }}
                         >
