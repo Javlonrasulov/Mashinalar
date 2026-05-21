@@ -19,6 +19,10 @@ const DWELL_RADIUS_M = 120;
 const MIN_DWELL_MS = 10 * 60 * 1000;
 /** Bir xil «tashrif joyi» klasterlari uchun radius (metr). */
 const VISIT_CLUSTER_RADIUS_M = 200;
+/** Ikki nuqta orasidagi tezlik shundan oshsa, ikkinchi qurilmadan kelgan/«teleport» nuqta deb tashlanadi. */
+const TELEPORT_MAX_KMH = 200;
+const TELEPORT_MIN_METERS = 500;
+const TELEPORT_MAX_DT_MS = 60 * 1000;
 
 export type TrackingStopSegment = {
   startAt: string;
@@ -233,9 +237,44 @@ export class TrackingService {
   }
 
   private filterPointsForAnalytics(rows: LocationPoint[]): LocationPoint[] {
-    return rows.filter(
+    const accurate = rows.filter(
       (p) => p.accuracyM == null || p.accuracyM <= MAX_ACCURACY_M,
     );
+    return this.dropTeleportJumps(accurate);
+  }
+
+  /**
+   * Ketma-ket ikki nuqtadan tezligi 200 km/soatdan oshadigan (60s ichida 500m+ sakrash) nuqtalarni
+   * tashlaydi — ikkinchi qurilmadan parallel kelgan koordinatalar shu shartga tushadi.
+   * «Birinchi kelgan tarmoq» segmenti ushlab qolinadi: keyingi nuqta avvalgi qabul qilingani bilan
+   * solishtirilishi sababli, ikkinchi qurilmaning butun «klasteri» tashlanadi.
+   */
+  private dropTeleportJumps(rows: LocationPoint[]): LocationPoint[] {
+    if (rows.length < 2) return rows;
+    const out: LocationPoint[] = [rows[0]];
+    for (let i = 1; i < rows.length; i++) {
+      const prev = out[out.length - 1];
+      const cur = rows[i];
+      const dtMs = cur.recordedAt.getTime() - prev.recordedAt.getTime();
+      if (dtMs <= 0) {
+        out.push(cur);
+        continue;
+      }
+      const meters = this.haversineMeters(
+        Number(prev.latitude),
+        Number(prev.longitude),
+        Number(cur.latitude),
+        Number(cur.longitude),
+      );
+      const kmh = (meters / 1000) / (dtMs / 3600 / 1000);
+      const isTeleport =
+        dtMs <= TELEPORT_MAX_DT_MS &&
+        meters > TELEPORT_MIN_METERS &&
+        kmh > TELEPORT_MAX_KMH;
+      if (isTeleport) continue;
+      out.push(cur);
+    }
+    return out;
   }
 
   private toInternalPoints(rows: LocationPoint[]): InternalPt[] {

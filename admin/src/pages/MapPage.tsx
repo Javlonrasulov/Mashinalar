@@ -57,6 +57,10 @@ const ONLINE_MS = 60 * 1000;
 
 /** Backend analytics bilan mos: juda yomon aniqlikdagi nuqtalar tashlanadi. */
 const MAX_ACCURACY_M = 100;
+/** Ketma-ket ikki nuqta orasidagi vaqt shundan katta bo‘lsa, marshrut chizig‘i uziladi (mashina o‘chgan/uzilgan). */
+const ROUTE_GAP_MAX_MS = 5 * 60 * 1000;
+/** Ikki nuqta orasidagi tezlik shundan oshsa, sakrash — segment uziladi. */
+const ROUTE_MAX_PLAUSIBLE_KMH = 200;
 
 /**
  * Klaster markazi va `stopSegments` markazini bog‘lash.
@@ -162,7 +166,64 @@ type Vehicle = {
   category?: { id: string; name: string } | null;
 };
 
-type HistoryRow = { latitude: string; longitude: string; accuracyM: number | null };
+type HistoryRow = {
+  latitude: string;
+  longitude: string;
+  accuracyM: number | null;
+  recordedAt: string;
+};
+
+/** GPS shovqinini filtrlab, marshrutni uzluksiz segmentlarga ajratish. */
+function buildRouteSegments(rows: HistoryRow[]): [number, number][][] {
+  const clean = rows
+    .filter((p) => p.accuracyM == null || p.accuracyM <= MAX_ACCURACY_M)
+    .map((p) => ({
+      lat: Number(p.latitude),
+      lon: Number(p.longitude),
+      t: new Date(p.recordedAt).getTime(),
+    }))
+    .filter(
+      (p) =>
+        Number.isFinite(p.lat) && Number.isFinite(p.lon) && Number.isFinite(p.t),
+    );
+
+  if (clean.length === 0) return [];
+
+  const segments: [number, number][][] = [];
+  let current: [number, number][] = [[clean[0].lat, clean[0].lon]];
+
+  for (let i = 1; i < clean.length; i++) {
+    const prev = clean[i - 1];
+    const cur = clean[i];
+    const dt = cur.t - prev.t;
+    const meters = haversineMeters(prev.lat, prev.lon, cur.lat, cur.lon);
+
+    const gapTooLarge = dt > ROUTE_GAP_MAX_MS;
+    const kmh = dt > 0 ? (meters / 1000) / (dt / 3600 / 1000) : Infinity;
+    const teleport = dt <= 60 * 1000 && meters > 500 && kmh > ROUTE_MAX_PLAUSIBLE_KMH;
+
+    if (gapTooLarge) {
+      if (current.length > 1) segments.push(current);
+      current = [[cur.lat, cur.lon]];
+      continue;
+    }
+
+    if (teleport) {
+      // Joriy segmentni yopib, shubhali nuqtani tashlaymiz (keyingidan davom etadi).
+      if (current.length > 1) segments.push(current);
+      current = [];
+      continue;
+    }
+
+    if (current.length === 0) {
+      current.push([cur.lat, cur.lon]);
+    } else {
+      current.push([cur.lat, cur.lon]);
+    }
+  }
+  if (current.length > 1) segments.push(current);
+  return segments;
+}
 
 type MapAnalytics = {
   gpsKm: number;
@@ -360,6 +421,7 @@ export function MapPage() {
   const { t } = useI18n();
   const [live, setLive] = useState<Live[]>([]);
   const [history, setHistory] = useState<[number, number][]>([]);
+  const [routeSegments, setRouteSegments] = useState<[number, number][][]>([]);
   const [vehicleId, setVehicleId] = useState('');
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [fuelStations, setFuelStations] = useState<FuelStationMapItem[]>([]);
@@ -548,6 +610,7 @@ export function MapPage() {
   const loadRouteAnalytics = useCallback(async () => {
     if (!vehicleId) {
       setHistory([]);
+      setRouteSegments([]);
       setAnalytics(null);
       setGpsOffRows([]);
       setAnalyticsError(null);
@@ -559,6 +622,7 @@ export function MapPage() {
     if (Number.isNaN(startD.getTime()) || Number.isNaN(endD.getTime()) || startD > endD) {
       setAnalyticsError(t('mapRangeInvalid'));
       setHistory([]);
+      setRouteSegments([]);
       setAnalytics(null);
       setGpsOffRows([]);
       return;
@@ -576,10 +640,12 @@ export function MapPage() {
       ]);
       const histFiltered = hist.filter((p) => p.accuracyM == null || p.accuracyM <= MAX_ACCURACY_M);
       setHistory(histFiltered.map((p) => [Number(p.latitude), Number(p.longitude)]));
+      setRouteSegments(buildRouteSegments(hist));
       setAnalytics(ana);
       setGpsOffRows(Array.isArray(gpsOff) ? gpsOff : []);
     } catch {
       setHistory([]);
+      setRouteSegments([]);
       setAnalytics(null);
       setGpsOffRows([]);
       setAnalyticsError(t('mapAnalyticsError'));
@@ -956,7 +1022,7 @@ export function MapPage() {
     }
   };
 
-  const showRoute = history.length > 1;
+  const showRoute = routeSegments.some((seg) => seg.length > 1);
   const dupStartEnd = Boolean(
     analytics?.startPoint &&
       analytics?.endPoint &&
@@ -1405,16 +1471,18 @@ export function MapPage() {
             />
             <MapAutoFit points={fitBoundsPoints} fitKey={mapFitKey} lastFittedKeyRef={lastMapFitKeyRef} />
             <FlyToSelectedOnVehicleChange pos={selectedPos} vehicleId={vehicleId} />
-            {showRoute && (
-              <Polyline
-                positions={history}
-                pathOptions={{
-                  color: '#0f172a',
-                  weight: 4,
-                  opacity: focusedCluster ? 0.22 : 1,
-                }}
-              />
-            )}
+            {showRoute &&
+              routeSegments.map((seg, idx) => (
+                <Polyline
+                  key={`route-seg-${idx}`}
+                  positions={seg}
+                  pathOptions={{
+                    color: '#0f172a',
+                    weight: 4,
+                    opacity: focusedCluster ? 0.22 : 1,
+                  }}
+                />
+              ))}
             {analytics?.stopSegments.map((s, idx) => {
               const segKey = `${s.startAt}\t${s.latitude}\t${s.longitude}`;
               const inFocusSet = focusedSegmentIdSet.has(segKey);

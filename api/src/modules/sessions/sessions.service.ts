@@ -83,6 +83,22 @@ export class SessionsService {
   async touchOnLogin(userId: string, ctx: SessionTouchCtx) {
     const { fingerprint, label } = await this.upsert(userId, ctx, true);
     await this.logActivityEvent(userId, fingerprint, label, true);
+    return { fingerprint };
+  }
+
+  /**
+   * Berilgan foydalanuvchining boshqa barcha sessiyalarini bekor qiladi (haydovchi 1 qurilmada bo‘lishi uchun).
+   * Joriy fingerprint saqlab qolinadi.
+   */
+  async revokeOtherSessions(userId: string, keepFingerprint: string) {
+    await this.prisma.userSession.updateMany({
+      where: {
+        userId,
+        fingerprint: { not: keepFingerprint },
+        revokedAt: null,
+      },
+      data: { revokedAt: new Date() },
+    });
   }
 
   /** GPS / boshqa so‘rovlar — revoke holatini o‘zgartirmaydi. */
