@@ -83,8 +83,7 @@ fun FuelScreen(
   var captureTarget by remember { mutableStateOf<String?>(null) }
   var fuelHistoryExpanded by remember { mutableStateOf(false) }
   val amountHasDigits = state.amount.any { it.isDigit() }
-  val canSubmit =
-    amountHasDigits && state.vehiclePhoto != null && !state.loading
+  val canSubmit = amountHasDigits && !state.loading
 
   val context = LocalContext.current
   val app = context.applicationContext
@@ -288,11 +287,9 @@ fun FuelScreen(
       }
 
       Spacer(Modifier.height(12.dp))
-      val canAddReceipt = state.vehiclePhoto != null
       if (state.receiptPhoto == null && captureTarget != "receipt") {
         Button(
           modifier = Modifier.fillMaxWidth(),
-          enabled = canAddReceipt,
           onClick = { scope.launch { prepareThenOpenCapture("receipt") } },
         ) {
           Text(stringResource(R.string.receipt_photo))

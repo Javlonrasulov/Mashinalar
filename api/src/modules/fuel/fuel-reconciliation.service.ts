@@ -114,10 +114,11 @@ export class FuelReconciliationService {
 
     const actualRows = await this.prisma.fuelStationMonthActual.findMany({
       where: { savedFuelStationId, year, month },
-      select: { vehicleId: true, day: true, actualM3: true },
+      select: { vehicleId: true, day: true, actualM3: true, actualAmount: true },
     });
 
     const actMap = new Map<Key, Map<number, number>>();
+    const actAmtMap = new Map<Key, Map<number, number>>();
     for (const a of actualRows) {
       if (a.day < 1 || a.day > dim) continue;
       let m = actMap.get(a.vehicleId);
@@ -126,6 +127,17 @@ export class FuelReconciliationService {
         actMap.set(a.vehicleId, m);
       }
       m.set(a.day, Number(a.actualM3));
+      if (a.actualAmount != null) {
+        const amt = Number(a.actualAmount);
+        if (Number.isFinite(amt)) {
+          let am = actAmtMap.get(a.vehicleId);
+          if (!am) {
+            am = new Map();
+            actAmtMap.set(a.vehicleId, am);
+          }
+          am.set(a.day, amt);
+        }
+      }
     }
 
     const vehicleIds = new Set<string>([...sysSum.keys(), ...actMap.keys()]);
@@ -168,6 +180,7 @@ export class FuelReconciliationService {
         const sm = sysSum.get(v.id);
         const sa = sysAmtSum.get(v.id);
         const am = actMap.get(v.id);
+        const amAmt = actAmtMap.get(v.id);
         const gasPrice = gasPriceById.get(v.id) ?? null;
         const systemM3ByDay: (number | null)[] = [];
         const systemAmountByDay: (number | null)[] = [];
@@ -185,7 +198,10 @@ export class FuelReconciliationService {
               ? Math.round(rawAmt)
               : null;
           let vav: number | null = null;
-          if (
+          const storedAmt = amAmt?.get(d);
+          if (storedAmt != null && Number.isFinite(storedAmt)) {
+            vav = Math.round(storedAmt);
+          } else if (
             av != null &&
             gasPrice != null &&
             Number.isFinite(gasPrice) &&
@@ -231,6 +247,8 @@ export class FuelReconciliationService {
     month: number;
     day: number;
     actualM3: number | null;
+    /** Snapshot tiklash: saqlangan summa; oddiy kiritishda joriy narx hisoblanadi */
+    actualAmount?: number | null;
   }) {
     const { savedFuelStationId, vehicleId, year, month, day, actualM3 } =
       params;
@@ -265,6 +283,21 @@ export class FuelReconciliationService {
       return { ok: true, deleted: true };
     }
 
+    let actualAmount: number | null = null;
+    if (
+      params.actualAmount != null &&
+      Number.isFinite(params.actualAmount) &&
+      params.actualAmount >= 0
+    ) {
+      actualAmount = Math.round(params.actualAmount);
+    } else {
+      const price =
+        veh.gasPricePerM3 != null ? Number(veh.gasPricePerM3) : NaN;
+      if (Number.isFinite(price) && price > 0) {
+        actualAmount = Math.round(actualM3 * price);
+      }
+    }
+
     await this.prisma.fuelStationMonthActual.upsert({
       where: {
         savedFuelStationId_vehicleId_year_month_day: {
@@ -282,8 +315,9 @@ export class FuelReconciliationService {
         month,
         day,
         actualM3,
+        actualAmount,
       },
-      update: { actualM3 },
+      update: { actualM3, actualAmount },
     });
     return { ok: true, deleted: false };
   }
@@ -397,6 +431,7 @@ export class FuelReconciliationService {
     for (const v of grid.vehicles) {
       for (let day = 1; day <= grid.daysInMonth; day++) {
         const actualM3 = v.actualM3ByDay[day - 1] ?? null;
+        const actualAmount = v.vendorAmountByDay?.[day - 1] ?? null;
         await this.upsertMonthActual({
           savedFuelStationId,
           vehicleId: v.vehicleId,
@@ -404,6 +439,7 @@ export class FuelReconciliationService {
           month,
           day,
           actualM3,
+          actualAmount,
         });
         applied += 1;
       }

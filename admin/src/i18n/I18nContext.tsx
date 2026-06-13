@@ -375,7 +375,8 @@ const DICTS: Record<Lang, Dict> = {
     note: 'Изоҳ',
     gasPricePerM3: 'Газ (1 м³) нархи',
     gasPriceAllTitle: 'Барча машиналар учун газ нархи',
-    gasPriceAllHint: 'Бу нарх барча машиналарга бир хил қўлланилади.',
+    gasPriceAllHint:
+      'Янги narx faqat undan keyingi yangi yozuvlar va vedomost katakchalariga qo‘llaniladi. Eski zapravka va saqlangan vedomost summalari o‘zgarmaydi.',
     gasPriceAllSave: 'Ҳаммасига сақлаш',
     petrolPricePerLiter: 'Бензин (1 L) нархи',
     petrolPriceAllTitle: 'Барча машиналар учун бензин нархи',
@@ -868,7 +869,8 @@ const DICTS: Record<Lang, Dict> = {
     note: 'Izoh',
     gasPricePerM3: 'Gaz (1 m³) narxi',
     gasPriceAllTitle: 'Barcha mashinalar uchun gaz narxi',
-    gasPriceAllHint: 'Bu narx barcha mashinalarga bir xil qo‘llaniladi.',
+    gasPriceAllHint:
+      'Yangi narx faqat undan keyingi yangi yozuvlar va vedomost katakchalariga qo‘llaniladi. Eski zapravka va saqlangan vedomost summalari o‘zgarmaydi.',
     gasPriceAllSave: 'Hammasiga saqlash',
     petrolPricePerLiter: 'Benzin (1 L) narxi',
     petrolPriceAllTitle: 'Barcha mashinalar uchun benzin narxi',
@@ -1364,7 +1366,8 @@ const DICTS: Record<Lang, Dict> = {
     note: 'Примечание',
     gasPricePerM3: 'Газ (1 м³) цена',
     gasPriceAllTitle: 'Цена газа для всех машин',
-    gasPriceAllHint: 'Эта цена применяется ко всем машинам одинаково.',
+    gasPriceAllHint:
+      'Новая цена применяется только к новым заправкам и новым ячейкам ведомости. Старые суммы не пересчитываются.',
     gasPriceAllSave: 'Сохранить всем',
     petrolPricePerLiter: 'Бензин (1 л) цена',
     petrolPriceAllTitle: 'Цена бензина для всех машин',

@@ -147,8 +147,7 @@ class FuelViewModel @Inject constructor(
   fun clearVehiclePhoto() {
     val s = _state.value
     runCatching { s.vehiclePhoto?.delete() }
-    runCatching { s.receiptPhoto?.delete() }
-    _state.value = s.copy(vehiclePhoto = null, receiptPhoto = null, message = null)
+    _state.value = s.copy(vehiclePhoto = null, message = null)
   }
 
   fun clearReceiptPhoto() {
@@ -167,15 +166,6 @@ class FuelViewModel @Inject constructor(
     val amountDigits = s.amount.filter { it.isDigit() }
     if (amountDigits.isEmpty()) {
       _state.value = s.copy(message = context.getString(R.string.msg_enter_amount))
-      return
-    }
-    val unitDigits = s.effectiveUnitPriceDigits()
-    if (unitDigits.isEmpty()) {
-      _state.value = s.copy(message = context.getString(R.string.msg_fuel_unit_price_required))
-      return
-    }
-    if (s.vehiclePhoto == null) {
-      _state.value = s.copy(message = context.getString(R.string.msg_fuel_complete_all))
       return
     }
     viewModelScope.launch {

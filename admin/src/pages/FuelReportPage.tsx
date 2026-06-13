@@ -69,21 +69,16 @@ function formatSum(n: number | null | undefined): string {
   );
 }
 
-function vendorAmountsFromM3(
-  m3ByDay: (number | null)[],
-  gasPricePerM3: number | null,
-): (number | null)[] {
-  return m3ByDay.map((m3) => {
-    if (
-      m3 == null ||
-      gasPricePerM3 == null ||
-      !Number.isFinite(gasPricePerM3) ||
-      gasPricePerM3 <= 0
-    ) {
-      return null;
-    }
-    return Math.round(m3 * gasPricePerM3);
-  });
+function m3ToAmount(m3: number | null, gasPricePerM3: number | null): number | null {
+  if (
+    m3 == null ||
+    gasPricePerM3 == null ||
+    !Number.isFinite(gasPricePerM3) ||
+    gasPricePerM3 <= 0
+  ) {
+    return null;
+  }
+  return Math.round(m3 * gasPricePerM3);
 }
 
 function M3SummaCell({ m3, sum }: { m3: number | null; sum: number | null }) {
@@ -141,6 +136,32 @@ function mergeActualWithDraft(
       return parseDraftM3(draftVendor[dk]);
     }
     return persisted;
+  });
+}
+
+/** Saqlangan summa DB dan; faqat draft katakchada joriy narx bilan ko‘rsatish */
+function mergeVendorAmountWithDraft(
+  vehicleId: string,
+  vendorAmountByDay: (number | null)[],
+  draftVendor: Record<string, string>,
+  gasPricePerM3: number | null,
+): (number | null)[] {
+  return vendorAmountByDay.map((persistedAmt, i) => {
+    const day = i + 1;
+    const dk = `${vehicleId}_${day}`;
+    if (draftVendor[dk] !== undefined) {
+      const m3 = parseDraftM3(draftVendor[dk]);
+      if (
+        m3 == null ||
+        gasPricePerM3 == null ||
+        !Number.isFinite(gasPricePerM3) ||
+        gasPricePerM3 <= 0
+      ) {
+        return null;
+      }
+      return m3ToAmount(m3, gasPricePerM3);
+    }
+    return persistedAmt;
   });
 }
 
@@ -350,8 +371,10 @@ export function FuelReportPage() {
         return {
           ...v,
           actualM3ByDay,
-          vendorAmountByDay: vendorAmountsFromM3(
-            actualM3ByDay,
+          vendorAmountByDay: mergeVendorAmountWithDraft(
+            v.vehicleId,
+            v.vendorAmountByDay,
+            draftVendor,
             v.gasPricePerM3,
           ),
         };
@@ -559,8 +582,10 @@ export function FuelReportPage() {
         systemM3ByDay: v.systemM3ByDay,
         actualM3ByDay,
         systemAmountByDay: v.systemAmountByDay,
-        vendorAmountByDay: vendorAmountsFromM3(
-          actualM3ByDay,
+        vendorAmountByDay: mergeVendorAmountWithDraft(
+          v.vehicleId,
+          v.vendorAmountByDay,
+          draftVendor,
           v.gasPricePerM3,
         ),
       };
@@ -679,8 +704,10 @@ export function FuelReportPage() {
                   v.actualM3ByDay,
                   draftVendor,
                 );
-                const mergedVenAmt = vendorAmountsFromM3(
-                  mergedAct,
+                const mergedVenAmt = mergeVendorAmountWithDraft(
+                  v.vehicleId,
+                  v.vendorAmountByDay,
+                  draftVendor,
                   v.gasPricePerM3,
                 );
                 const totalAct = sumNums(mergedAct);

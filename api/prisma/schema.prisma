@@ -259,6 +259,8 @@ model FuelStationMonthActual {
   month              Int
   day                Int
   actualM3           Decimal          @db.Decimal(14, 4)
+  /// Kiritilgan vaqtdagi gaz narxi bo‘yicha summa (m³ × narx)
+  actualAmount       Decimal?         @db.Decimal(14, 2)
   updatedAt          DateTime         @updatedAt
 
   @@unique([savedFuelStationId, vehicleId, year, month, day])
