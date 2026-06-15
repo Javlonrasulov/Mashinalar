@@ -3,6 +3,10 @@ import { api } from '@/lib/api';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { DateRangeField } from '@/components/DateRangeField';
 import { ExpensesSubNav } from '@/components/ExpensesSubNav';
+import {
+  ExpenseCategoryDashboard,
+  type CategoryStatsPayload,
+} from '@/components/ExpenseCategoryDashboard';
 import { SelectField, type SelectOption } from '@/components/SelectField';
 import { appendSpentRangeParams, type SpentDateRangeYmd } from '@/lib/spentRangeQuery';
 
@@ -58,6 +62,8 @@ export function ExpensesPage() {
   const { t, lang } = useI18n();
   const [rows, setRows] = useState<Row[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [categoryStats, setCategoryStats] = useState<CategoryStatsPayload | null>(null);
+  const [categoryLoading, setCategoryLoading] = useState(false);
   const [filter, setFilter] = useState<string>('');
   const [spentDateRange, setSpentDateRange] = useState<SpentDateRangeYmd | null>(null);
   const [search, setSearch] = useState<string>('');
@@ -80,14 +86,24 @@ export function ExpensesPage() {
     if (filter) p.set('categoryId', filter);
     appendSpentRangeParams(p, spentDateRange);
     const qs = p.toString() ? `?${p.toString()}` : '';
-    const [e, v, c] = await Promise.all([
-      api<Row[]>(`/expenses${qs}`),
-      api<{ id: string; plateNumber: string }[]>('/vehicles'),
-      api<CategoryRow[]>('/expense-categories'),
-    ]);
-    setRows(e);
-    setVehicles(v);
-    setCategories(c);
+    setCategoryLoading(true);
+    try {
+      const [e, v, c, cat] = await Promise.all([
+        api<Row[]>(`/expenses${qs}`),
+        api<{ id: string; plateNumber: string }[]>('/vehicles'),
+        api<CategoryRow[]>('/expense-categories'),
+        api<CategoryStatsPayload>(`/expenses/stats/by-category${qs}`),
+      ]);
+      setRows(e);
+      setVehicles(v);
+      setCategories(c);
+      setCategoryStats(cat);
+    } catch {
+      setRows([]);
+      setCategoryStats(null);
+    } finally {
+      setCategoryLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -217,6 +233,8 @@ export function ExpensesPage() {
           />
         </div>
       </div>
+
+      <ExpenseCategoryDashboard data={categoryStats} loading={categoryLoading} />
 
       <div className="app-card-pad flex flex-wrap items-baseline justify-between gap-3 border border-slate-200/90 bg-slate-50/80 dark:border-slate-700/90 dark:bg-slate-900/50">
         <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{t('expenseListTotal')}</span>

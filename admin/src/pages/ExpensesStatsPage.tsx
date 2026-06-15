@@ -5,6 +5,10 @@ import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { DateRangeField } from '@/components/DateRangeField';
 import { ExpensesSubNav } from '@/components/ExpensesSubNav';
 import { SelectField, type SelectOption } from '@/components/SelectField';
+import {
+  ExpenseCategoryDashboard,
+  type CategoryStatsPayload,
+} from '@/components/ExpenseCategoryDashboard';
 import { appendSpentRangeParams, type SpentDateRangeYmd } from '@/lib/spentRangeQuery';
 
 function intlLocaleFor(lang: Lang): string {
@@ -78,6 +82,8 @@ export function ExpensesStatsPage() {
   const { t, lang } = useI18n();
   const [vehicleStats, setVehicleStats] = useState<VehicleExpenseStat[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [categoryStats, setCategoryStats] = useState<CategoryStatsPayload | null>(null);
+  const [categoryLoading, setCategoryLoading] = useState(false);
   const [filter, setFilter] = useState<string>('');
   const [spentDateRange, setSpentDateRange] = useState<SpentDateRangeYmd | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -89,12 +95,22 @@ export function ExpensesStatsPage() {
     if (filter) p.set('categoryId', filter);
     appendSpentRangeParams(p, spentDateRange);
     const qs = p.toString() ? `?${p.toString()}` : '';
-    const [s, c] = await Promise.all([
-      api<VehicleExpenseStat[]>(`/expenses/stats/by-vehicle${qs}`),
-      api<CategoryRow[]>('/expense-categories'),
-    ]);
-    setVehicleStats(s);
-    setCategories(c);
+    setCategoryLoading(true);
+    try {
+      const [s, c, cat] = await Promise.all([
+        api<VehicleExpenseStat[]>(`/expenses/stats/by-vehicle${qs}`),
+        api<CategoryRow[]>('/expense-categories'),
+        api<CategoryStatsPayload>(`/expenses/stats/by-category${qs}`),
+      ]);
+      setVehicleStats(s);
+      setCategories(c);
+      setCategoryStats(cat);
+    } catch {
+      setVehicleStats([]);
+      setCategoryStats(null);
+    } finally {
+      setCategoryLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -161,6 +177,8 @@ export function ExpensesStatsPage() {
           <DateRangeField id="expenses-stats-date-range" value={spentDateRange} onChange={setSpentDateRange} />
         </div>
       </div>
+
+      <ExpenseCategoryDashboard data={categoryStats} loading={categoryLoading} />
 
       <div className="app-card-pad space-y-3">
         <div>

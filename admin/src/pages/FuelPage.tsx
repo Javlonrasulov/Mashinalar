@@ -337,8 +337,30 @@ export function FuelPage() {
     });
   }, [rows, search, stationByKey]);
 
+  function parsePositivePrice(raw: string | null | undefined): number {
+    if (!raw?.trim()) return NaN;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : NaN;
+  }
+
   function isPetrolRow(row: Row): boolean {
-    return (row.fuelKind ?? 'GAS').toUpperCase() === 'PETROL';
+    if ((row.fuelKind ?? 'GAS').toUpperCase() === 'PETROL') return true;
+
+    const unit = parsePositivePrice(row.unitPrice);
+    if (!Number.isFinite(unit)) return false;
+
+    const gas =
+      parsePositivePrice(row.vehicle.gasPricePerM3) || parsePositivePrice(globalGasPrice);
+    const petrol =
+      parsePositivePrice(row.vehicle.petrolPricePerLiter) ||
+      parsePositivePrice(globalPetrolPrice);
+
+    const distGas = Number.isFinite(gas) ? Math.abs(unit - gas) : Infinity;
+    const distPetrol = Number.isFinite(petrol) ? Math.abs(unit - petrol) : Infinity;
+
+    if (distPetrol === Infinity) return false;
+    if (distGas === Infinity) return true;
+    return distPetrol < distGas;
   }
 
   function fuelKindLabel(row: Row): string {
@@ -409,16 +431,16 @@ export function FuelPage() {
     return resolveStationPaletteIndex(lbl, stationPaletteLookup);
   }
 
-  function rawVolumeForExport(row: Row): string {
+  function volumeNumeric(row: Row): number | null {
     if (row.volume != null && row.volume !== '') {
       const v = Number(row.volume);
-      if (Number.isFinite(v) && v > 0) return String(v);
+      if (Number.isFinite(v) && v > 0) return v;
     }
     const a = Number(String(row.amount).replace(/[^\d.]/g, ''));
     const p = row.unitPrice ? Number(row.unitPrice) : NaN;
-    if (!Number.isFinite(a) || !Number.isFinite(p) || p <= 0) return '';
+    if (!Number.isFinite(a) || !Number.isFinite(p) || p <= 0) return null;
     const v = a / p;
-    return Number.isFinite(v) && v > 0 ? String(v) : '';
+    return Number.isFinite(v) && v > 0 ? v : null;
   }
 
   async function handleExportExcel() {
@@ -447,7 +469,7 @@ export function FuelPage() {
       amount: r.amount,
       fuelKind: fuelKindLabel(r),
       unitPrice: r.unitPrice?.trim() ?? '',
-      volume: rawVolumeForExport(r),
+      volume: formatReportVolume(r),
       createdAt: formatDateTimeNoSeconds(r.createdAt),
       station: stationLabelForRow(r),
       stationPaletteIndex: stationPaletteIndexForRow(r),
@@ -496,17 +518,8 @@ export function FuelPage() {
   }, [exportMeta, lang, t]);
 
   function formatReportVolume(row: Row): string {
-    if (row.volume != null && row.volume !== '') {
-      const v = Number(row.volume);
-      if (Number.isFinite(v) && v > 0) {
-        return isPetrolRow(row) ? `${literFmt.format(v)} L` : `${m3Fmt.format(v)} m³`;
-      }
-    }
-    const a = Number(String(row.amount).replace(/[^\d.]/g, ''));
-    const p = row.unitPrice ? Number(row.unitPrice) : NaN;
-    if (!Number.isFinite(a) || !Number.isFinite(p) || p <= 0) return '—';
-    const v = a / p;
-    if (!Number.isFinite(v) || v <= 0) return '—';
+    const v = volumeNumeric(row);
+    if (v == null) return '—';
     return isPetrolRow(row) ? `${literFmt.format(v)} L` : `${m3Fmt.format(v)} m³`;
   }
 

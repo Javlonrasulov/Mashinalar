@@ -76,6 +76,94 @@ export class ExpensesService {
   }
 
   /**
+   * Category totals, share %, and daily series for wave charts (respects date/category filters).
+   */
+  async statsByCategory(filters?: {
+    categoryId?: string;
+    spentFrom?: Date;
+    spentTo?: Date;
+  }) {
+    const spentAt =
+      filters?.spentFrom || filters?.spentTo
+        ? {
+            ...(filters.spentFrom ? { gte: filters.spentFrom } : {}),
+            ...(filters.spentTo ? { lte: filters.spentTo } : {}),
+          }
+        : undefined;
+
+    const rows = await this.prisma.expense.findMany({
+      where: {
+        ...(filters?.categoryId ? { categoryId: filters.categoryId } : {}),
+        ...(spentAt ? { spentAt } : {}),
+      },
+      select: { categoryId: true, amount: true, spentAt: true },
+      orderBy: { spentAt: 'asc' },
+    });
+
+    if (rows.length === 0) {
+      return { grandTotal: '0', categories: [] as const };
+    }
+
+    const catIds = [...new Set(rows.map((r) => r.categoryId))];
+    const cats = await this.prisma.expenseCategory.findMany({
+      where: { id: { in: catIds } },
+      select: { id: true, slug: true, name: true },
+    });
+    const byId = new Map(cats.map((c) => [c.id, c]));
+
+    const totals = new Map<string, { sum: Prisma.Decimal; count: number }>();
+    const daily = new Map<string, Map<string, Prisma.Decimal>>();
+    const allDates = new Set<string>();
+    let grand = new Prisma.Decimal(0);
+
+    for (const r of rows) {
+      grand = grand.add(r.amount);
+      const bucket = totals.get(r.categoryId) ?? {
+        sum: new Prisma.Decimal(0),
+        count: 0,
+      };
+      bucket.sum = bucket.sum.add(r.amount);
+      bucket.count += 1;
+      totals.set(r.categoryId, bucket);
+
+      const ymd = r.spentAt.toISOString().slice(0, 10);
+      allDates.add(ymd);
+      if (!daily.has(ymd)) daily.set(ymd, new Map());
+      const dayMap = daily.get(ymd)!;
+      dayMap.set(
+        r.categoryId,
+        (dayMap.get(r.categoryId) ?? new Prisma.Decimal(0)).add(r.amount),
+      );
+    }
+
+    const sortedDates = [...allDates].sort();
+    const grandNum = Number(grand.toString());
+
+    const categories = [...totals.entries()]
+      .map(([categoryId, { sum, count }]) => {
+        const meta = byId.get(categoryId);
+        const totalAmount = sum.toString();
+        return {
+          categoryId,
+          slug: meta?.slug ?? '',
+          name: meta?.name ?? categoryId,
+          totalAmount,
+          expenseCount: count,
+          percent: grandNum > 0 ? (Number(totalAmount) / grandNum) * 100 : 0,
+          daily: sortedDates.map((date) => ({
+            date,
+            value: Number(
+              (daily.get(date)?.get(categoryId) ?? new Prisma.Decimal(0)).toString(),
+            ),
+          })),
+        };
+      })
+      .sort((a, b) => Number(b.totalAmount) - Number(a.totalAmount));
+
+    return { grandTotal: grand.toString(), categories };
+  }
+
+  /**
    * Total expense amount per vehicle (admin “who spends most” = which plate / car).
    */
   async totalsByVehicle(filters?: {

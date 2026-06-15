@@ -45,6 +45,20 @@ export class ExpensesController {
     return this.expenses.totalsByCategory();
   }
 
+  @Get('stats/by-category')
+  @AdminRoutePage('EXPENSES_STATS')
+  statsByCategory(
+    @Query('categoryId') categoryId?: string,
+    @Query('spentFrom') spentFrom?: string,
+    @Query('spentTo') spentTo?: string,
+  ) {
+    return this.expenses.statsByCategory({
+      categoryId: categoryId || undefined,
+      spentFrom: parseOptionalIsoDate(spentFrom),
+      spentTo: parseOptionalIsoDate(spentTo),
+    });
+  }
+
   @Get('stats/by-vehicle')
   @AdminRoutePage('EXPENSES_STATS')
   statsByVehicle(
