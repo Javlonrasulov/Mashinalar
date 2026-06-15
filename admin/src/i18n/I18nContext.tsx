@@ -235,6 +235,9 @@ const DICTS: Record<Lang, Dict> = {
     deleteVehicleTitle: 'Машинани ўчириш',
     deleteVehicleBody:
       'Бу амал қайтариб бўлмайди. Машина билан боғлиқ ёзувлар (ҳайдовчи боғланиши, вазифалар, харажатлар ва бошқалар) учун нотўғри ёки йўқолган маълумотлар юзага келиши мумкин.',
+    deleteDriverTitle: 'Ҳайдовchini ўчириш',
+    deleteDriverBody:
+      'Бу амал қайтариб бўлмайди. Ҳайдовчи тизимдан ўчирилади, лекин машина тарихи (боғланиш, заправка, кунлик км ва бошқалар) сақланади.',
     refresh: 'Янгилаш',
     todayKm: 'Бугунги км',
     activeVehicles: 'Фаол машиналар',
@@ -740,6 +743,9 @@ const DICTS: Record<Lang, Dict> = {
     deleteVehicleTitle: "Mashinani o'chirish",
     deleteVehicleBody:
       "Bu amalni qaytarib bo'lmaydi. Mashina bilan bog'liq yozuvlar (haydovchi bog'lanishi, vazifalar, xarajatlar va boshqalar) uchun noto'g'ri yoki yo'qolgan ma'lumotlar yuzaga kelishi mumkin.",
+    deleteDriverTitle: "Haydovchini o'chirish",
+    deleteDriverBody:
+      "Bu amalni qaytarib bo'lmaydi. Haydovchi tizimdan o'chiriladi, lekin mashina tarixi (bog'lanish, zapravka, kunlik km va boshqalar) saqlanadi.",
     refresh: 'Yangilash',
     todayKm: 'Bugungi km',
     activeVehicles: 'Faol mashinalar',
@@ -1246,6 +1252,9 @@ const DICTS: Record<Lang, Dict> = {
     deleteVehicleTitle: 'Удалить машину',
     deleteVehicleBody:
       'Это действие нельзя отменить. Для связанных записей (привязка водителя, задачи, расходы и т.д.) возможны некорректные данные или их потеря.',
+    deleteDriverTitle: 'Удалить водителя',
+    deleteDriverBody:
+      'Это действие нельзя отменить. Водитель будет удалён из системы, но история машины (привязки, заправки, суточный пробег и т.д.) сохранится.',
     refresh: 'Обновить',
     todayKm: 'Км сегодня',
     activeVehicles: 'Активные авто',

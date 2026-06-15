@@ -51,11 +51,18 @@ export class ExpensesController {
     @Query('categoryId') categoryId?: string,
     @Query('spentFrom') spentFrom?: string,
     @Query('spentTo') spentTo?: string,
+    @Query('rangeFrom') rangeFrom?: string,
+    @Query('rangeTo') rangeTo?: string,
+    @Query('tzOffset') tzOffset?: string,
   ) {
+    const tz = tzOffset != null ? Number(tzOffset) : 0;
     return this.expenses.statsByCategory({
       categoryId: categoryId || undefined,
       spentFrom: parseOptionalIsoDate(spentFrom),
       spentTo: parseOptionalIsoDate(spentTo),
+      rangeFrom: rangeFrom || undefined,
+      rangeTo: rangeTo || undefined,
+      tzOffsetMin: Number.isFinite(tz) ? tz : 0,
     });
   }
 

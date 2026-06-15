@@ -4,6 +4,42 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 
+function parseYmdParts(ymd: string): { y: number; m: number; d: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  if (!m) return null;
+  return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+}
+
+function formatYmdParts(y: number, m: number, d: number): string {
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function enumerateYmdRange(from: string, to: string): string[] {
+  const a = parseYmdParts(from);
+  const b = parseYmdParts(to);
+  if (!a || !b) return [];
+  const start = new Date(a.y, a.m - 1, a.d);
+  const end = new Date(b.y, b.m - 1, b.d);
+  if (end.getTime() < start.getTime()) return [];
+  const out: string[] = [];
+  const cur = new Date(start);
+  while (cur.getTime() <= end.getTime()) {
+    out.push(formatYmdParts(cur.getFullYear(), cur.getMonth() + 1, cur.getDate()));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+/** `tzOffsetMin` = browser `Date.getTimezoneOffset()` (UTC − local, in minutes). */
+function ymdInClientTz(d: Date, tzOffsetMin: number): string {
+  const local = new Date(d.getTime() - tzOffsetMin * 60_000);
+  return formatYmdParts(
+    local.getUTCFullYear(),
+    local.getUTCMonth() + 1,
+    local.getUTCDate(),
+  );
+}
+
 @Injectable()
 export class ExpensesService {
   constructor(
@@ -82,6 +118,9 @@ export class ExpensesService {
     categoryId?: string;
     spentFrom?: Date;
     spentTo?: Date;
+    rangeFrom?: string;
+    rangeTo?: string;
+    tzOffsetMin?: number;
   }) {
     const spentAt =
       filters?.spentFrom || filters?.spentTo
@@ -90,6 +129,8 @@ export class ExpensesService {
             ...(filters.spentTo ? { lte: filters.spentTo } : {}),
           }
         : undefined;
+
+    const tzOffsetMin = filters?.tzOffsetMin ?? 0;
 
     const rows = await this.prisma.expense.findMany({
       where: {
@@ -100,8 +141,16 @@ export class ExpensesService {
       orderBy: { spentAt: 'asc' },
     });
 
+    const rangeFrom = filters?.rangeFrom?.trim() || null;
+    const rangeTo = filters?.rangeTo?.trim() || null;
+
     if (rows.length === 0) {
-      return { grandTotal: '0', categories: [] as const };
+      return {
+        grandTotal: '0',
+        rangeFrom,
+        rangeTo,
+        categories: [] as const,
+      };
     }
 
     const catIds = [...new Set(rows.map((r) => r.categoryId))];
@@ -126,7 +175,7 @@ export class ExpensesService {
       bucket.count += 1;
       totals.set(r.categoryId, bucket);
 
-      const ymd = r.spentAt.toISOString().slice(0, 10);
+      const ymd = ymdInClientTz(r.spentAt, tzOffsetMin);
       allDates.add(ymd);
       if (!daily.has(ymd)) daily.set(ymd, new Map());
       const dayMap = daily.get(ymd)!;
@@ -137,6 +186,8 @@ export class ExpensesService {
     }
 
     const sortedDates = [...allDates].sort();
+    const dateSeries =
+      rangeFrom && rangeTo ? enumerateYmdRange(rangeFrom, rangeTo) : sortedDates;
     const grandNum = Number(grand.toString());
 
     const categories = [...totals.entries()]
@@ -150,7 +201,7 @@ export class ExpensesService {
           totalAmount,
           expenseCount: count,
           percent: grandNum > 0 ? (Number(totalAmount) / grandNum) * 100 : 0,
-          daily: sortedDates.map((date) => ({
+          daily: dateSeries.map((date) => ({
             date,
             value: Number(
               (daily.get(date)?.get(categoryId) ?? new Prisma.Decimal(0)).toString(),
@@ -160,7 +211,7 @@ export class ExpensesService {
       })
       .sort((a, b) => Number(b.totalAmount) - Number(a.totalAmount));
 
-    return { grandTotal: grand.toString(), categories };
+    return { grandTotal: grand.toString(), rangeFrom, rangeTo, categories };
   }
 
   /**

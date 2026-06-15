@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
+import { resolveDriverSnapshot } from '../../common/driver-snapshot';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
@@ -49,12 +50,18 @@ export class DailyKmService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Haydovchi o‘zining so‘nggi kunlik KM yozuvlari */
+  /** Haydovchi joriy mashinasi bo‘yicha so‘nggi kunlik KM yozuvlari */
   async findMine(driverId: string, limitRaw?: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+      select: { vehicleId: true },
+    });
+    if (!driver?.vehicleId) return [];
+
     const n = limitRaw != null && limitRaw !== '' ? Number(limitRaw) : 31;
     const take = Number.isFinite(n) && n > 0 && n <= 90 ? Math.floor(n) : 31;
     const rows = await this.prisma.dailyKmReport.findMany({
-      where: { driverId },
+      where: { vehicleId: driver.vehicleId },
       orderBy: { reportDate: 'desc' },
       take,
       select: {
@@ -129,6 +136,7 @@ export class DailyKmService {
       endLatitude: true,
       endLongitude: true,
       vehicleId: true,
+      driverFullName: true,
       vehicle: { select: { plateNumber: true } },
       driver: { select: { fullName: true, phone: true } },
     } as const;
@@ -154,7 +162,7 @@ export class DailyKmService {
         endLatitude: r.endLatitude == null ? null : String(r.endLatitude),
         endLongitude: r.endLongitude == null ? null : String(r.endLongitude),
         vehicle: r.vehicle,
-        driver: r.driver,
+        driver: resolveDriverSnapshot(r.driver, r.driverFullName),
         gapKm: null as string | null,
         gapFromReportDate: null as string | null,
         gapFromEndKm: null as string | null,
@@ -274,7 +282,7 @@ export class DailyKmService {
         endLatitude: r.endLatitude == null ? null : String(r.endLatitude),
         endLongitude: r.endLongitude == null ? null : String(r.endLongitude),
         vehicle: r.vehicle,
-        driver: r.driver,
+        driver: resolveDriverSnapshot(r.driver, r.driverFullName),
         gapKm: g?.gapKm ?? null,
         gapFromReportDate: g?.gapFromReportDate ?? null,
         gapFromEndKm: g?.gapFromEndKm ?? null,
@@ -344,6 +352,7 @@ export class DailyKmService {
         vehicleId: true,
         reportDate: true,
         endKm: true,
+        driverFullName: true,
         driver: { select: { fullName: true, phone: true } },
       },
     });
@@ -356,10 +365,11 @@ export class DailyKmService {
     const reportByVehicleDay = new Map<string, RepInfo>();
     for (const r of reports) {
       const ymd = r.reportDate.toISOString().slice(0, 10);
+      const driver = resolveDriverSnapshot(r.driver, r.driverFullName);
       reportByVehicleDay.set(`${r.vehicleId}:${ymd}`, {
         endKm: r.endKm,
-        driverName: r.driver.fullName,
-        driverPhone: r.driver.phone ?? '',
+        driverName: driver.fullName,
+        driverPhone: driver.phone,
       });
     }
 
@@ -528,12 +538,13 @@ export class DailyKmService {
           gapNum = Math.max(0, startNum - prevClosedEnd);
         }
         if (inWindow) {
+          const driver = resolveDriverSnapshot(r.driver, r.driverFullName);
           out.push({
             reportId: r.id,
             reportDate: r.reportDate.toISOString(),
             vehicleId: r.vehicleId,
             plateNumber: r.vehicle.plateNumber,
-            driverName: r.driver.fullName,
+            driverName: driver.fullName,
             startKm: String(r.startKm),
             endKm: r.endKm == null ? null : String(r.endKm),
             prevReportId,
@@ -652,6 +663,7 @@ export class DailyKmService {
         data: {
           vehicleId: driver.vehicleId,
           driverId: params.driverId,
+          driverFullName: driver.fullName,
           reportDate,
           startKm: params.startKm,
           endKm: null,

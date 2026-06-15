@@ -163,14 +163,17 @@ model VehicleCategory {
 }
 
 model DriverVehicleAssignment {
-  id        String   @id @default(cuid())
-  driverId  String
-  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  vehicleId String
-  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  startAt   DateTime @default(now())
-  endAt     DateTime?
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  driverId       String?
+  driver         Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  /// Haydovchi o‘chirilganda tarix uchun saqlanadi.
+  driverFullName String?
+  driverPhone    String?
+  vehicleId      String
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  startAt        DateTime @default(now())
+  endAt          DateTime?
+  createdAt      DateTime @default(now())
 
   @@index([driverId, startAt])
   @@index([vehicleId, startAt])
@@ -225,8 +228,10 @@ model FuelReport {
   id          String   @id @default(cuid())
   vehicleId   String
   vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  driverId    String
-  driver      Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId    String?
+  driver      Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  /// Haydovchi o‘chirilganda tarix uchun saqlanadi.
+  driverFullName String?
   fuelKind    FuelKind @default(GAS)
   /// Haydovchi kiritgan 1 m³ yoki 1 L narxi (admin defaultdan farq qilishi mumkin)
   unitPrice   Decimal? @db.Decimal(14, 4)
@@ -284,8 +289,10 @@ model OilChangeReport {
   id         String   @id @default(cuid())
   vehicleId  String
   vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  driverId   String
-  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId   String?
+  driver     Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  /// Haydovchi o‘chirilganda tarix uchun saqlanadi.
+  driverFullName String?
   kmAtChange Decimal  @db.Decimal(12, 2)
   photoUrl   String?
   createdAt  DateTime @default(now())
@@ -298,8 +305,10 @@ model DailyKmReport {
   id              String   @id @default(cuid())
   vehicleId       String
   vehicle         Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  driverId        String
-  driver          Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId        String?
+  driver          Driver?  @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  /// Haydovchi o‘chirilganda tarix uchun saqlanadi.
+  driverFullName  String?
   reportDate      DateTime @db.Date
   startKm         Decimal  @db.Decimal(12, 2)
   endKm           Decimal? @db.Decimal(12, 2)

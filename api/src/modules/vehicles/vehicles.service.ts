@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
+import { resolveDriverSnapshot } from '../../common/driver-snapshot';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { OilChangeService } from '../oil-change/oil-change.service';
@@ -305,7 +306,7 @@ export class VehiclesService {
 
   async driverHistory(vehicleId: string) {
     await this.findOne(vehicleId, { allowDeleted: true });
-    return this.prisma.driverVehicleAssignment.findMany({
+    const rows = await this.prisma.driverVehicleAssignment.findMany({
       where: { vehicleId },
       orderBy: { startAt: 'desc' },
       include: {
@@ -319,11 +320,15 @@ export class VehiclesService {
         },
       },
     });
+    return rows.map((r) => ({
+      ...r,
+      driver: resolveDriverSnapshot(r.driver, r.driverFullName, r.driverPhone),
+    }));
   }
 
   /** All driver↔vehicle assignment rows (admin monitoring). */
-  allDriverAssignments() {
-    return this.prisma.driverVehicleAssignment.findMany({
+  async allDriverAssignments() {
+    const rows = await this.prisma.driverVehicleAssignment.findMany({
       orderBy: { startAt: 'desc' },
       take: 3000,
       include: {
@@ -340,6 +345,10 @@ export class VehiclesService {
         },
       },
     });
+    return rows.map((r) => ({
+      ...r,
+      driver: resolveDriverSnapshot(r.driver, r.driverFullName, r.driverPhone),
+    }));
   }
 
   /**
@@ -397,7 +406,13 @@ export class VehiclesService {
       });
 
       const row = await tx.driverVehicleAssignment.create({
-        data: { driverId: dto.driverId, vehicleId, startAt },
+        data: {
+          driverId: dto.driverId,
+          vehicleId,
+          startAt,
+          driverFullName: driver.fullName,
+          driverPhone: driver.phone,
+        },
       });
 
       await this.audit.log({

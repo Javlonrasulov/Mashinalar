@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { FuelKind, Prisma } from '@prisma/client';
+import { resolveDriverSnapshot } from '../../common/driver-snapshot';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { OsmFuelService } from '../osm-fuel/osm-fuel.service';
@@ -313,9 +314,7 @@ export class FuelService {
               ? null
               : String(r.vehicle.petrolPricePerLiter),
         },
-        driver: {
-          fullName: r.driver.fullName,
-        },
+        driver: resolveDriverSnapshot(r.driver, r.driverFullName),
       };
     }),
     );
@@ -404,6 +403,7 @@ export class FuelService {
       data: {
         vehicleId: driver.vehicleId,
         driverId: params.driverId,
+        driverFullName: driver.fullName,
         fuelKind: params.fuelKind,
         unitPrice,
         volume,

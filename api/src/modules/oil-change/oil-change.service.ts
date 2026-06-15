@@ -71,6 +71,7 @@ export class OilChangeService {
       data: {
         vehicleId: vehicle.id,
         driverId,
+        driverFullName: driver.fullName,
         kmAtChange,
         photoUrl: photoUrl ?? null,
       },
@@ -125,7 +126,7 @@ export class OilChangeService {
       kmAtChange: String(r.kmAtChange),
       photoUrl: r.photoUrl,
       createdAt: r.createdAt.toISOString(),
-      driverLogin: r.driver.user.login,
+      driverLogin: r.driver?.user?.login ?? '—',
     }));
   }
 
@@ -188,7 +189,7 @@ export class OilChangeService {
       createdAt: r.createdAt.toISOString(),
       plateNumber: r.vehicle.plateNumber,
       vehicleName: r.vehicle.name,
-      driverLogin: r.driver.user.login,
+      driverLogin: r.driver?.user?.login ?? '—',
     }));
   }
 

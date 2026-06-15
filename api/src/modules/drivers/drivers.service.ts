@@ -201,12 +201,45 @@ export class DriversService {
 
   async remove(id: string, actorUserId: string) {
     const d = await this.findOne(id);
-    await this.prisma.user.delete({ where: { id: d.userId } });
+    const now = new Date();
+    const snapshot = { driverFullName: d.fullName, driverPhone: d.phone };
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.driverVehicleAssignment.updateMany({
+        where: { driverId: id, endAt: null },
+        data: { endAt: now, ...snapshot },
+      });
+      await tx.driverVehicleAssignment.updateMany({
+        where: { driverId: id },
+        data: snapshot,
+      });
+      await tx.fuelReport.updateMany({
+        where: { driverId: id },
+        data: { driverFullName: d.fullName },
+      });
+      await tx.dailyKmReport.updateMany({
+        where: { driverId: id },
+        data: { driverFullName: d.fullName },
+      });
+      await tx.oilChangeReport.updateMany({
+        where: { driverId: id },
+        data: { driverFullName: d.fullName },
+      });
+      if (d.vehicleId) {
+        await tx.driver.update({
+          where: { id },
+          data: { vehicleId: null },
+        });
+      }
+      await tx.user.delete({ where: { id: d.userId } });
+    });
+
     await this.audit.log({
       actorUserId,
       action: 'driver.delete',
       entity: 'Driver',
       entityId: id,
+      meta: { fullName: d.fullName },
     });
     return { ok: true };
   }

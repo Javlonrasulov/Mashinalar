@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { colorForCategory } from '@/lib/expenseCategoryColors';
+import { enumerateYmdRange, type SpentDateRangeYmd } from '@/lib/spentRangeQuery';
 
 export type CategoryStatDaily = { date: string; value: number };
 
@@ -27,6 +28,8 @@ export type CategoryStatRow = {
 
 export type CategoryStatsPayload = {
   grandTotal: string;
+  rangeFrom?: string | null;
+  rangeTo?: string | null;
   categories: CategoryStatRow[];
 };
 
@@ -70,22 +73,58 @@ function categoryIcon(slug: string) {
 type Props = {
   data: CategoryStatsPayload | null;
   loading?: boolean;
+  /** Selected calendar range — used to align trend x-axis when API is stale. */
+  spentDateRange?: SpentDateRangeYmd | null;
 };
 
-export function ExpenseCategoryDashboard({ data, loading }: Props) {
+function fillDailyForRange(
+  daily: CategoryStatDaily[],
+  range: SpentDateRangeYmd | null | undefined,
+): CategoryStatDaily[] {
+  if (!range?.from || !range?.to) return daily;
+  const days = enumerateYmdRange(range.from, range.to);
+  if (days.length === 0) return daily;
+  const byDate = new Map(daily.map((d) => [d.date, d.value]));
+  return days.map((date) => ({ date, value: byDate.get(date) ?? 0 }));
+}
+
+function formatRangeLabel(range: SpentDateRangeYmd, lang: Lang): string {
+  const fmt = (ymd: string) => formatShortDate(ymd, lang);
+  if (range.from === range.to) return fmt(range.from);
+  return `${fmt(range.from)} — ${fmt(range.to)}`;
+}
+
+export function ExpenseCategoryDashboard({ data, loading, spentDateRange }: Props) {
   const { t, lang } = useI18n();
 
   const categories = data?.categories ?? [];
   const grandTotal = data?.grandTotal ?? '0';
 
-  const colored = useMemo(
-    () =>
-      categories.map((c, i) => ({
-        ...c,
-        color: colorForCategory(c.slug, i),
-      })),
-    [categories],
-  );
+  const colored = useMemo(() => {
+    const range: SpentDateRangeYmd | null =
+      spentDateRange?.from && spentDateRange?.to
+        ? spentDateRange
+        : data?.rangeFrom && data?.rangeTo
+          ? { from: data.rangeFrom, to: data.rangeTo }
+          : null;
+
+    return categories.map((c, i) => ({
+      ...c,
+      color: colorForCategory(c.slug, i),
+      daily: fillDailyForRange(c.daily, range),
+    }));
+  }, [categories, spentDateRange, data?.rangeFrom, data?.rangeTo]);
+
+  const activeRange: SpentDateRangeYmd | null =
+    spentDateRange?.from && spentDateRange?.to
+      ? spentDateRange
+      : data?.rangeFrom && data?.rangeTo
+        ? { from: data.rangeFrom, to: data.rangeTo }
+        : null;
+
+  const showTrend =
+    colored.length > 0 &&
+    (activeRange != null || colored.some((c) => c.daily.length > 1));
 
   const pieData = useMemo(
     () =>
@@ -293,10 +332,14 @@ export function ExpenseCategoryDashboard({ data, loading }: Props) {
         </div>
       </div>
 
-      {colored.some((c) => c.daily.length > 1) && (
+      {showTrend && (
         <div className="app-card min-w-0 overflow-hidden border border-slate-200/90 bg-white p-4 dark:border-slate-700/90 dark:bg-slate-900/40 sm:p-5">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{t('expenseCategoryTrendTitle')}</h3>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('expenseCategoryTrendHint')}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {activeRange
+              ? `${t('expenseCategoryTrendHint')} · ${formatRangeLabel(activeRange, lang)}`
+              : t('expenseCategoryTrendHint')}
+          </p>
           <div className="mt-4 h-56 w-full min-w-0 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart

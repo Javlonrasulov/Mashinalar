@@ -9,7 +9,7 @@ import {
   ExpenseCategoryDashboard,
   type CategoryStatsPayload,
 } from '@/components/ExpenseCategoryDashboard';
-import { appendSpentRangeParams, type SpentDateRangeYmd } from '@/lib/spentRangeQuery';
+import { appendSpentRangeParams, defaultExpenseDateRange, type SpentDateRangeYmd } from '@/lib/spentRangeQuery';
 
 function intlLocaleFor(lang: Lang): string {
   if (lang === 'ru') return 'ru-RU';
@@ -85,7 +85,7 @@ export function ExpensesStatsPage() {
   const [categoryStats, setCategoryStats] = useState<CategoryStatsPayload | null>(null);
   const [categoryLoading, setCategoryLoading] = useState(false);
   const [filter, setFilter] = useState<string>('');
-  const [spentDateRange, setSpentDateRange] = useState<SpentDateRangeYmd | null>(null);
+  const [spentDateRange, setSpentDateRange] = useState<SpentDateRangeYmd | null>(defaultExpenseDateRange);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [detailRows, setDetailRows] = useState<ExpenseRow[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -178,7 +178,11 @@ export function ExpensesStatsPage() {
         </div>
       </div>
 
-      <ExpenseCategoryDashboard data={categoryStats} loading={categoryLoading} />
+      <ExpenseCategoryDashboard
+        data={categoryStats}
+        loading={categoryLoading}
+        spentDateRange={spentDateRange}
+      />
 
       <div className="app-card-pad space-y-3">
         <div>

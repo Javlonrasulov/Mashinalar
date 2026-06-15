@@ -8,7 +8,7 @@ import {
   type CategoryStatsPayload,
 } from '@/components/ExpenseCategoryDashboard';
 import { SelectField, type SelectOption } from '@/components/SelectField';
-import { appendSpentRangeParams, type SpentDateRangeYmd } from '@/lib/spentRangeQuery';
+import { appendSpentRangeParams, defaultExpenseDateRange, type SpentDateRangeYmd } from '@/lib/spentRangeQuery';
 
 function intlLocaleFor(lang: Lang): string {
   if (lang === 'ru') return 'ru-RU';
@@ -65,7 +65,7 @@ export function ExpensesPage() {
   const [categoryStats, setCategoryStats] = useState<CategoryStatsPayload | null>(null);
   const [categoryLoading, setCategoryLoading] = useState(false);
   const [filter, setFilter] = useState<string>('');
-  const [spentDateRange, setSpentDateRange] = useState<SpentDateRangeYmd | null>(null);
+  const [spentDateRange, setSpentDateRange] = useState<SpentDateRangeYmd | null>(defaultExpenseDateRange);
   const [search, setSearch] = useState<string>('');
   const [vehicles, setVehicles] = useState<{ id: string; plateNumber: string }[]>([]);
   const [addCatOpen, setAddCatOpen] = useState(false);
@@ -234,7 +234,11 @@ export function ExpensesPage() {
         </div>
       </div>
 
-      <ExpenseCategoryDashboard data={categoryStats} loading={categoryLoading} />
+      <ExpenseCategoryDashboard
+        data={categoryStats}
+        loading={categoryLoading}
+        spentDateRange={spentDateRange}
+      />
 
       <div className="app-card-pad flex flex-wrap items-baseline justify-between gap-3 border border-slate-200/90 bg-slate-50/80 dark:border-slate-700/90 dark:bg-slate-900/50">
         <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{t('expenseListTotal')}</span>

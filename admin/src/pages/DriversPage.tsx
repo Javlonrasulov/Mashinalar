@@ -80,6 +80,8 @@ export function DriversPage() {
   const [activityRange, setActivityRange] = useState<SpentDateRangeYmd | null>(null);
   const [activity, setActivity] = useState<ActivityReport | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Driver | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [activityErr, setActivityErr] = useState<string | null>(null);
   const [form, setForm] = useState({
     login: '',
@@ -101,6 +103,15 @@ export function DriversPage() {
   useEffect(() => {
     load().catch((e: Error) => setErr(e.message));
   }, []);
+
+  useEffect(() => {
+    if (!pendingDelete) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !deleting) setPendingDelete(null);
+    }
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [pendingDelete, deleting]);
 
   function startEdit(d: Driver) {
     setEditingId(d.id);
@@ -173,14 +184,20 @@ export function DriversPage() {
     });
   }, [rows, searchQuery]);
 
-  async function onDelete(id: string) {
-    if (!confirm('Delete?')) return;
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setErr(null);
+    setDeleting(true);
     try {
-      await api(`/drivers/${id}`, { method: 'DELETE' });
-      if (editingId === id) cancelEdit();
+      await api(`/drivers/${pendingDelete.id}`, { method: 'DELETE' });
+      if (editingId === pendingDelete.id) cancelEdit();
+      if (sessionsFor?.id === pendingDelete.id) closeSessions();
+      setPendingDelete(null);
       await load();
     } catch (e) {
       setErr(translateApiError(t, e));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -373,6 +390,7 @@ export function DriversPage() {
           <table className="app-table-inner text-sm">
           <thead className="app-table-head">
             <tr>
+              <th className="w-12 p-3">{t('dailyKmColNo')}</th>
               <th className="p-3">{t('fullName')}</th>
               <th className="p-3">{t('loginLabel')}</th>
               <th className="p-3">{t('phone')}</th>
@@ -384,12 +402,12 @@ export function DriversPage() {
           <tbody>
             {filteredRows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                <td colSpan={7} className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                   {t('oilSearchNoResults')}
                 </td>
               </tr>
             ) : (
-              filteredRows.map((d) => {
+              filteredRows.map((d, index) => {
                 const count = d.deviceCount ?? 0;
                 const multi = count > 1;
                 const badgeClass = multi
@@ -399,6 +417,7 @@ export function DriversPage() {
                     : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400';
                 return (
                   <tr key={d.id} className="app-table-row">
+                    <td className="p-3 text-slate-500 dark:text-slate-400">{index + 1}</td>
                     <td className="p-3">{d.fullName}</td>
                     <td className="p-3 font-mono">{d.user.login}</td>
                     <td className="p-3">{d.phone}</td>
@@ -425,7 +444,7 @@ export function DriversPage() {
                         >
                           <Pencil size={16} aria-hidden />
                         </button>
-                        <button type="button" className="app-link-danger" onClick={() => void onDelete(d.id)}>
+                        <button type="button" className="app-link-danger" onClick={() => setPendingDelete(d)}>
                           {t('delete')}
                         </button>
                       </div>
@@ -599,6 +618,53 @@ export function DriversPage() {
           </div>
         </div>
       ) : null}
+
+      {pendingDelete && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[6200] bg-slate-900/60 backdrop-blur-[1px]"
+            aria-label={t('cancel')}
+            onClick={() => {
+              if (!deleting) setPendingDelete(null);
+            }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed left-1/2 top-1/2 z-[6300] w-[min(92vw,520px)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+          >
+            <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800 sm:px-5">
+              <div className="text-sm font-semibold text-slate-900 dark:text-white">{t('deleteDriverTitle')}</div>
+              <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                <span>{pendingDelete.fullName}</span>
+                <span className="px-1">—</span>
+                <span className="font-mono">{pendingDelete.user.login}</span>
+              </div>
+            </div>
+
+            <div className="space-y-3 px-4 py-4 sm:px-5">
+              <div className="rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                {t('deleteDriverBody')}
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40 sm:flex-row sm:justify-end sm:px-5">
+              <button type="button" className="app-btn-ghost w-full sm:w-auto" disabled={deleting} onClick={() => setPendingDelete(null)}>
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                className="inline-flex w-full items-center justify-center rounded-[10px] border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60 sm:w-auto"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+              >
+                {deleting ? '…' : t('delete')}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
