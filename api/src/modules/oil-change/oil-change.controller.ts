@@ -3,6 +3,8 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  Patch,
   Post,
   Query,
   UploadedFile,
@@ -99,5 +101,47 @@ export class OilChangeController {
   @AdminRoutePage('OIL')
   adminList(@Query('limit') limit?: string) {
     return this.oil.adminListReports(limit);
+  }
+
+  /** Admin: mashinaning oxirgi moy km ni tuzatish */
+  @Patch('admin/vehicle/:vehicleId/last-oil-km')
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('OIL')
+  adminPatchVehicleLastOilKm(
+    @Param('vehicleId') vehicleId: string,
+    @Body() body: { lastOilChangeKm?: string },
+    @CurrentUser() user: JwtUser,
+  ) {
+    const raw = body?.lastOilChangeKm;
+    const km = raw != null && String(raw).trim() !== '' ? Number(raw) : NaN;
+    if (!Number.isFinite(km)) {
+      throw new BadRequestException('oil_change.invalid_km_at_change');
+    }
+    return this.oil.adminPatchVehicleLastOilKm({
+      vehicleId,
+      lastOilChangeKm: km,
+      actorUserId: user.userId,
+    });
+  }
+
+  /** Admin: yuborilgan moy yozuvidagi km ni tuzatish */
+  @Patch('admin/:id/km')
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePage('OIL')
+  adminPatchReportKm(
+    @Param('id') id: string,
+    @Body() body: { kmAtChange?: string },
+    @CurrentUser() user: JwtUser,
+  ) {
+    const raw = body?.kmAtChange;
+    const km = raw != null && String(raw).trim() !== '' ? Number(raw) : NaN;
+    if (!Number.isFinite(km)) {
+      throw new BadRequestException('oil_change.invalid_km_at_change');
+    }
+    return this.oil.adminPatchReportKm({
+      reportId: id,
+      kmAtChange: km,
+      actorUserId: user.userId,
+    });
   }
 }

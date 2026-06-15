@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Droplets, Maximize2, Search, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Droplets, Maximize2, Pencil, Search, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api, API_BASE } from '@/lib/api';
 import { useI18n } from '@/i18n/I18nContext';
@@ -28,6 +28,23 @@ type OilHistoryRow = {
   driverLogin: string;
 };
 
+type KmEditState =
+  | {
+      kind: 'overview';
+      vehicleId: string;
+      plateNumber: string;
+      name: string;
+      draft: string;
+    }
+  | {
+      kind: 'history';
+      id: string;
+      plateNumber: string;
+      vehicleName: string;
+      createdAt: string;
+      draft: string;
+    };
+
 function fmtKm(v: number | null | undefined): string {
   if (v == null || Number.isNaN(v)) return '—';
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
@@ -54,6 +71,9 @@ export function OilPage() {
   const [photoFs, setPhotoFs] = useState(false);
   const photoStageRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [kmEdit, setKmEdit] = useState<KmEditState | null>(null);
+  const [kmEditSaving, setKmEditSaving] = useState(false);
+  const [kmEditErr, setKmEditErr] = useState<string | null>(null);
 
   const load = () => {
     setErr(null);
@@ -80,6 +100,15 @@ export function OilPage() {
     document.addEventListener('keydown', onEsc);
     return () => document.removeEventListener('keydown', onEsc);
   }, [photoModal]);
+
+  useEffect(() => {
+    if (!kmEdit) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') setKmEdit(null);
+    }
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [kmEdit]);
 
   useEffect(() => {
     if (!photoModal) {
@@ -142,6 +171,37 @@ export function OilPage() {
       rowMatchesQuery(searchTrim, [h.plateNumber, h.vehicleName, h.driverLogin, h.kmAtChange]),
     );
   }, [history, searchTrim]);
+
+  const submitKmEdit = useCallback(async () => {
+    if (!kmEdit) return;
+    const raw = kmEdit.draft.trim().replace(',', '.');
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) {
+      setKmEditErr(t('oilEditInvalidNumber'));
+      return;
+    }
+    setKmEditSaving(true);
+    setKmEditErr(null);
+    try {
+      if (kmEdit.kind === 'overview') {
+        await api(`/oil-change-reports/admin/vehicle/${kmEdit.vehicleId}/last-oil-km`, {
+          method: 'PATCH',
+          body: JSON.stringify({ lastOilChangeKm: String(n) }),
+        });
+      } else {
+        await api(`/oil-change-reports/admin/${kmEdit.id}/km`, {
+          method: 'PATCH',
+          body: JSON.stringify({ kmAtChange: String(n) }),
+        });
+      }
+      setKmEdit(null);
+      load();
+    } catch (e) {
+      setKmEditErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setKmEditSaving(false);
+    }
+  }, [kmEdit, t]);
 
   return (
     <div className="app-page">
@@ -211,7 +271,28 @@ export function OilPage() {
                     <div className="text-xs font-normal opacity-80">{r.name}</div>
                   </td>
                   <td className="py-2 pr-3">{r.driverLogin ?? '—'}</td>
-                  <td className="py-2 pr-3">{fmtKm(r.lastOilChangeKm)}</td>
+                  <td className="py-2 pr-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="tabular-nums">{fmtKm(r.lastOilChangeKm)}</span>
+                      <button
+                        type="button"
+                        className="rounded p-0.5 text-slate-500 hover:bg-black/5 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-blue-400"
+                        aria-label={t('oilEditLastAria')}
+                        onClick={() => {
+                          setKmEditErr(null);
+                          setKmEdit({
+                            kind: 'overview',
+                            vehicleId: r.vehicleId,
+                            plateNumber: r.plateNumber,
+                            name: r.name,
+                            draft: r.lastOilChangeKm != null ? String(r.lastOilChangeKm) : '',
+                          });
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                    </div>
+                  </td>
                   <td className="py-2 pr-3">{r.oilChangeIntervalKm ?? '—'}</td>
                   <td className="py-2 pr-3">{fmtKm(r.estimatedCurrentKm)}</td>
                   <td className="py-2 pr-3">{fmtKm(r.nextOilChangeKm)}</td>
@@ -252,7 +333,29 @@ export function OilPage() {
                     <div className="text-xs opacity-70">{h.vehicleName}</div>
                   </td>
                   <td className="py-2 pr-3">{h.driverLogin}</td>
-                  <td className="py-2 pr-3">{h.kmAtChange}</td>
+                  <td className="py-2 pr-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="tabular-nums">{h.kmAtChange}</span>
+                      <button
+                        type="button"
+                        className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800 dark:hover:text-blue-400"
+                        aria-label={t('oilEditReportAria')}
+                        onClick={() => {
+                          setKmEditErr(null);
+                          setKmEdit({
+                            kind: 'history',
+                            id: h.id,
+                            plateNumber: h.plateNumber,
+                            vehicleName: h.vehicleName,
+                            createdAt: h.createdAt,
+                            draft: h.kmAtChange,
+                          });
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                    </div>
+                  </td>
                   <td className="py-2">
                     {photoHref(h.photoUrl) ? (
                       <button
@@ -344,6 +447,75 @@ export function OilPage() {
             </div>
           </div>
         </>
+      )}
+
+      {kmEdit && (
+        <div className="fixed inset-0 z-[6200] flex items-center justify-center p-3 sm:p-6">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/50"
+            aria-label={t('cancel')}
+            onClick={() => !kmEditSaving && setKmEdit(null)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="oil-km-edit-title"
+            className="relative z-[6210] w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900"
+          >
+            <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+              <h2 id="oil-km-edit-title" className="text-sm font-semibold text-slate-900 dark:text-white">
+                {kmEdit.kind === 'overview' ? t('oilEditLastKmTitle') : t('oilEditReportKmTitle')}
+              </h2>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {kmEdit.plateNumber}
+                {kmEdit.kind === 'overview' ? (
+                  <span className="block opacity-80">{kmEdit.name}</span>
+                ) : (
+                  <>
+                    <span className="opacity-80"> · {kmEdit.vehicleName}</span>
+                    <span className="block">{new Date(kmEdit.createdAt).toLocaleString()}</span>
+                  </>
+                )}
+              </p>
+            </div>
+            <div className="space-y-3 px-4 py-4">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400" htmlFor="oil-km-edit-input">
+                {t('oilEditFieldLabel')}
+              </label>
+              <input
+                id="oil-km-edit-input"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                className="app-input w-full tabular-nums"
+                value={kmEdit.draft}
+                disabled={kmEditSaving}
+                onChange={(e) => setKmEdit((prev) => (prev ? { ...prev, draft: e.target.value } : prev))}
+              />
+              <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">{t('oilEditHint')}</p>
+              {kmEditErr ? <p className="text-xs text-red-600 dark:text-red-400">{kmEditErr}</p> : null}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+              <button
+                type="button"
+                className="app-btn-ghost px-3 py-1.5 text-sm"
+                disabled={kmEditSaving}
+                onClick={() => setKmEdit(null)}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                className="app-btn-primary px-3 py-1.5 text-sm"
+                disabled={kmEditSaving}
+                onClick={() => void submitKmEdit()}
+              >
+                {kmEditSaving ? '…' : t('save')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

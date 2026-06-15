@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -190,5 +190,107 @@ export class OilChangeService {
       vehicleName: r.vehicle.name,
       driverLogin: r.driver.user.login,
     }));
+  }
+
+  /** Mashina bo‘yicha eng yuqori moy km va uning vaqtini qayta hisoblash. */
+  private async syncVehicleLastOilFromReports(vehicleId: string) {
+    const reports = await this.prisma.oilChangeReport.findMany({
+      where: { vehicleId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (reports.length === 0) {
+      await this.prisma.vehicle.update({
+        where: { id: vehicleId },
+        data: { lastOilChangeKm: null, lastOilChangeAt: null },
+      });
+      return;
+    }
+    let maxKm = -Infinity;
+    for (const r of reports) {
+      maxKm = Math.max(maxKm, Number(r.kmAtChange));
+    }
+    const pick = reports
+      .filter((r) => Number(r.kmAtChange) === maxKm)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    await this.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: {
+        lastOilChangeKm: maxKm,
+        lastOilChangeAt: pick.createdAt,
+      },
+    });
+  }
+
+  async adminPatchReportKm(params: {
+    reportId: string;
+    kmAtChange: number;
+    actorUserId: string;
+  }) {
+    const { reportId, kmAtChange, actorUserId } = params;
+    if (!Number.isFinite(kmAtChange) || kmAtChange <= 0) {
+      throw new BadRequestException('oil_change.invalid_km_at_change');
+    }
+    const row = await this.prisma.oilChangeReport.findUnique({
+      where: { id: reportId },
+    });
+    if (!row) throw new NotFoundException('oil_change.report_not_found');
+
+    await this.prisma.oilChangeReport.update({
+      where: { id: reportId },
+      data: { kmAtChange },
+    });
+    await this.syncVehicleLastOilFromReports(row.vehicleId);
+
+    await this.audit.log({
+      actorUserId,
+      action: 'oilChange.admin_patch_km',
+      entity: 'OilChangeReport',
+      entityId: reportId,
+      meta: {
+        vehicleId: row.vehicleId,
+        fromKm: String(row.kmAtChange),
+        toKm: String(kmAtChange),
+      },
+    });
+
+    return { ok: true as const, kmAtChange: String(kmAtChange) };
+  }
+
+  async adminPatchVehicleLastOilKm(params: {
+    vehicleId: string;
+    lastOilChangeKm: number;
+    actorUserId: string;
+  }) {
+    const { vehicleId, lastOilChangeKm, actorUserId } = params;
+    if (!Number.isFinite(lastOilChangeKm) || lastOilChangeKm <= 0) {
+      throw new BadRequestException('oil_change.invalid_km_at_change');
+    }
+    const vehicle = await this.prisma.vehicle.findFirst({
+      where: { id: vehicleId, deletedAt: null },
+    });
+    if (!vehicle) throw new NotFoundException('vehicle_not_found');
+
+    const prev =
+      vehicle.lastOilChangeKm != null ? Number(vehicle.lastOilChangeKm) : null;
+    await this.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: {
+        lastOilChangeKm,
+        lastOilChangeAt: vehicle.lastOilChangeAt ?? new Date(),
+      },
+    });
+
+    await this.audit.log({
+      actorUserId,
+      action: 'oilChange.admin_patch_vehicle_last_km',
+      entity: 'Vehicle',
+      entityId: vehicleId,
+      meta: {
+        fromKm: prev != null ? String(prev) : null,
+        toKm: String(lastOilChangeKm),
+      },
+    });
+
+    return { ok: true as const, lastOilChangeKm };
   }
 }
