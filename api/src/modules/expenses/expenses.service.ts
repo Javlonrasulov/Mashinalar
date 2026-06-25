@@ -370,23 +370,42 @@ export class ExpensesService {
         ? this.prisma.dailyKmReport.findMany({
             where: {
               reportDate: { gte: fromD, lt: toExclusive },
-              endKm: { not: null },
               vehicle: ACTIVE_VEHICLE_WHERE,
             },
-            select: { vehicleId: true, startKm: true, endKm: true },
+            select: {
+              vehicleId: true,
+              reportDate: true,
+              startKm: true,
+              endKm: true,
+            },
           })
         : Promise.resolve([]),
       this.prisma.vehicle.findMany({
         where: ACTIVE_VEHICLE_WHERE,
-        select: { id: true, plateNumber: true, name: true },
+        select: {
+          id: true,
+          plateNumber: true,
+          name: true,
+          drivers: { select: { fullName: true }, orderBy: { fullName: 'asc' } },
+        },
       }),
     ]);
 
+    const days =
+      rangeFrom && rangeTo ? enumerateYmdRange(rangeFrom, rangeTo) : [];
+
+    const submissionMap = new Map<string, { start: boolean; end: boolean }>();
     const kmMap = new Map<string, number>();
     for (const r of dailyRows) {
-      if (r.endKm == null) continue;
-      const delta = Math.max(0, Number(r.endKm) - Number(r.startKm));
-      kmMap.set(r.vehicleId, (kmMap.get(r.vehicleId) ?? 0) + delta);
+      const ymd = r.reportDate.toISOString().slice(0, 10);
+      submissionMap.set(`${r.vehicleId}:${ymd}`, {
+        start: true,
+        end: r.endKm != null,
+      });
+      if (r.endKm != null) {
+        const delta = Math.max(0, Number(r.endKm) - Number(r.startKm));
+        kmMap.set(r.vehicleId, (kmMap.get(r.vehicleId) ?? 0) + delta);
+      }
     }
 
     const amountMap = new Map<string, Prisma.Decimal>();
@@ -416,15 +435,22 @@ export class ExpensesService {
         const vol = volumeMap.get(vehicleId);
         const costPerKm =
           totalKm > 0 ? Number(totalAmountDec) / totalKm : null;
+        const dailyKm = days.map((d) => {
+          const sub = submissionMap.get(`${vehicleId}:${d}`);
+          return { start: Boolean(sub?.start), end: Boolean(sub?.end) };
+        });
         return {
           vehicleId,
           plateNumber: meta?.plateNumber ?? vehicleId,
           name: meta?.name ?? '',
+          driverName:
+            meta?.drivers?.map((d) => d.fullName).join(', ') || '—',
           totalKm,
           totalAmount,
           totalVolumeM3: vol == null ? null : vol.toString(),
           fuelReportCount: fuelCountMap.get(vehicleId) ?? 0,
           costPerKm,
+          dailyKm,
         };
       })
       .filter((r) => r.fuelReportCount > 0 || r.totalKm > 0);
@@ -439,6 +465,6 @@ export class ExpensesService {
       return b.totalKm - a.totalKm;
     });
 
-    return { rangeFrom, rangeTo, vehicles: rows };
+    return { rangeFrom, rangeTo, days, vehicles: rows };
   }
 }

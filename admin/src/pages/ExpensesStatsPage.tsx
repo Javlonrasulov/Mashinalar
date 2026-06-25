@@ -191,13 +191,20 @@ export function ExpensesStatsPage() {
           {filter ? (
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('expenseStatsFilteredNote')}</p>
           ) : null}
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t('expenseStatsSelectHint')}</p>
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            {t('expenseStatsSelectHint')}
+            {vehicleStats.length > 0 ? (
+              <span className="mt-1 block tabular-nums">
+                {t('expenseStatsVehicleCount', { n: String(vehicleStats.length) })}
+              </span>
+            ) : null}
+          </p>
         </div>
         {vehicleStats.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">{t('expenseStatsEmpty')}</p>
         ) : (
           <ol className="space-y-4">
-            {vehicleStats.slice(0, 12).map((s, idx) => {
+            {vehicleStats.map((s, idx) => {
               const amt = Number(s.totalAmount);
               const barPct =
                 maxStatAmount > 0 && Number.isFinite(amt) ? Math.min(100, (amt / maxStatAmount) * 100) : 0;
