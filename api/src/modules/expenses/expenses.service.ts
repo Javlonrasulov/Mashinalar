@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { FuelKind, Prisma } from '@prisma/client';
 import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
+import { UpdateExpenseDto } from './dto/update-expense.dto';
 
 function parseYmdParts(ymd: string): { y: number; m: number; d: number } | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
@@ -55,6 +56,15 @@ export class ExpensesService {
     private readonly audit: AuditService,
   ) {}
 
+  private assertOwner(
+    row: { createdByUserId: string | null },
+    actorUserId: string,
+  ) {
+    if (!row.createdByUserId || row.createdByUserId !== actorUserId) {
+      throw new ForbiddenException('Cannot modify this expense');
+    }
+  }
+
   findAll(filters?: {
     vehicleId?: string;
     categoryId?: string;
@@ -87,6 +97,7 @@ export class ExpensesService {
         amount: dto.amount,
         note: dto.note,
         spentAt: dto.spentAt ? new Date(dto.spentAt) : new Date(),
+        createdByUserId: actorUserId,
       },
       include: { vehicle: true, category: true },
     });
@@ -97,6 +108,46 @@ export class ExpensesService {
       entityId: row.id,
     });
     return row;
+  }
+
+  async update(id: string, dto: UpdateExpenseDto, actorUserId: string) {
+    const existing = await this.prisma.expense.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException();
+    this.assertOwner(existing, actorUserId);
+
+    const row = await this.prisma.expense.update({
+      where: { id },
+      data: {
+        ...(dto.vehicleId != null ? { vehicleId: dto.vehicleId } : {}),
+        ...(dto.categoryId != null ? { categoryId: dto.categoryId } : {}),
+        ...(dto.amount != null ? { amount: dto.amount } : {}),
+        ...(dto.note !== undefined ? { note: dto.note || null } : {}),
+        ...(dto.spentAt != null ? { spentAt: new Date(dto.spentAt) } : {}),
+      },
+      include: { vehicle: true, category: true },
+    });
+    await this.audit.log({
+      actorUserId,
+      action: 'expense.update',
+      entity: 'Expense',
+      entityId: row.id,
+    });
+    return row;
+  }
+
+  async remove(id: string, actorUserId: string) {
+    const existing = await this.prisma.expense.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException();
+    this.assertOwner(existing, actorUserId);
+
+    await this.prisma.expense.delete({ where: { id } });
+    await this.audit.log({
+      actorUserId,
+      action: 'expense.delete',
+      entity: 'Expense',
+      entityId: id,
+    });
+    return { ok: true };
   }
 
   async totalsByCategory() {

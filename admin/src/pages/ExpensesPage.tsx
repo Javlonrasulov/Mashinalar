@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/auth/AuthContext';
 import { api } from '@/lib/api';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { DateRangeField } from '@/components/DateRangeField';
@@ -57,9 +58,22 @@ type Row = {
   amount: string;
   spentAt: string;
   note: string | null;
+  vehicleId: string;
+  createdByUserId: string | null;
   vehicle: { plateNumber: string };
   category: { id: string; slug: string; name: string };
 };
+
+function rowToForm(r: Row): ExpenseAddForm {
+  const d = new Date(r.spentAt);
+  return {
+    vehicleId: r.vehicleId,
+    categoryId: r.category.id,
+    amount: r.amount,
+    note: r.note ?? '',
+    spentYmd: Number.isFinite(d.getTime()) ? formatYmd(d) : formatYmd(new Date()),
+  };
+}
 
 const FUEL_REPORT_NOTE = /^Fuel report(\s|$)/i;
 
@@ -71,6 +85,7 @@ function formatExpenseNote(note: string | null, tr: (key: string) => string): st
 
 export function ExpensesPage() {
   const { t, lang } = useI18n();
+  const { user } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [categoryStats, setCategoryStats] = useState<CategoryStatsPayload | null>(null);
@@ -80,6 +95,8 @@ export function ExpensesPage() {
   const [search, setSearch] = useState<string>('');
   const [vehicles, setVehicles] = useState<{ id: string; plateNumber: string }[]>([]);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [addBusy, setAddBusy] = useState(false);
   const [form, setForm] = useState<ExpenseAddForm>(() => emptyExpenseForm(''));
 
@@ -121,7 +138,16 @@ export function ExpensesPage() {
   }, [categories]);
 
   function openAddModal() {
+    setModalMode('add');
+    setEditingId(null);
     setForm(emptyExpenseForm(defaultCategoryId(categories)));
+    setAddModalOpen(true);
+  }
+
+  function openEditModal(row: Row) {
+    setModalMode('edit');
+    setEditingId(row.id);
+    setForm(rowToForm(row));
     setAddModalOpen(true);
   }
 
@@ -146,6 +172,49 @@ export function ExpensesPage() {
     } finally {
       setAddBusy(false);
     }
+  }
+
+  async function onUpdate() {
+    if (!editingId || !form.vehicleId || !form.categoryId || !form.spentYmd) return;
+    setAddBusy(true);
+    try {
+      await api(`/expenses/${editingId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          vehicleId: form.vehicleId,
+          categoryId: form.categoryId,
+          amount: Number(form.amount),
+          note: form.note || undefined,
+          spentAt: startOfLocalDay(parseYmd(form.spentYmd)).toISOString(),
+        }),
+      });
+      setAddModalOpen(false);
+      setEditingId(null);
+      await load();
+    } catch {
+      /* ignore */
+    } finally {
+      setAddBusy(false);
+    }
+  }
+
+  async function onDelete(row: Row) {
+    if (!window.confirm(`${t('deleteExpenseTitle')}\n\n${row.vehicle.plateNumber} — ${formatMoneyUz(row.amount, lang)}\n\n${t('deleteExpenseBody')}`)) {
+      return;
+    }
+    setAddBusy(true);
+    try {
+      await api(`/expenses/${row.id}`, { method: 'DELETE' });
+      await load();
+    } catch {
+      /* ignore */
+    } finally {
+      setAddBusy(false);
+    }
+  }
+
+  function canManageRow(row: Row): boolean {
+    return Boolean(user?.id && row.createdByUserId && row.createdByUserId === user.id);
   }
 
   async function onAddCategory(nameRaw: string) {
@@ -265,12 +334,13 @@ export function ExpensesPage() {
       <ExpenseAddModal
         open={addModalOpen}
         busy={addBusy}
+        mode={modalMode}
         form={form}
         vehicleOptions={vehicleOptions}
         categoryOptions={categoryOptions}
         onClose={() => !addBusy && setAddModalOpen(false)}
         onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
-        onSubmit={() => onCreate()}
+        onSubmit={() => (modalMode === 'edit' ? onUpdate() : onCreate())}
         onAddCategory={onAddCategory}
       />
 
@@ -284,6 +354,7 @@ export function ExpensesPage() {
               <th className="p-3">{t('amount')}</th>
               <th className="p-3">{t('date')}</th>
               <th className="p-3">{t('note')}</th>
+              <th className="p-3 w-28" />
             </tr>
           </thead>
           <tbody>
@@ -294,11 +365,33 @@ export function ExpensesPage() {
                 <td className="p-3">{formatMoneyUz(r.amount, lang)}</td>
                 <td className="p-3">{formatSpentAt(r.spentAt, lang)}</td>
                 <td className="p-3">{formatExpenseNote(r.note, t)}</td>
+                <td className="p-3">
+                  {canManageRow(r) && (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button
+                        type="button"
+                        className="app-btn-ghost px-2 py-1 text-xs"
+                        disabled={addBusy}
+                        onClick={() => openEditModal(r)}
+                      >
+                        {t('edit')}
+                      </button>
+                      <button
+                        type="button"
+                        className="app-link-danger text-xs"
+                        disabled={addBusy}
+                        onClick={() => void onDelete(r)}
+                      >
+                        {t('delete')}
+                      </button>
+                    </div>
+                  )}
+                </td>
               </tr>
             ))}
             {filteredRows.length === 0 && (
               <tr>
-                <td className="p-6 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={5}>
+                <td className="p-6 text-center text-sm text-slate-500 dark:text-slate-400" colSpan={6}>
                   {search.trim() ? t('expenseSearchEmpty') : t('expenseStatsEmpty')}
                 </td>
               </tr>

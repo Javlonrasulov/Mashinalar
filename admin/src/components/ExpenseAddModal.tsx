@@ -15,6 +15,7 @@ export type ExpenseAddForm = {
 type Props = {
   open: boolean;
   busy?: boolean;
+  mode?: 'add' | 'edit';
   form: ExpenseAddForm;
   vehicleOptions: SelectOption<string>[];
   categoryOptions: SelectOption<string>[];
@@ -27,6 +28,7 @@ type Props = {
 export function ExpenseAddModal({
   open,
   busy,
+  mode = 'add',
   form,
   vehicleOptions,
   categoryOptions,
@@ -72,7 +74,7 @@ export function ExpenseAddModal({
       >
         <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800 sm:px-5">
           <h2 id="expense-add-modal-title" className="text-base font-semibold text-slate-900 dark:text-white">
-            {t('expenseAddModalTitle')}
+            {mode === 'edit' ? t('expenseEditModalTitle') : t('expenseAddModalTitle')}
           </h2>
         </div>
 
@@ -199,7 +201,7 @@ export function ExpenseAddModal({
             disabled={!canSubmit || busy}
             onClick={() => onSubmit()}
           >
-            {busy ? '…' : t('add')}
+            {busy ? '…' : mode === 'edit' ? t('save') : t('add')}
           </button>
         </div>
       </div>

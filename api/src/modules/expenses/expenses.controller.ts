@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import {
   CurrentUser,
@@ -9,6 +9,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateExpenseDto } from './dto/create-expense.dto';
+import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesService } from './expenses.service';
 
 function parseOptionalIsoDate(s?: string): Date | undefined {
@@ -100,5 +101,21 @@ export class ExpensesController {
   @AdminRoutePage('EXPENSES')
   create(@Body() dto: CreateExpenseDto, @CurrentUser() user: JwtUser) {
     return this.expenses.create(dto, user.userId);
+  }
+
+  @Patch(':id')
+  @AdminRoutePage('EXPENSES')
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateExpenseDto,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.expenses.update(id, dto, user.userId);
+  }
+
+  @Delete(':id')
+  @AdminRoutePage('EXPENSES')
+  remove(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.expenses.remove(id, user.userId);
   }
 }

@@ -38,6 +38,7 @@ model User {
   auditLogs AuditLog[]
   sessions  UserSession[]
   sessionEvents UserSessionEvent[]
+  expensesCreated Expense[] @relation("ExpenseCreatedBy")
 }
 
 model UserSession {
@@ -348,19 +349,22 @@ model Task {
 }
 
 model Expense {
-  id         String           @id @default(cuid())
-  vehicleId  String
-  vehicle    Vehicle          @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  categoryId String
-  category   ExpenseCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  amount     Decimal          @db.Decimal(14, 2)
-  currency   String           @default("UZS")
-  note       String?
-  spentAt    DateTime         @default(now())
-  createdAt  DateTime         @default(now())
+  id              String           @id @default(cuid())
+  vehicleId       String
+  vehicle         Vehicle          @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  categoryId      String
+  category        ExpenseCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amount          Decimal          @db.Decimal(14, 2)
+  currency        String           @default("UZS")
+  note            String?
+  spentAt         DateTime         @default(now())
+  createdAt       DateTime         @default(now())
+  createdByUserId String?
+  createdBy       User?            @relation("ExpenseCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([vehicleId, spentAt])
   @@index([categoryId])
+  @@index([createdByUserId])
 }
 
 model AuditLog {
