@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Copy, Loader2, Maximize2, Search, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { api } from '@/lib/api';
-import { useI18n } from '@/i18n/I18nContext';
+import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { DatetimeLocalRangeField } from '@/components/DatetimeLocalRangeField';
+import { SelectField } from '@/components/SelectField';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 
 export type MonthlyGridDay = {
@@ -33,6 +34,10 @@ export type MonthlyGridResponse = {
   vehicles: MonthlyGridVehicle[];
 };
 
+type SortOrder = 'asc' | 'desc';
+
+const H_SCROLL_STEP = 280;
+
 function initMonthStart(): string {
   const d = new Date();
   d.setDate(1);
@@ -58,6 +63,82 @@ function dayOfMonth(ymd: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function formatYmdShort(ymd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  if (!m) return ymd;
+  return `${m[3]}.${m[2]}`;
+}
+
+function formatYmdRangeLabel(from: string, to: string, lang: Lang): string {
+  const loc = lang === 'ru' ? 'ru-RU' : lang === 'uzCyrl' ? 'ru-RU' : 'uz-Latn-UZ';
+  const fmt = (ymd: string) => {
+    const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+    if (!p) return ymd;
+    const d = new Date(Number(p[1]), Number(p[2]) - 1, Number(p[3]));
+    return new Intl.DateTimeFormat(loc, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(d);
+  };
+  return `${fmt(from)} — ${fmt(to)}`;
+}
+
+function formatDayList(dates: string[], max = 14): string {
+  if (dates.length === 0) return '—';
+  const short = dates.map(formatYmdShort);
+  if (short.length <= max) return short.join(', ');
+  return `${short.slice(0, max).join(', ')} … (+${short.length - max})`;
+}
+
+function formatMonthlyReportForCopy(
+  vehicles: MonthlyGridVehicle[],
+  rangeLabel: string,
+  tr: (key: string, vars?: Record<string, string>) => string,
+): string {
+  const lines: string[] = [
+    `📊 ${tr('dailyKmTabMonthly')}`,
+    `📅 ${rangeLabel}`,
+    '',
+    `${tr('dailyKmMonthlyLegendTitle')}:`,
+    `  🔵 ${tr('dailyKmMonthlyLegendStart')}`,
+    `  🟢 ${tr('dailyKmMonthlyLegendEnd')}`,
+    `  ⬜ ${tr('dailyKmMonthlyLegendMissing')}`,
+    '',
+    '————————————',
+  ];
+
+  vehicles.forEach((v, i) => {
+    const startMissing = v.days.filter((d) => !d.hasStart).map((d) => d.date);
+    const endMissing = v.days.filter((d) => d.hasStart && !d.hasEnd).map((d) => d.date);
+    lines.push('');
+    lines.push(`${i + 1}. ${v.plateNumber} · ${v.vehicleLabel}`);
+    lines.push(`${tr('fullName')}: ${v.driverName}`);
+    if (v.driverPhone.trim()) {
+      lines.push(`${tr('phone')}: ${v.driverPhone.trim()}`);
+    }
+    lines.push(
+      tr('dailyKmMonthlyCopyPct', {
+        pct: String(v.completionPct),
+        submitted: String(v.submittedCount),
+        expected: String(v.expectedCount),
+      }),
+    );
+    if (startMissing.length > 0) {
+      lines.push(
+        `${tr('dailyKmMonthlyCopyStartMissing')} (${startMissing.length}): ${formatDayList(startMissing)}`,
+      );
+    }
+    if (endMissing.length > 0) {
+      lines.push(
+        `${tr('dailyKmMonthlyCopyEndMissing')} (${endMissing.length}): ${formatDayList(endMissing)}`,
+      );
+    }
+  });
+
+  return lines.join('\n');
+}
+
 function completionBarClass(pct: number): string {
   if (pct >= 100) return 'bg-emerald-500';
   if (pct >= 70) return 'bg-amber-500';
@@ -72,10 +153,7 @@ function rowNoClass(pct: number): string {
 
 function DayBars({ day }: { day: MonthlyGridDay }) {
   return (
-    <div
-      className="flex w-5 flex-col gap-px"
-      title={`${day.date}: ${day.hasStart ? 'start' : ''} ${day.hasEnd ? 'end' : ''}`}
-    >
+    <div className="flex w-5 flex-col gap-px">
       <div
         className={clsx(
           'h-1.5 w-full rounded-sm',
@@ -102,14 +180,27 @@ function LegendItem({ color, label }: { color: string; label: string }) {
 }
 
 export function DailyKmMonthlyReport() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [fromValue, setFromValue] = useState(initMonthStart);
   const [toValue, setToValue] = useState(initToday);
   const [grid, setGrid] = useState<MonthlyGridResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [tableFullscreen, setTableFullscreen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
 
   const { from, to } = useMemo(() => toYmdRange(fromValue, toValue), [fromValue, toValue]);
+  const rangeLabel = useMemo(() => formatYmdRangeLabel(from, to, lang), [from, to, lang]);
+
+  const sortOptions = useMemo(
+    () => [
+      { value: 'asc' as const, label: t('dailyKmMonthlySortAsc') },
+      { value: 'desc' as const, label: t('dailyKmMonthlySortDesc') },
+    ],
+    [t],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -131,21 +222,224 @@ export function DailyKmMonthlyReport() {
   }, [from, to]);
 
   const searchTrim = searchQuery.trim().toLowerCase();
-  const visibleVehicles = useMemo(() => {
+  const sortedVehicles = useMemo(() => {
     if (!grid) return [];
-    if (!searchTrim) return grid.vehicles;
-    return grid.vehicles.filter((v) => {
-      const parts = [
-        v.plateNumber,
-        v.vehicleLabel,
-        v.driverName,
-        v.driverPhone,
-      ];
-      return parts.some((p) => (p ?? '').toLowerCase().includes(searchTrim));
+    let list = grid.vehicles;
+    if (searchTrim) {
+      list = list.filter((v) => {
+        const parts = [v.plateNumber, v.vehicleLabel, v.driverName, v.driverPhone];
+        return parts.some((p) => (p ?? '').toLowerCase().includes(searchTrim));
+      });
+    }
+    const out = [...list];
+    out.sort((a, b) => {
+      const d = a.completionPct - b.completionPct;
+      if (d !== 0) return sortOrder === 'asc' ? d : -d;
+      return a.plateNumber.localeCompare(b.plateNumber, 'uz');
     });
-  }, [grid, searchTrim]);
+    return out;
+  }, [grid, searchTrim, sortOrder]);
 
   const days = grid?.days ?? [];
+
+  const scrollTable = useCallback((dir: 'left' | 'right') => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    el.scrollBy({
+      left: dir === 'left' ? -H_SCROLL_STEP : H_SCROLL_STEP,
+      behavior: 'smooth',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!tableFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTableFullscreen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [tableFullscreen]);
+
+  const copyReport = useCallback(async () => {
+    if (!sortedVehicles.length) return;
+    const text = formatMonthlyReportForCopy(sortedVehicles, rangeLabel, t);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  }, [sortedVehicles, rangeLabel, t]);
+
+  const reportTable =
+    grid && grid.fleetTotal > 0 ? (
+      <>
+        <div className="flex flex-wrap items-center justify-end gap-1 border-b border-slate-200 px-2 py-1.5 dark:border-slate-800">
+          <button
+            type="button"
+            className="app-btn-ghost mr-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium sm:text-sm"
+            disabled={sortedVehicles.length === 0}
+            onClick={() => void copyReport()}
+            title={t('dailyKmOverviewCopy')}
+          >
+            <Copy className="h-4 w-4 shrink-0" aria-hidden />
+            {copied ? t('dailyKmMonthlyCopied') : t('dailyKmOverviewCopy')}
+          </button>
+          <button
+            type="button"
+            className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+            onClick={() => scrollTable('left')}
+            title={t('fuelReportScrollLeft')}
+            aria-label={t('fuelReportScrollLeft')}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+            onClick={() => scrollTable('right')}
+            title={t('fuelReportScrollRight')}
+            aria-label={t('fuelReportScrollRight')}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+            onClick={() => setTableFullscreen((v) => !v)}
+            title={tableFullscreen ? t('fuelReportExitFullscreen') : t('fuelReportFullscreen')}
+            aria-label={tableFullscreen ? t('fuelReportExitFullscreen') : t('fuelReportFullscreen')}
+          >
+            {tableFullscreen ? <X className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+          </button>
+        </div>
+        <div
+          ref={tableScrollRef}
+          className={clsx(
+            'app-table-wrap overflow-auto overscroll-x-contain',
+            tableFullscreen ? 'min-h-0 flex-1' : 'max-h-[min(70vh,720px)]',
+          )}
+        >
+          <table className="app-table-inner min-w-max text-xs">
+            <thead className="app-table-head sticky top-0 z-10">
+              <tr>
+                <th className="sticky left-0 z-20 w-11 min-w-11 bg-slate-50 p-2 text-center dark:bg-slate-950/90">
+                  {t('dailyKmColNo')}
+                </th>
+                <th className="sticky left-11 z-20 min-w-[11rem] bg-slate-50 p-2 text-left dark:bg-slate-950/90 shadow-[2px_0_4px_rgba(15,23,42,0.06)]">
+                  {t('dailyKmMonthlyColVehicle')}
+                </th>
+                <th
+                  colSpan={days.length}
+                  className="border-l border-slate-200 bg-slate-50 p-2 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:bg-slate-950/90 dark:text-slate-400"
+                >
+                  {t('dailyKmMonthlyColDays')}
+                </th>
+              </tr>
+              <tr>
+                <th className="sticky left-0 z-20 bg-slate-50 dark:bg-slate-950/90" aria-hidden />
+                <th
+                  className="sticky left-11 z-20 bg-slate-50 dark:bg-slate-950/90 shadow-[2px_0_4px_rgba(15,23,42,0.06)]"
+                  aria-hidden
+                />
+                {days.map((ymd) => (
+                  <th
+                    key={ymd}
+                    className="min-w-[1.35rem] border-l border-slate-100 bg-slate-50 p-1 text-center font-normal tabular-nums dark:border-slate-800 dark:bg-slate-950/90"
+                  >
+                    {dayOfMonth(ymd)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedVehicles.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={2 + days.length}
+                    className="p-8 text-center text-sm text-slate-500 dark:text-slate-400"
+                  >
+                    {t('oilSearchNoResults')}
+                  </td>
+                </tr>
+              ) : (
+                sortedVehicles.map((v, index) => (
+                  <tr
+                    key={v.vehicleId}
+                    className="app-table-row border-t border-slate-100 dark:border-slate-800"
+                  >
+                    <td className="sticky left-0 z-[12] bg-white p-2 text-center align-top dark:bg-slate-900">
+                      <span
+                        className={clsx(
+                          'inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold tabular-nums',
+                          rowNoClass(v.completionPct),
+                        )}
+                      >
+                        {index + 1}
+                      </span>
+                    </td>
+                    <td className="sticky left-11 z-[12] min-w-[11rem] bg-white p-2 align-top shadow-[2px_0_4px_rgba(15,23,42,0.04)] dark:bg-slate-900">
+                      <div className="font-mono text-sm font-bold text-slate-900 dark:text-slate-50">
+                        {v.plateNumber}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        {v.vehicleLabel}
+                      </div>
+                      <div className="mt-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                        {v.driverName}
+                      </div>
+                      {v.driverPhone ? (
+                        <div className="mt-0.5 text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
+                          {v.driverPhone}
+                        </div>
+                      ) : null}
+                      <div className="mt-2 flex max-w-[10rem] items-center gap-2">
+                        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                          <div
+                            className={clsx(
+                              'h-full rounded-full transition-all',
+                              completionBarClass(v.completionPct),
+                            )}
+                            style={{ width: `${Math.min(100, v.completionPct)}%` }}
+                          />
+                        </div>
+                        <span
+                          className={clsx(
+                            'shrink-0 text-[10px] font-bold tabular-nums',
+                            v.completionPct >= 100
+                              ? 'text-emerald-700 dark:text-emerald-300'
+                              : v.completionPct >= 70
+                                ? 'text-amber-700 dark:text-amber-300'
+                                : 'text-red-700 dark:text-red-300',
+                          )}
+                        >
+                          {v.completionPct}%
+                        </span>
+                      </div>
+                    </td>
+                    {v.days.map((day) => (
+                      <td
+                        key={day.date}
+                        className="border-l border-slate-100 p-1 text-center align-middle dark:border-slate-800"
+                      >
+                        <div className="flex justify-center">
+                          <DayBars day={day} />
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </>
+    ) : null;
 
   return (
     <div className="space-y-3">
@@ -162,6 +456,12 @@ export function DailyKmMonthlyReport() {
             disabled={{ after: new Date() }}
             align="left"
           />
+        </div>
+        <div className="flex min-w-0 w-full flex-col gap-1 sm:w-[200px]">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            {t('dailyKmMonthlySortLabel')}
+          </span>
+          <SelectField value={sortOrder} onChange={setSortOrder} options={sortOptions} />
         </div>
         <div className="flex min-w-0 w-full flex-col gap-1 sm:w-[240px]">
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -194,124 +494,46 @@ export function DailyKmMonthlyReport() {
         <LegendItem color="bg-slate-200 dark:bg-slate-700" label={t('dailyKmMonthlyLegendMissing')} />
       </div>
 
-      <div className="app-card min-w-0 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 p-10 text-sm text-slate-500 dark:text-slate-400">
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-            …
+      {loading ? (
+        <div className="app-card flex items-center justify-center gap-2 p-10 text-sm text-slate-500 dark:text-slate-400">
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+          …
+        </div>
+      ) : !grid || grid.fleetTotal === 0 ? (
+        <p className="app-card p-8 text-center text-sm text-slate-500 dark:text-slate-400">
+          {t('dailyKmMonthlyEmpty')}
+        </p>
+      ) : null}
+
+      {reportTable && !tableFullscreen ? (
+        <div className="app-card min-w-0 overflow-hidden">{reportTable}</div>
+      ) : null}
+
+      {reportTable && tableFullscreen ? (
+        <div
+          className="fixed inset-0 z-[200] flex flex-col bg-[var(--background)] p-3 sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('dailyKmTabMonthly')}
+        >
+          <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-slate-900 dark:text-white">
+              {t('dailyKmTabMonthly')} · {rangeLabel}
+            </span>
+            <button
+              type="button"
+              className="app-btn-ghost inline-flex items-center gap-2 py-1.5 text-sm"
+              onClick={() => setTableFullscreen(false)}
+            >
+              <X className="h-4 w-4" aria-hidden />
+              {t('fuelReportExitFullscreen')}
+            </button>
           </div>
-        ) : !grid || grid.fleetTotal === 0 ? (
-          <p className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
-            {t('dailyKmMonthlyEmpty')}
-          </p>
-        ) : (
-          <div className="app-table-wrap overflow-x-auto overscroll-x-contain">
-            <table className="app-table-inner min-w-max text-xs">
-              <thead className="app-table-head sticky top-0 z-10">
-                <tr>
-                  <th className="sticky left-0 z-20 w-11 min-w-11 bg-slate-50 p-2 text-center dark:bg-slate-950/90">
-                    {t('dailyKmColNo')}
-                  </th>
-                  <th className="sticky left-11 z-20 min-w-[11rem] bg-slate-50 p-2 text-left dark:bg-slate-950/90 shadow-[2px_0_4px_rgba(15,23,42,0.06)]">
-                    {t('dailyKmMonthlyColVehicle')}
-                  </th>
-                  <th
-                    colSpan={days.length}
-                    className="border-l border-slate-200 bg-slate-50 p-2 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:bg-slate-950/90 dark:text-slate-400"
-                  >
-                    {t('dailyKmMonthlyColDays')}
-                  </th>
-                </tr>
-                <tr>
-                  <th className="sticky left-0 z-20 bg-slate-50 dark:bg-slate-950/90" aria-hidden />
-                  <th className="sticky left-11 z-20 bg-slate-50 dark:bg-slate-950/90 shadow-[2px_0_4px_rgba(15,23,42,0.06)]" aria-hidden />
-                  {days.map((ymd) => (
-                    <th
-                      key={ymd}
-                      className="min-w-[1.35rem] border-l border-slate-100 bg-slate-50 p-1 text-center font-normal tabular-nums dark:border-slate-800 dark:bg-slate-950/90"
-                    >
-                      {dayOfMonth(ymd)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleVehicles.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={2 + days.length}
-                      className="p-8 text-center text-sm text-slate-500 dark:text-slate-400"
-                    >
-                      {t('oilSearchNoResults')}
-                    </td>
-                  </tr>
-                ) : (
-                  visibleVehicles.map((v, index) => (
-                    <tr key={v.vehicleId} className="app-table-row border-t border-slate-100 dark:border-slate-800">
-                      <td className="sticky left-0 z-[12] bg-white p-2 text-center align-top dark:bg-slate-900">
-                        <span
-                          className={clsx(
-                            'inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold tabular-nums',
-                            rowNoClass(v.completionPct),
-                          )}
-                        >
-                          {index + 1}
-                        </span>
-                      </td>
-                      <td className="sticky left-11 z-[12] min-w-[11rem] bg-white p-2 align-top shadow-[2px_0_4px_rgba(15,23,42,0.04)] dark:bg-slate-900">
-                        <div className="font-mono text-sm font-bold text-slate-900 dark:text-slate-50">
-                          {v.plateNumber}
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                          {v.vehicleLabel}
-                        </div>
-                        <div className="mt-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                          {v.driverName}
-                        </div>
-                        {v.driverPhone ? (
-                          <div className="mt-0.5 text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
-                            {v.driverPhone}
-                          </div>
-                        ) : null}
-                        <div className="mt-2 flex max-w-[10rem] items-center gap-2">
-                          <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                            <div
-                              className={clsx('h-full rounded-full transition-all', completionBarClass(v.completionPct))}
-                              style={{ width: `${Math.min(100, v.completionPct)}%` }}
-                            />
-                          </div>
-                          <span
-                            className={clsx(
-                              'shrink-0 text-[10px] font-bold tabular-nums',
-                              v.completionPct >= 100
-                                ? 'text-emerald-700 dark:text-emerald-300'
-                                : v.completionPct >= 70
-                                  ? 'text-amber-700 dark:text-amber-300'
-                                  : 'text-red-700 dark:text-red-300',
-                            )}
-                          >
-                            {v.completionPct}%
-                          </span>
-                        </div>
-                      </td>
-                      {v.days.map((day) => (
-                        <td
-                          key={day.date}
-                          className="border-l border-slate-100 p-1 text-center align-middle dark:border-slate-800"
-                        >
-                          <div className="flex justify-center">
-                            <DayBars day={day} />
-                          </div>
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="app-card flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {reportTable}
           </div>
-        )}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
