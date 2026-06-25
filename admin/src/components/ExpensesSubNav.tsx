@@ -28,6 +28,11 @@ export function ExpensesSubNav() {
           {t('navExpensesStats')}
         </NavLink>
       )}
+      {showStats && (
+        <NavLink to="/expenses/gas" className={tabClass}>
+          {t('navExpensesGasStats')}
+        </NavLink>
+      )}
     </nav>
   );
 }

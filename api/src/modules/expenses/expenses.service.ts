@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { FuelKind, Prisma } from '@prisma/client';
+import { ACTIVE_VEHICLE_WHERE } from '../../common/active-vehicle';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -38,6 +39,13 @@ function ymdInClientTz(d: Date, tzOffsetMin: number): string {
     local.getUTCMonth() + 1,
     local.getUTCDate(),
   );
+}
+
+function parseDayUtc(ymd: string): Date | null {
+  const d = new Date(ymd.trim());
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
 }
 
 @Injectable()
@@ -262,5 +270,124 @@ export class ExpensesService {
     );
 
     return rows;
+  }
+
+  /**
+   * Gaz zapravkalari (GAS) va kunlik KM bo‘yicha mashina statistikasi: jami summa, km, 1 km ga narx.
+   */
+  async gasStatsByVehicle(filters?: {
+    spentFrom?: Date;
+    spentTo?: Date;
+    rangeFrom?: string;
+    rangeTo?: string;
+  }) {
+    const rangeFrom = filters?.rangeFrom?.trim() || null;
+    const rangeTo = filters?.rangeTo?.trim() || null;
+
+    const fuelCreatedAt =
+      filters?.spentFrom || filters?.spentTo
+        ? {
+            ...(filters.spentFrom ? { gte: filters.spentFrom } : {}),
+            ...(filters.spentTo ? { lte: filters.spentTo } : {}),
+          }
+        : undefined;
+
+    let fromD: Date | null = null;
+    let toExclusive: Date | null = null;
+    if (rangeFrom && rangeTo) {
+      const a = parseDayUtc(rangeFrom);
+      const b = parseDayUtc(rangeTo);
+      if (a && b && a.getTime() <= b.getTime()) {
+        fromD = a;
+        toExclusive = new Date(b);
+        toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
+      }
+    }
+
+    const [fuelGrouped, dailyRows, vehicles] = await Promise.all([
+      this.prisma.fuelReport.groupBy({
+        by: ['vehicleId'],
+        where: {
+          fuelKind: FuelKind.GAS,
+          vehicle: ACTIVE_VEHICLE_WHERE,
+          ...(fuelCreatedAt ? { createdAt: fuelCreatedAt } : {}),
+        },
+        _sum: { amount: true, volume: true },
+        _count: { id: true },
+      }),
+      fromD && toExclusive
+        ? this.prisma.dailyKmReport.findMany({
+            where: {
+              reportDate: { gte: fromD, lt: toExclusive },
+              endKm: { not: null },
+              vehicle: ACTIVE_VEHICLE_WHERE,
+            },
+            select: { vehicleId: true, startKm: true, endKm: true },
+          })
+        : Promise.resolve([]),
+      this.prisma.vehicle.findMany({
+        where: ACTIVE_VEHICLE_WHERE,
+        select: { id: true, plateNumber: true, name: true },
+      }),
+    ]);
+
+    const kmMap = new Map<string, number>();
+    for (const r of dailyRows) {
+      if (r.endKm == null) continue;
+      const delta = Math.max(0, Number(r.endKm) - Number(r.startKm));
+      kmMap.set(r.vehicleId, (kmMap.get(r.vehicleId) ?? 0) + delta);
+    }
+
+    const amountMap = new Map<string, Prisma.Decimal>();
+    const volumeMap = new Map<string, Prisma.Decimal>();
+    const fuelCountMap = new Map<string, number>();
+    for (const g of fuelGrouped) {
+      amountMap.set(g.vehicleId, g._sum.amount ?? new Prisma.Decimal(0));
+      if (g._sum.volume != null) {
+        volumeMap.set(g.vehicleId, g._sum.volume);
+      }
+      fuelCountMap.set(g.vehicleId, g._count.id);
+    }
+
+    const vehicleIds = new Set<string>();
+    for (const v of vehicles) vehicleIds.add(v.id);
+    for (const id of kmMap.keys()) vehicleIds.add(id);
+    for (const id of amountMap.keys()) vehicleIds.add(id);
+
+    const byId = new Map(vehicles.map((v) => [v.id, v]));
+
+    const rows = [...vehicleIds]
+      .map((vehicleId) => {
+        const meta = byId.get(vehicleId);
+        const totalKm = kmMap.get(vehicleId) ?? 0;
+        const totalAmountDec = amountMap.get(vehicleId) ?? new Prisma.Decimal(0);
+        const totalAmount = totalAmountDec.toString();
+        const vol = volumeMap.get(vehicleId);
+        const costPerKm =
+          totalKm > 0 ? Number(totalAmountDec) / totalKm : null;
+        return {
+          vehicleId,
+          plateNumber: meta?.plateNumber ?? vehicleId,
+          name: meta?.name ?? '',
+          totalKm,
+          totalAmount,
+          totalVolumeM3: vol == null ? null : vol.toString(),
+          fuelReportCount: fuelCountMap.get(vehicleId) ?? 0,
+          costPerKm,
+        };
+      })
+      .filter((r) => r.fuelReportCount > 0 || r.totalKm > 0);
+
+    rows.sort((a, b) => {
+      const ca = a.costPerKm;
+      const cb = b.costPerKm;
+      if (ca == null && cb == null) return b.totalKm - a.totalKm;
+      if (ca == null) return 1;
+      if (cb == null) return -1;
+      if (cb !== ca) return cb - ca;
+      return b.totalKm - a.totalKm;
+    });
+
+    return { rangeFrom, rangeTo, vehicles: rows };
   }
 }

@@ -66,6 +66,22 @@ export class ExpensesController {
     });
   }
 
+  @Get('stats/gas-by-vehicle')
+  @AdminRoutePage('EXPENSES_STATS')
+  gasStatsByVehicle(
+    @Query('spentFrom') spentFrom?: string,
+    @Query('spentTo') spentTo?: string,
+    @Query('rangeFrom') rangeFrom?: string,
+    @Query('rangeTo') rangeTo?: string,
+  ) {
+    return this.expenses.gasStatsByVehicle({
+      spentFrom: parseOptionalIsoDate(spentFrom),
+      spentTo: parseOptionalIsoDate(spentTo),
+      rangeFrom: rangeFrom || undefined,
+      rangeTo: rangeTo || undefined,
+    });
+  }
+
   @Get('stats/by-vehicle')
   @AdminRoutePage('EXPENSES_STATS')
   statsByVehicle(

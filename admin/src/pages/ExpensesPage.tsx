@@ -7,8 +7,19 @@ import {
   ExpenseCategoryDashboard,
   type CategoryStatsPayload,
 } from '@/components/ExpenseCategoryDashboard';
+import { ExpenseAddModal, type ExpenseAddForm } from '@/components/ExpenseAddModal';
 import { SelectField, type SelectOption } from '@/components/SelectField';
-import { appendSpentRangeParams, defaultExpenseDateRange, type SpentDateRangeYmd } from '@/lib/spentRangeQuery';
+import { appendSpentRangeParams, defaultExpenseDateRange, formatYmd, parseYmd, startOfLocalDay, type SpentDateRangeYmd } from '@/lib/spentRangeQuery';
+
+function emptyExpenseForm(categoryId: string): ExpenseAddForm {
+  return {
+    vehicleId: '',
+    categoryId,
+    amount: '',
+    note: '',
+    spentYmd: formatYmd(new Date()),
+  };
+}
 
 function intlLocaleFor(lang: Lang): string {
   if (lang === 'ru') return 'ru-RU';
@@ -68,15 +79,9 @@ export function ExpensesPage() {
   const [spentDateRange, setSpentDateRange] = useState<SpentDateRangeYmd | null>(defaultExpenseDateRange);
   const [search, setSearch] = useState<string>('');
   const [vehicles, setVehicles] = useState<{ id: string; plateNumber: string }[]>([]);
-  const [addCatOpen, setAddCatOpen] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [addCatBusy, setAddCatBusy] = useState(false);
-  const [form, setForm] = useState({
-    vehicleId: '',
-    categoryId: '',
-    amount: '',
-    note: '',
-  });
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
+  const [form, setForm] = useState<ExpenseAddForm>(() => emptyExpenseForm(''));
 
   const defaultCategoryId = (cats: CategoryRow[]) =>
     cats.find((c) => c.slug === 'OTHER')?.id ?? cats[0]?.id ?? '';
@@ -115,31 +120,38 @@ export function ExpensesPage() {
     setForm((f) => (f.categoryId ? f : { ...f, categoryId: defaultCategoryId(categories) }));
   }, [categories]);
 
-  async function onCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.vehicleId || !form.categoryId) return;
-    await api('/expenses', {
-      method: 'POST',
-      body: JSON.stringify({
-        vehicleId: form.vehicleId,
-        categoryId: form.categoryId,
-        amount: Number(form.amount),
-        note: form.note || undefined,
-      }),
-    });
-    setForm({
-      vehicleId: '',
-      categoryId: defaultCategoryId(categories),
-      amount: '',
-      note: '',
-    });
-    await load();
+  function openAddModal() {
+    setForm(emptyExpenseForm(defaultCategoryId(categories)));
+    setAddModalOpen(true);
   }
 
-  async function onAddCategory() {
-    const name = newCategoryName.trim();
-    if (!name || addCatBusy) return;
-    setAddCatBusy(true);
+  async function onCreate() {
+    if (!form.vehicleId || !form.categoryId || !form.spentYmd) return;
+    setAddBusy(true);
+    try {
+      await api('/expenses', {
+        method: 'POST',
+        body: JSON.stringify({
+          vehicleId: form.vehicleId,
+          categoryId: form.categoryId,
+          amount: Number(form.amount),
+          note: form.note || undefined,
+          spentAt: startOfLocalDay(parseYmd(form.spentYmd)).toISOString(),
+        }),
+      });
+      setAddModalOpen(false);
+      await load();
+    } catch {
+      /* ignore */
+    } finally {
+      setAddBusy(false);
+    }
+  }
+
+  async function onAddCategory(nameRaw: string) {
+    const name = nameRaw.trim();
+    if (!name || addBusy) return;
+    setAddBusy(true);
     try {
       const created = await api<CategoryRow>('/expense-categories', {
         method: 'POST',
@@ -148,12 +160,10 @@ export function ExpensesPage() {
       const next = await api<CategoryRow[]>('/expense-categories');
       setCategories(next);
       setForm((f) => ({ ...f, categoryId: created.id }));
-      setNewCategoryName('');
-      setAddCatOpen(false);
     } catch {
       /* ignore */
     } finally {
-      setAddCatBusy(false);
+      setAddBusy(false);
     }
   }
 
@@ -204,7 +214,12 @@ export function ExpensesPage() {
     <div className="app-page">
       <ExpensesSubNav />
 
-      <h1 className="app-page-title">{t('navExpenses')}</h1>
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <h1 className="app-page-title mb-0">{t('navExpenses')}</h1>
+        <button type="button" className="app-btn-primary shrink-0" onClick={openAddModal}>
+          {t('add')}
+        </button>
+      </div>
 
       <div className="flex min-w-0 flex-wrap items-end gap-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -247,74 +262,17 @@ export function ExpensesPage() {
         </span>
       </div>
 
-      {addCatOpen && (
-        <div className="app-card-pad flex min-w-0 flex-wrap items-end gap-3">
-          <div className="min-w-0 flex-1 sm:max-w-md">
-            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('expenseNewCategoryName')}</label>
-            <input
-              className="app-input"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder={t('expenseNewCategoryName')}
-            />
-          </div>
-          <button type="button" className="app-btn-primary" disabled={addCatBusy} onClick={() => onAddCategory()}>
-            {t('save')}
-          </button>
-          <button type="button" className="app-btn-ghost" disabled={addCatBusy} onClick={() => setAddCatOpen(false)}>
-            {t('cancel')}
-          </button>
-        </div>
-      )}
-
-      <form
-        onSubmit={onCreate}
-        className="app-card-pad grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-5"
-      >
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('plate')}</label>
-          <SelectField
-            value={form.vehicleId}
-            onChange={(v) => setForm({ ...form, vehicleId: v })}
-            options={vehicleOptions}
-            placeholder={t('mapVehicleSelectPlaceholder')}
-          />
-        </div>
-        <div>
-          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">{t('expenseCategory')}</label>
-            <button type="button" className="text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400" onClick={() => setAddCatOpen((o) => !o)}>
-              {t('expenseAddCategory')}
-            </button>
-          </div>
-          <SelectField
-            value={form.categoryId}
-            onChange={(v) => setForm({ ...form, categoryId: v })}
-            options={categoryOptions}
-            placeholder={t('mapVehicleSelectPlaceholder')}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('amount')}</label>
-          <input
-            className="app-input"
-            value={form.amount}
-            onChange={(e) => setForm({ ...form, amount: e.target.value })}
-            required
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{t('note')}</label>
-          <input
-            className="app-input"
-            value={form.note}
-            onChange={(e) => setForm({ ...form, note: e.target.value })}
-          />
-        </div>
-        <button type="submit" className="app-btn-primary w-full md:w-auto" disabled={!form.categoryId}>
-          {t('add')}
-        </button>
-      </form>
+      <ExpenseAddModal
+        open={addModalOpen}
+        busy={addBusy}
+        form={form}
+        vehicleOptions={vehicleOptions}
+        categoryOptions={categoryOptions}
+        onClose={() => !addBusy && setAddModalOpen(false)}
+        onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+        onSubmit={() => onCreate()}
+        onAddCategory={onAddCategory}
+      />
 
       <div className="app-card min-w-0 overflow-hidden">
         <div className="app-table-wrap">

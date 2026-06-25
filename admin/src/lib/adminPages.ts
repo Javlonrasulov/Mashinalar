@@ -25,6 +25,7 @@ export function pathnameToAdminPageKey(pathname: string): AdminPageKey | null {
   if (p.startsWith('/fuel')) return 'FUEL';
   if (p.startsWith('/daily-km')) return 'DAILY_KM';
   if (p.startsWith('/oil')) return 'OIL';
+  if (p.startsWith('/expenses/gas')) return 'EXPENSES_STATS';
   if (p.startsWith('/expenses/stats')) return 'EXPENSES_STATS';
   if (p.startsWith('/expenses')) return 'EXPENSES';
   if (p.startsWith('/map')) return 'MAP';
@@ -44,6 +45,7 @@ export function firstAllowedHref(allowed: string[] | undefined): string {
     { path: '/daily-km', key: 'DAILY_KM' },
     { path: '/oil', key: 'OIL' },
     { path: '/expenses', key: 'EXPENSES' },
+    { path: '/expenses/gas', key: 'EXPENSES_STATS' },
     { path: '/expenses/stats', key: 'EXPENSES_STATS' },
     { path: '/system-users', key: 'SYSTEM_USERS' },
   ];
