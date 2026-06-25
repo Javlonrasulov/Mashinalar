@@ -10,6 +10,7 @@ export const ADMIN_PAGE_KEYS = [
   'OIL',
   'EXPENSES',
   'EXPENSES_STATS',
+  'SYSTEM_USERS',
 ] as const;
 
 export type AdminPageKey = (typeof ADMIN_PAGE_KEYS)[number];
@@ -17,7 +18,7 @@ export type AdminPageKey = (typeof ADMIN_PAGE_KEYS)[number];
 export function pathnameToAdminPageKey(pathname: string): AdminPageKey | null {
   const p = pathname.replace(/\/$/, '') || '/';
   if (p === '/' || p === '') return 'DASHBOARD';
-  if (p.startsWith('/system-users')) return null;
+  if (p.startsWith('/system-users')) return 'SYSTEM_USERS';
   if (p.startsWith('/vehicles')) return 'VEHICLES';
   if (p.startsWith('/drivers')) return 'DRIVERS';
   if (p.startsWith('/tasks')) return 'TASKS';
@@ -44,6 +45,7 @@ export function firstAllowedHref(allowed: string[] | undefined): string {
     { path: '/oil', key: 'OIL' },
     { path: '/expenses', key: 'EXPENSES' },
     { path: '/expenses/stats', key: 'EXPENSES_STATS' },
+    { path: '/system-users', key: 'SYSTEM_USERS' },
   ];
   for (const { path, key } of order) {
     if (pages.includes(key)) return path;
@@ -63,4 +65,5 @@ export const ADMIN_PAGE_LABEL_KEYS: Record<AdminPageKey, string> = {
   OIL: 'navOil',
   EXPENSES: 'navExpenses',
   EXPENSES_STATS: 'navExpensesStats',
+  SYSTEM_USERS: 'navSystemUsers',
 };

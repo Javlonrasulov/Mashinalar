@@ -13,6 +13,7 @@ import {
   CurrentUser,
   JwtUser,
 } from '../../common/decorators/current-user.decorator';
+import { AdminRoutePage } from '../../common/decorators/admin-route-page.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -23,6 +24,7 @@ import { UpdateAdminOperatorDto } from './dto/update-admin-operator.dto';
 @Controller('admin-users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
+@AdminRoutePage('SYSTEM_USERS')
 export class AdminUsersController {
   constructor(private readonly adminUsers: AdminUsersService) {}
 

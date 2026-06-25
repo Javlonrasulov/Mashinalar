@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
@@ -25,12 +24,6 @@ import { ExpensesPage } from '@/pages/ExpensesPage';
 import { ExpensesStatsPage } from '@/pages/ExpensesStatsPage';
 import { SystemUsersPage } from '@/pages/SystemUsersPage';
 
-function RequireAdmin({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  if (user?.role !== 'ADMIN') return <Navigate to="/" replace />;
-  return children;
-}
-
 function Shell() {
   const { token, loading, user } = useAuth();
   if (loading) {
@@ -49,15 +42,8 @@ function Shell() {
   return (
     <Routes>
       <Route element={<ShellLayout />}>
-        <Route
-          path="system-users"
-          element={
-            <RequireAdmin>
-              <SystemUsersPage />
-            </RequireAdmin>
-          }
-        />
         <Route element={<OperatorRouteGuard />}>
+          <Route path="system-users" element={<SystemUsersPage />} />
           <Route index element={<DashboardPage />} />
           <Route path="map" element={<MapPage />} />
           <Route path="vehicle-categories" element={<Navigate to="/vehicles/categories" replace />} />

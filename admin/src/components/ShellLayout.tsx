@@ -57,7 +57,7 @@ const nav: {
   { to: '/daily-km', icon: Gauge, key: 'navDailyKm', page: 'DAILY_KM', end: true },
   { to: '/oil', icon: Droplets, key: 'navOil', page: 'OIL' },
   { to: '/expenses', icon: Receipt, key: 'navExpenses', page: 'EXPENSES' },
-  { to: '/system-users', icon: UserCog, key: 'navSystemUsers', adminOnly: true, end: true },
+  { to: '/system-users', icon: UserCog, key: 'navSystemUsers', page: 'SYSTEM_USERS', end: true },
 ];
 
 function usePageTitle() {

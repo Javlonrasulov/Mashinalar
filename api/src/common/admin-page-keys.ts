@@ -11,6 +11,7 @@ export const ADMIN_PAGE_KEYS = [
   'OIL',
   'EXPENSES',
   'EXPENSES_STATS',
+  'SYSTEM_USERS',
 ] as const;
 
 export type AdminPageKey = (typeof ADMIN_PAGE_KEYS)[number];
