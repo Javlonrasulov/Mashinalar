@@ -4,6 +4,22 @@ import { SelectField, type SelectOption } from '@/components/SelectField';
 import { useI18n } from '@/i18n/I18nContext';
 import { formatYmd } from '@/lib/spentRangeQuery';
 
+/** UZS summa: faqat raqamlar, ko‘rinishda bo‘shliq bilan (150 000). */
+function formatAmountDisplay(raw: string): string {
+  const trimmed = raw.trim();
+  const n = Number(trimmed);
+  const d =
+    trimmed !== '' && Number.isFinite(n) && n >= 0
+      ? String(Math.round(n))
+      : trimmed.replace(/\D/g, '');
+  if (!d) return '';
+  return d.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+
+function parseAmountDigits(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
 /** Popovers inside expense modal must sit above z-[6210] panel. */
 const MODAL_POPOVER_Z = 6300;
 
@@ -174,12 +190,12 @@ export function ExpenseAddModal({
             </label>
             <input
               id="expense-add-amount"
-              className="app-input"
-              type="number"
-              min={0}
-              step="any"
-              value={form.amount}
-              onChange={(e) => onChange({ amount: e.target.value })}
+              className="app-input tabular-nums"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              value={formatAmountDisplay(form.amount)}
+              onChange={(e) => onChange({ amount: parseAmountDigits(e.target.value) })}
               required
             />
           </div>

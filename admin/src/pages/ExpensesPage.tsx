@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
 import { api } from '@/lib/api';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
@@ -98,6 +99,8 @@ export function ExpensesPage() {
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addBusy, setAddBusy] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Row | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState<ExpenseAddForm>(() => emptyExpenseForm(''));
 
   const defaultCategoryId = (cats: CategoryRow[]) =>
@@ -133,6 +136,15 @@ export function ExpensesPage() {
     if (categories.length === 0) return;
     setForm((f) => (f.categoryId ? f : { ...f, categoryId: defaultCategoryId(categories) }));
   }, [categories]);
+
+  useEffect(() => {
+    if (!pendingDelete) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !deleting) setPendingDelete(null);
+    }
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [pendingDelete, deleting]);
 
   function openAddModal() {
     setModalMode('add');
@@ -215,18 +227,21 @@ export function ExpensesPage() {
     }
   }
 
-  async function onDelete(row: Row) {
-    if (!window.confirm(`${t('deleteExpenseTitle')}\n\n${row.vehicle.plateNumber} — ${formatMoneyUz(row.amount, lang)}\n\n${t('deleteExpenseBody')}`)) {
-      return;
-    }
-    setAddBusy(true);
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
     try {
-      await api(`/expenses/${row.id}`, { method: 'DELETE' });
+      await api(`/expenses/${pendingDelete.id}`, { method: 'DELETE' });
+      if (editingId === pendingDelete.id) {
+        setAddModalOpen(false);
+        setEditingId(null);
+      }
+      setPendingDelete(null);
       await load();
     } catch {
       /* ignore */
     } finally {
-      setAddBusy(false);
+      setDeleting(false);
     }
   }
 
@@ -371,7 +386,7 @@ export function ExpensesPage() {
               <th className="p-3">{t('amount')}</th>
               <th className="p-3">{t('date')}</th>
               <th className="p-3">{t('note')}</th>
-              <th className="p-3 w-28" />
+              <th className="p-3 w-24" />
             </tr>
           </thead>
           <tbody>
@@ -384,22 +399,26 @@ export function ExpensesPage() {
                 <td className="p-3">{formatExpenseNote(r.note, t)}</td>
                 <td className="p-3">
                   {canManageRow(r) && (
-                    <div className="flex flex-wrap justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
-                        className="app-btn-ghost px-2 py-1 text-xs"
-                        disabled={addBusy}
+                        className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+                        disabled={addBusy || deleting}
                         onClick={() => openEditModal(r)}
+                        aria-label={t('edit')}
+                        title={t('edit')}
                       >
-                        {t('edit')}
+                        <Pencil size={16} className="text-blue-600 dark:text-blue-400" aria-hidden />
                       </button>
                       <button
                         type="button"
-                        className="app-link-danger text-xs"
-                        disabled={addBusy}
-                        onClick={() => void onDelete(r)}
+                        className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+                        disabled={addBusy || deleting}
+                        onClick={() => setPendingDelete(r)}
+                        aria-label={t('delete')}
+                        title={t('delete')}
                       >
-                        {t('delete')}
+                        <Trash2 size={16} className="text-red-600 dark:text-red-400" aria-hidden />
                       </button>
                     </div>
                   )}
@@ -417,6 +436,67 @@ export function ExpensesPage() {
         </table>
         </div>
       </div>
+
+      {pendingDelete && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[6200] bg-slate-900/60 backdrop-blur-[1px]"
+            aria-label={t('cancel')}
+            onClick={() => {
+              if (!deleting) setPendingDelete(null);
+            }}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="expense-delete-title"
+            className="fixed left-1/2 top-1/2 z-[6300] w-[min(92vw,520px)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+          >
+            <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800 sm:px-5">
+              <div id="expense-delete-title" className="text-sm font-semibold text-slate-900 dark:text-white">
+                {t('deleteExpenseTitle')}
+              </div>
+              <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                <span className="font-mono">{pendingDelete.vehicle.plateNumber}</span>
+                <span className="px-1">—</span>
+                <span>{formatMoneyUz(pendingDelete.amount, lang)}</span>
+                {pendingDelete.category?.name ? (
+                  <>
+                    <span className="px-1">·</span>
+                    <span>{pendingDelete.category.name}</span>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-3 px-4 py-4 sm:px-5">
+              <div className="rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                {t('deleteExpenseBody')}
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/40 sm:flex-row sm:justify-end sm:px-5">
+              <button
+                type="button"
+                className="app-btn-ghost w-full sm:w-auto"
+                disabled={deleting}
+                onClick={() => setPendingDelete(null)}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                className="inline-flex w-full items-center justify-center rounded-[10px] border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/60 sm:w-auto"
+                disabled={deleting}
+                onClick={() => void confirmDelete()}
+              >
+                {deleting ? '…' : t('delete')}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
