@@ -10,6 +10,7 @@ import { DateTimeField } from '@/components/DateTimeField';
 import { LEAFLET_MAP_MAX_ZOOM, MapBaseLayers } from '@/components/MapBaseLayers';
 import { DatetimeLocalRangeField } from '@/components/DatetimeLocalRangeField';
 import { SelectField } from '@/components/SelectField';
+import { DailyKmMonthlyReport } from '@/components/DailyKmMonthlyReport';
 import { toDatetimeLocalValue } from '@/lib/datetimeLocal';
 
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
@@ -284,7 +285,7 @@ export function DailyKmPage() {
     (user?.role === 'OPERATOR' &&
       ((user.allowedPages ?? []).includes('DAILY_KM') ||
         (user.allowedPages ?? []).includes('DAILY_KM_GAPS')));
-  const [view, setView] = useState<'table' | 'gaps'>('table');
+  const [view, setView] = useState<'table' | 'monthly' | 'gaps'>('table');
   const [rows, setRows] = useState<DailyKmRow[]>([]);
   const [filter, setFilter] = useState<'all' | 'gapsOnly' | 'gapDesc'>('all');
   const initToday = () => {
@@ -356,6 +357,10 @@ export function DailyKmPage() {
   useEffect(() => {
     if (!canUseGapAuditTab && view === 'gaps') setView('table');
   }, [canUseGapAuditTab, view]);
+
+  useEffect(() => {
+    if (!isFleetPanelUser && view === 'monthly') setView('table');
+  }, [isFleetPanelUser, view]);
 
   useEffect(() => {
     if (view === 'table') gapsRangeSeededRef.current = false;
@@ -657,7 +662,7 @@ export function DailyKmPage() {
         </div>
       </div>
 
-      {isFleetPanelUser && canUseGapAuditTab && (
+      {isFleetPanelUser && (
         <div className="inline-flex rounded-xl border border-slate-200/90 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
           <button
             type="button"
@@ -675,17 +680,35 @@ export function DailyKmPage() {
           </button>
           <button
             type="button"
-            onClick={() => setView('gaps')}
+            onClick={() => {
+              setView('monthly');
+              setExpandedVehicleId(null);
+            }}
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              view === 'gaps'
+              view === 'monthly'
                 ? 'bg-blue-600 text-white shadow-sm dark:bg-blue-500'
                 : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
             }`}
           >
-            {t('navDailyKmGaps')}
+            {t('dailyKmTabMonthly')}
           </button>
+          {canUseGapAuditTab ? (
+            <button
+              type="button"
+              onClick={() => setView('gaps')}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                view === 'gaps'
+                  ? 'bg-blue-600 text-white shadow-sm dark:bg-blue-500'
+                  : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
+              }`}
+            >
+              {t('navDailyKmGaps')}
+            </button>
+          ) : null}
         </div>
       )}
+
+      {view === 'monthly' && isFleetPanelUser ? <DailyKmMonthlyReport /> : null}
 
       {view === 'table' && (
         <p className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-2 text-xs leading-relaxed text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 sm:text-sm">

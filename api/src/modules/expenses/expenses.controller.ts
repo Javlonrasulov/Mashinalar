@@ -74,12 +74,15 @@ export class ExpensesController {
     @Query('spentTo') spentTo?: string,
     @Query('rangeFrom') rangeFrom?: string,
     @Query('rangeTo') rangeTo?: string,
+    @Query('tzOffset') tzOffset?: string,
   ) {
+    const tz = tzOffset != null ? Number(tzOffset) : 0;
     return this.expenses.gasStatsByVehicle({
       spentFrom: parseOptionalIsoDate(spentFrom),
       spentTo: parseOptionalIsoDate(spentTo),
       rangeFrom: rangeFrom || undefined,
       rangeTo: rangeTo || undefined,
+      tzOffsetMin: Number.isFinite(tz) ? tz : 0,
     });
   }
 

@@ -92,6 +92,15 @@ export class DailyKmController {
     return this.dailyKm.submissionOverview({ from, to });
   }
 
+  /** Admin: oylik KM yuborish matritsasi (transport × kun) */
+  @Get('monthly-grid')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @AdminRoutePageAny(ADMIN_PAGES_DAILY_KM_SHARED)
+  monthlyGrid(@Query('from') from: string, @Query('to') to: string) {
+    return this.dailyKm.monthlySubmissionGrid({ from, to });
+  }
+
   /** Admin: yuborilgan boshlang‘ich / yakuniy KM ni tuzatish (rasm va vaqtlar o‘zgarmaydi) */
   @Patch('admin/:id/km')
   @UseGuards(JwtAuthGuard, RolesGuard)

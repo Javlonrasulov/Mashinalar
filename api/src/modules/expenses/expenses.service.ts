@@ -331,6 +331,7 @@ export class ExpensesService {
     spentTo?: Date;
     rangeFrom?: string;
     rangeTo?: string;
+    tzOffsetMin?: number;
   }) {
     const rangeFrom = filters?.rangeFrom?.trim() || null;
     const rangeTo = filters?.rangeTo?.trim() || null;
@@ -355,7 +356,7 @@ export class ExpensesService {
       }
     }
 
-    const [fuelGrouped, dailyRows, vehicles] = await Promise.all([
+    const [fuelGrouped, fuelDayRows, dailyRows, vehicles] = await Promise.all([
       this.prisma.fuelReport.groupBy({
         by: ['vehicleId'],
         where: {
@@ -366,6 +367,16 @@ export class ExpensesService {
         _sum: { amount: true, volume: true },
         _count: { id: true },
       }),
+      fuelCreatedAt
+        ? this.prisma.fuelReport.findMany({
+            where: {
+              fuelKind: FuelKind.GAS,
+              vehicle: ACTIVE_VEHICLE_WHERE,
+              createdAt: fuelCreatedAt,
+            },
+            select: { vehicleId: true, createdAt: true },
+          })
+        : Promise.resolve([]),
       fromD && toExclusive
         ? this.prisma.dailyKmReport.findMany({
             where: {
@@ -393,6 +404,13 @@ export class ExpensesService {
 
     const days =
       rangeFrom && rangeTo ? enumerateYmdRange(rangeFrom, rangeTo) : [];
+
+    const tzOffsetMin = filters?.tzOffsetMin ?? 0;
+    const fuelDayMap = new Map<string, boolean>();
+    for (const r of fuelDayRows) {
+      const ymd = ymdInClientTz(r.createdAt, tzOffsetMin);
+      fuelDayMap.set(`${r.vehicleId}:${ymd}`, true);
+    }
 
     const submissionMap = new Map<string, { start: boolean; end: boolean }>();
     const kmMap = new Map<string, number>();
@@ -437,7 +455,11 @@ export class ExpensesService {
           totalKm > 0 ? Number(totalAmountDec) / totalKm : null;
         const dailyKm = days.map((d) => {
           const sub = submissionMap.get(`${vehicleId}:${d}`);
-          return { start: Boolean(sub?.start), end: Boolean(sub?.end) };
+          return {
+            start: Boolean(sub?.start),
+            end: Boolean(sub?.end),
+            fuel: Boolean(fuelDayMap.get(`${vehicleId}:${d}`)),
+          };
         });
         return {
           vehicleId,

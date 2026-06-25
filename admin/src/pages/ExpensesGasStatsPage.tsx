@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
-import { Maximize2, Minimize2, ArrowDown, ArrowUp } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n, type Lang } from '@/i18n/I18nContext';
 import { DateRangeField } from '@/components/DateRangeField';
@@ -14,8 +14,9 @@ import {
 } from '@/lib/spentRangeQuery';
 
 const DAY_CELL_W = '1.375rem';
+const H_SCROLL_STEP = 280;
 
-type DayKmStatus = { start: boolean; end: boolean };
+type DayKmStatus = { start: boolean; end: boolean; fuel: boolean };
 
 type GasVehicleStat = {
   vehicleId: string;
@@ -125,10 +126,17 @@ function dayOfMonth(ymd: string): number {
   return Number.isFinite(d.getTime()) ? d.getDate() : Number(ymd.slice(8, 10));
 }
 
-function DayKmBars({ status, startLabel, endLabel, missingLabel }: {
+function DayKmBars({
+  status,
+  startLabel,
+  endLabel,
+  fuelLabel,
+  missingLabel,
+}: {
   status: DayKmStatus;
   startLabel: string;
   endLabel: string;
+  fuelLabel: string;
   missingLabel: string;
 }) {
   return (
@@ -146,6 +154,13 @@ function DayKmBars({ status, startLabel, endLabel, missingLabel }: {
           status.end ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-slate-200 dark:bg-slate-700',
         )}
         title={status.end ? endLabel : missingLabel}
+      />
+      <span
+        className={clsx(
+          'block h-1 w-full rounded-sm',
+          status.fuel ? 'bg-amber-500 dark:bg-amber-400' : 'bg-slate-200 dark:bg-slate-700',
+        )}
+        title={status.fuel ? fuelLabel : missingLabel}
       />
     </div>
   );
@@ -167,11 +182,19 @@ function DaysHeader({ days }: { days: string[] }) {
   );
 }
 
-function DaysRow({ days, dailyKm, startLabel, endLabel, missingLabel }: {
+function DaysRow({
+  days,
+  dailyKm,
+  startLabel,
+  endLabel,
+  fuelLabel,
+  missingLabel,
+}: {
   days: string[];
   dailyKm: DayKmStatus[];
   startLabel: string;
   endLabel: string;
+  fuelLabel: string;
   missingLabel: string;
 }) {
   return (
@@ -179,9 +202,10 @@ function DaysRow({ days, dailyKm, startLabel, endLabel, missingLabel }: {
       {days.map((date, i) => (
         <div key={date} className="shrink-0" style={{ width: DAY_CELL_W }}>
           <DayKmBars
-            status={dailyKm[i] ?? { start: false, end: false }}
+            status={dailyKm[i] ?? { start: false, end: false, fuel: false }}
             startLabel={startLabel}
             endLabel={endLabel}
+            fuelLabel={fuelLabel}
             missingLabel={missingLabel}
           />
         </div>
@@ -193,6 +217,7 @@ function DaysRow({ days, dailyKm, startLabel, endLabel, missingLabel }: {
 export function ExpensesGasStatsPage() {
   const { t, lang } = useI18n();
   const tableStageRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const [tableFs, setTableFs] = useState(false);
   const [spentDateRange, setSpentDateRange] = useState<SpentDateRangeYmd | null>(defaultExpenseDateRange);
   const [search, setSearch] = useState('');
@@ -250,6 +275,15 @@ export function ExpensesGasStatsPage() {
       /* ignore */
     }
   }
+
+  const scrollTable = useCallback((dir: 'left' | 'right') => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    el.scrollBy({
+      left: dir === 'left' ? -H_SCROLL_STEP : H_SCROLL_STEP,
+      behavior: 'smooth',
+    });
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -310,6 +344,7 @@ export function ExpensesGasStatsPage() {
 
   const startLegend = t('dailyKmOverviewPanelStartOk');
   const endLegend = t('dailyKmOverviewPanelEndOk');
+  const fuelLegend = t('gasStatsKmLegendFuel');
   const missingLegend = t('gasStatsKmLegendMissing');
 
   return (
@@ -361,23 +396,51 @@ export function ExpensesGasStatsPage() {
               {endLegend}
             </span>
             <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-1.5 w-5 rounded-sm bg-amber-500 dark:bg-amber-400" />
+              {fuelLegend}
+            </span>
+            <span className="inline-flex items-center gap-1.5">
               <span className="inline-block h-1.5 w-5 rounded-sm bg-slate-200 dark:bg-slate-700" />
               {missingLegend}
             </span>
           </div>
-          <button
-            type="button"
-            className={clsx(
-              'app-btn-ghost inline-flex h-9 w-9 shrink-0 items-center justify-center p-0',
-              tableFs && 'ring-2 ring-blue-400/80',
+          <div className="flex shrink-0 items-center gap-1">
+            {days.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+                  onClick={() => scrollTable('left')}
+                  title={t('fuelReportScrollLeft')}
+                  aria-label={t('fuelReportScrollLeft')}
+                >
+                  <ChevronLeft size={18} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="app-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
+                  onClick={() => scrollTable('right')}
+                  title={t('fuelReportScrollRight')}
+                  aria-label={t('fuelReportScrollRight')}
+                >
+                  <ChevronRight size={18} aria-hidden />
+                </button>
+              </>
             )}
-            aria-pressed={tableFs}
-            aria-label={tableFs ? t('exitFullScreen') : t('fullScreen')}
-            title={tableFs ? t('exitFullScreen') : t('fullScreen')}
-            onClick={() => void toggleTableFullscreen()}
-          >
-            {tableFs ? <Minimize2 size={18} aria-hidden /> : <Maximize2 size={18} aria-hidden />}
-          </button>
+            <button
+              type="button"
+              className={clsx(
+                'app-btn-ghost inline-flex h-9 w-9 shrink-0 items-center justify-center p-0',
+                tableFs && 'ring-2 ring-blue-400/80',
+              )}
+              aria-pressed={tableFs}
+              aria-label={tableFs ? t('exitFullScreen') : t('fullScreen')}
+              title={tableFs ? t('exitFullScreen') : t('fullScreen')}
+              onClick={() => void toggleTableFullscreen()}
+            >
+              {tableFs ? <Minimize2 size={18} aria-hidden /> : <Maximize2 size={18} aria-hidden />}
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -385,7 +448,10 @@ export function ExpensesGasStatsPage() {
         ) : sorted.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">{t('gasStatsEmpty')}</div>
         ) : (
-          <div className={clsx('app-table-wrap', tableFs && 'min-h-0 flex-1 overflow-auto')}>
+          <div
+            ref={tableScrollRef}
+            className={clsx('app-table-wrap', tableFs && 'min-h-0 flex-1 overflow-auto')}
+          >
             <table className="app-table-inner text-sm">
               <thead className="app-table-head">
                 <tr>
@@ -465,6 +531,7 @@ export function ExpensesGasStatsPage() {
                             dailyKm={r.dailyKm ?? []}
                             startLabel={startLegend}
                             endLabel={endLegend}
+                            fuelLabel={fuelLegend}
                             missingLabel={missingLegend}
                           />
                         </td>

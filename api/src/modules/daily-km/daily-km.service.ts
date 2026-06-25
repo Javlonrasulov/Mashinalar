@@ -459,6 +459,147 @@ export class DailyKmService {
   }
 
   /**
+   * Admin: transport × kun matritsasi — boshlanish / tugash yuborilganligi (oylik hisobot jadvali).
+   */
+  async monthlySubmissionGrid(params: { from: string; to: string }) {
+    const fromD = new Date(params.from);
+    const toD = new Date(params.to);
+    if (Number.isNaN(fromD.getTime()) || Number.isNaN(toD.getTime())) {
+      throw new BadRequestException('daily_km.invalid_report_date');
+    }
+    fromD.setUTCHours(0, 0, 0, 0);
+    toD.setUTCHours(0, 0, 0, 0);
+    if (fromD.getTime() > toD.getTime()) {
+      throw new BadRequestException('daily_km.range_invalid');
+    }
+    const spanDays =
+      Math.floor((toD.getTime() - fromD.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    if (spanDays > 366) {
+      throw new BadRequestException('daily_km.range_too_wide');
+    }
+    const toExclusive = new Date(toD);
+    toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
+
+    const vehicles = await this.prisma.vehicle.findMany({
+      where: { ...ACTIVE_VEHICLE_WHERE, drivers: { some: {} } },
+      select: {
+        id: true,
+        plateNumber: true,
+        name: true,
+        model: true,
+        drivers: {
+          select: { fullName: true, phone: true },
+          orderBy: { fullName: 'asc' },
+          take: 1,
+        },
+      },
+      orderBy: { plateNumber: 'asc' },
+    });
+
+    const fleetTotal = vehicles.length;
+    const dayYmds: string[] = [];
+    for (
+      let d = new Date(fromD);
+      d.getTime() < toExclusive.getTime();
+      d.setUTCDate(d.getUTCDate() + 1)
+    ) {
+      dayYmds.push(d.toISOString().slice(0, 10));
+    }
+
+    if (fleetTotal === 0 || dayYmds.length === 0) {
+      return {
+        from: fromD.toISOString().slice(0, 10),
+        to: toD.toISOString().slice(0, 10),
+        fleetTotal,
+        dayCount: dayYmds.length,
+        days: dayYmds,
+        vehicles: [],
+      };
+    }
+
+    const fleetIds = vehicles.map((v) => v.id);
+    const reports = await this.prisma.dailyKmReport.findMany({
+      where: {
+        reportDate: { gte: fromD, lt: toExclusive },
+        vehicleId: { in: fleetIds },
+      },
+      select: {
+        vehicleId: true,
+        reportDate: true,
+        endKm: true,
+        driverFullName: true,
+        driver: { select: { fullName: true, phone: true } },
+      },
+    });
+
+    type RepInfo = { hasEnd: boolean; driverName: string; driverPhone: string };
+    const reportByVehicleDay = new Map<string, RepInfo>();
+    for (const r of reports) {
+      const ymd = r.reportDate.toISOString().slice(0, 10);
+      const driver = resolveDriverSnapshot(r.driver, r.driverFullName);
+      reportByVehicleDay.set(`${r.vehicleId}:${ymd}`, {
+        hasEnd: r.endKm != null,
+        driverName: driver.fullName,
+        driverPhone: driver.phone,
+      });
+    }
+
+    const vehicleRows = vehicles.map((v) => {
+      const defaultDriver = v.drivers[0];
+      const days = dayYmds.map((ymd) => {
+        const rep = reportByVehicleDay.get(`${v.id}:${ymd}`);
+        return {
+          date: ymd,
+          hasStart: Boolean(rep),
+          hasEnd: rep?.hasEnd ?? false,
+        };
+      });
+      let submittedCount = 0;
+      for (const d of days) {
+        if (d.hasStart) submittedCount += 1;
+        if (d.hasEnd) submittedCount += 1;
+      }
+      const expectedCount = dayYmds.length * 2;
+      const completionPct =
+        expectedCount > 0
+          ? Math.round((submittedCount / expectedCount) * 100)
+          : 100;
+
+      const latestRep = [...dayYmds]
+        .reverse()
+        .map((ymd) => reportByVehicleDay.get(`${v.id}:${ymd}`))
+        .find(Boolean);
+
+      return {
+        vehicleId: v.id,
+        plateNumber: v.plateNumber,
+        vehicleLabel: (v.model?.trim() || v.name).trim(),
+        driverName: latestRep?.driverName ?? defaultDriver?.fullName ?? '—',
+        driverPhone: latestRep?.driverPhone ?? defaultDriver?.phone ?? '',
+        days,
+        completionPct,
+        submittedCount,
+        expectedCount,
+      };
+    });
+
+    vehicleRows.sort(
+      (a, b) =>
+        a.completionPct - b.completionPct ||
+        a.plateNumber.localeCompare(b.plateNumber, 'uz'),
+    );
+
+    return {
+      from: fromD.toISOString().slice(0, 10),
+      to: toD.toISOString().slice(0, 10),
+      fleetTotal,
+      dayCount: dayYmds.length,
+      days: dayYmds,
+      vehicles: vehicleRows,
+    };
+  }
+
+  /**
    * Admin: sanalar oralig‘ida har bir kun uchun «oldingi yopilgan тугаш KM» → «shu kun бошланиш KM» farqi.
    * Oldingi kun yopilmagan bo‘lsa (endKm null), keyingi kun uchun farq hisoblanmaydi (null).
    */
