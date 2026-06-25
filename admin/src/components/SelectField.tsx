@@ -15,6 +15,8 @@ type Props<V extends string> = {
   id?: string;
   disabled?: boolean;
   align?: 'left' | 'right';
+  /** Portal z-index (e.g. inside modals at z-6200+). Default 6000. */
+  popoverZIndex?: number;
 };
 
 const VIEW_MARGIN = 12;
@@ -35,6 +37,7 @@ export function SelectField<V extends string>({
   id,
   disabled,
   align = 'left',
+  popoverZIndex = 6000,
 }: Props<V>) {
   const autoId = useId();
   const fieldId = id ?? autoId;
@@ -111,8 +114,13 @@ export function SelectField<V extends string>({
             ref={listRef}
             role="listbox"
             aria-labelledby={fieldId}
-            style={{ top: popoverPos.top, left: popoverPos.left, width: popoverPos.width }}
-            className="fixed z-[6000] max-h-72 overflow-auto rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
+            style={{
+              top: popoverPos.top,
+              left: popoverPos.left,
+              width: popoverPos.width,
+              zIndex: popoverZIndex,
+            }}
+            className="fixed max-h-72 overflow-auto rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
           >
             {options.map((o) => {
               const active = o.value === value;

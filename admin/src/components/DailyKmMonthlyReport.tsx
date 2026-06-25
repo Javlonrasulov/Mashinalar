@@ -63,10 +63,10 @@ function dayOfMonth(ymd: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function formatYmdShort(ymd: string): string {
+function formatYmdFull(ymd: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
   if (!m) return ymd;
-  return `${m[3]}.${m[2]}`;
+  return `${m[3]}.${m[2]}.${m[1]}`;
 }
 
 function formatYmdRangeLabel(from: string, to: string, lang: Lang): string {
@@ -84,21 +84,34 @@ function formatYmdRangeLabel(from: string, to: string, lang: Lang): string {
   return `${fmt(from)} — ${fmt(to)}`;
 }
 
-function formatDayList(dates: string[], max = 14): string {
+function formatDayList(
+  dates: string[],
+  tr: (key: string, vars?: Record<string, string>) => string,
+  max = 14,
+): string {
   if (dates.length === 0) return '—';
-  const short = dates.map(formatYmdShort);
+  const short = dates.map(formatYmdFull);
   if (short.length <= max) return short.join(', ');
-  return `${short.slice(0, max).join(', ')} … (+${short.length - max})`;
+  return `${short.slice(0, max).join(', ')} ${tr('dailyKmMonthlyCopyMoreDays', { n: String(short.length - max) })}`;
 }
 
 function formatMonthlyReportForCopy(
   vehicles: MonthlyGridVehicle[],
+  from: string,
+  to: string,
+  dayCount: number,
   rangeLabel: string,
   tr: (key: string, vars?: Record<string, string>) => string,
 ): string {
   const lines: string[] = [
     `📊 ${tr('dailyKmTabMonthly')}`,
     `📅 ${rangeLabel}`,
+    tr('dailyKmMonthlyCopyPeriod', {
+      from: formatYmdFull(from),
+      to: formatYmdFull(to),
+      days: String(dayCount),
+    }),
+    tr('dailyKmMonthlyCopyFleet', { n: String(vehicles.length) }),
     '',
     `${tr('dailyKmMonthlyLegendTitle')}:`,
     `  🔵 ${tr('dailyKmMonthlyLegendStart')}`,
@@ -126,12 +139,12 @@ function formatMonthlyReportForCopy(
     );
     if (startMissing.length > 0) {
       lines.push(
-        `${tr('dailyKmMonthlyCopyStartMissing')} (${startMissing.length}): ${formatDayList(startMissing)}`,
+        `${tr('dailyKmMonthlyCopyStartMissing')} (${startMissing.length}): ${formatDayList(startMissing, tr)}`,
       );
     }
     if (endMissing.length > 0) {
       lines.push(
-        `${tr('dailyKmMonthlyCopyEndMissing')} (${endMissing.length}): ${formatDayList(endMissing)}`,
+        `${tr('dailyKmMonthlyCopyEndMissing')} (${endMissing.length}): ${formatDayList(endMissing, tr)}`,
       );
     }
   });
@@ -265,8 +278,15 @@ export function DailyKmMonthlyReport() {
   }, [tableFullscreen]);
 
   const copyReport = useCallback(async () => {
-    if (!sortedVehicles.length) return;
-    const text = formatMonthlyReportForCopy(sortedVehicles, rangeLabel, t);
+    if (!sortedVehicles.length || !grid) return;
+    const text = formatMonthlyReportForCopy(
+      sortedVehicles,
+      grid.from,
+      grid.to,
+      grid.dayCount,
+      rangeLabel,
+      t,
+    );
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -274,7 +294,7 @@ export function DailyKmMonthlyReport() {
     } catch {
       /* ignore */
     }
-  }, [sortedVehicles, rangeLabel, t]);
+  }, [sortedVehicles, grid, rangeLabel, t]);
 
   const reportTable =
     grid && grid.fleetTotal > 0 ? (
@@ -285,10 +305,10 @@ export function DailyKmMonthlyReport() {
             className="app-btn-ghost mr-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium sm:text-sm"
             disabled={sortedVehicles.length === 0}
             onClick={() => void copyReport()}
-            title={t('dailyKmOverviewCopy')}
+            title={t('dailyKmMonthlyCopy')}
           >
             <Copy className="h-4 w-4 shrink-0" aria-hidden />
-            {copied ? t('dailyKmMonthlyCopied') : t('dailyKmOverviewCopy')}
+            {copied ? t('dailyKmMonthlyCopied') : t('dailyKmMonthlyCopy')}
           </button>
           <button
             type="button"

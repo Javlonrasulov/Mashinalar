@@ -107,9 +107,11 @@ type Props = {
   onClear?: () => void;
   minDate?: Date;
   maxDate?: Date;
+  /** Portal z-index (e.g. inside modals at z-6200+). Default 5000. */
+  popoverZIndex?: number;
 };
 
-export function DateField({ value, onChange, id, onClear, minDate, maxDate }: Props) {
+export function DateField({ value, onChange, id, onClear, minDate, maxDate, popoverZIndex = 5000 }: Props) {
   const { t, lang } = useI18n();
   const autoId = useId();
   const fieldId = id ?? autoId;
@@ -265,8 +267,8 @@ export function DateField({ value, onChange, id, onClear, minDate, maxDate }: Pr
             ref={popoverRef}
             role="dialog"
             aria-labelledby={fieldId}
-            style={{ top: popoverPos.top, left: popoverPos.left }}
-            className="app-datetime-popover fixed z-[5000] w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
+            style={{ top: popoverPos.top, left: popoverPos.left, zIndex: popoverZIndex }}
+            className="app-datetime-popover fixed w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-lg dark:border-slate-700/90 dark:bg-slate-900"
           >
             <div className="overflow-auto p-2 md:p-3" style={{ maxHeight: popoverPos.maxHeight }}>
               <DayPicker

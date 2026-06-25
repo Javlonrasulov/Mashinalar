@@ -4,6 +4,9 @@ import { SelectField, type SelectOption } from '@/components/SelectField';
 import { useI18n } from '@/i18n/I18nContext';
 import { formatYmd } from '@/lib/spentRangeQuery';
 
+/** Popovers inside expense modal must sit above z-[6210] panel. */
+const MODAL_POPOVER_Z = 6300;
+
 export type ExpenseAddForm = {
   vehicleId: string;
   categoryId: string;
@@ -95,6 +98,7 @@ export function ExpenseAddModal({
               onChange={(v) => onChange({ vehicleId: v })}
               options={vehicleOptions}
               placeholder={t('mapVehicleSelectPlaceholder')}
+              popoverZIndex={MODAL_POPOVER_Z}
             />
           </div>
 
@@ -117,6 +121,7 @@ export function ExpenseAddModal({
               onChange={(v) => onChange({ categoryId: v })}
               options={categoryOptions}
               placeholder={t('mapVehicleSelectPlaceholder')}
+              popoverZIndex={MODAL_POPOVER_Z}
             />
           </div>
 
@@ -159,6 +164,7 @@ export function ExpenseAddModal({
               value={form.spentYmd}
               onChange={(v) => onChange({ spentYmd: v || formatYmd(today) })}
               maxDate={today}
+              popoverZIndex={MODAL_POPOVER_Z}
             />
           </div>
 

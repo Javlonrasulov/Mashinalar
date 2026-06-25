@@ -110,19 +110,16 @@ export function ExpensesPage() {
     const qs = p.toString() ? `?${p.toString()}` : '';
     setCategoryLoading(true);
     try {
-      const [e, v, c, cat] = await Promise.all([
+      const [eRes, vRes, cRes, catRes] = await Promise.allSettled([
         api<Row[]>(`/expenses${qs}`),
         api<{ id: string; plateNumber: string }[]>('/vehicles'),
         api<CategoryRow[]>('/expense-categories'),
         api<CategoryStatsPayload>(`/expenses/stats/by-category${qs}`),
       ]);
-      setRows(e);
-      setVehicles(v);
-      setCategories(c);
-      setCategoryStats(cat);
-    } catch {
-      setRows([]);
-      setCategoryStats(null);
+      setRows(eRes.status === 'fulfilled' ? eRes.value : []);
+      if (vRes.status === 'fulfilled') setVehicles(vRes.value);
+      if (cRes.status === 'fulfilled') setCategories(cRes.value);
+      setCategoryStats(catRes.status === 'fulfilled' ? catRes.value : null);
     } finally {
       setCategoryLoading(false);
     }
@@ -142,6 +139,25 @@ export function ExpensesPage() {
     setEditingId(null);
     setForm(emptyExpenseForm(defaultCategoryId(categories)));
     setAddModalOpen(true);
+    void refreshModalOptions();
+  }
+
+  async function refreshModalOptions() {
+    try {
+      const [vRes, cRes] = await Promise.allSettled([
+        api<{ id: string; plateNumber: string }[]>('/vehicles'),
+        api<CategoryRow[]>('/expense-categories'),
+      ]);
+      if (vRes.status === 'fulfilled') setVehicles(vRes.value);
+      if (cRes.status === 'fulfilled') {
+        setCategories(cRes.value);
+        setForm((f) =>
+          f.categoryId ? f : { ...f, categoryId: defaultCategoryId(cRes.value) },
+        );
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
   function openEditModal(row: Row) {
@@ -149,6 +165,7 @@ export function ExpensesPage() {
     setEditingId(row.id);
     setForm(rowToForm(row));
     setAddModalOpen(true);
+    void refreshModalOptions();
   }
 
   async function onCreate() {
@@ -246,10 +263,10 @@ export function ExpensesPage() {
     ...categoryOptions,
   ];
 
-  const vehicleOptions: SelectOption<string>[] = [
-    { value: '', label: '' },
-    ...vehicles.map((v) => ({ value: v.id, label: v.plateNumber })),
-  ];
+  const vehicleOptions: SelectOption<string>[] = vehicles.map((v) => ({
+    value: v.id,
+    label: v.plateNumber,
+  }));
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
