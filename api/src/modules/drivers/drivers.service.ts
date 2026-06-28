@@ -204,35 +204,51 @@ export class DriversService {
     const now = new Date();
     const snapshot = { driverFullName: d.fullName, driverPhone: d.phone };
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.driverVehicleAssignment.updateMany({
+    // Tarix snapshotlari — alohida (ko‘p yozuvda 5s trx timeout bo‘lmasin).
+    await Promise.all([
+      this.prisma.driverVehicleAssignment.updateMany({
         where: { driverId: id, endAt: null },
         data: { endAt: now, ...snapshot },
-      });
-      await tx.driverVehicleAssignment.updateMany({
+      }),
+      this.prisma.driverVehicleAssignment.updateMany({
         where: { driverId: id },
         data: snapshot,
-      });
-      await tx.fuelReport.updateMany({
+      }),
+      this.prisma.fuelReport.updateMany({
         where: { driverId: id },
         data: { driverFullName: d.fullName },
-      });
-      await tx.dailyKmReport.updateMany({
+      }),
+      this.prisma.dailyKmReport.updateMany({
         where: { driverId: id },
         data: { driverFullName: d.fullName },
-      });
-      await tx.oilChangeReport.updateMany({
+      }),
+      this.prisma.oilChangeReport.updateMany({
         where: { driverId: id },
         data: { driverFullName: d.fullName },
-      });
-      if (d.vehicleId) {
-        await tx.driver.update({
-          where: { id },
-          data: { vehicleId: null },
-        });
-      }
-      await tx.user.delete({ where: { id: d.userId } });
-    });
+      }),
+      this.prisma.locationPoint.updateMany({
+        where: { driverId: id },
+        data: { driverId: null },
+      }),
+      this.prisma.gpsOffSegment.updateMany({
+        where: { driverId: id },
+        data: { driverId: null },
+      }),
+    ]);
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        if (d.vehicleId) {
+          await tx.driver.update({
+            where: { id },
+            data: { vehicleId: null },
+          });
+        }
+        await tx.task.deleteMany({ where: { driverId: id } });
+        await tx.user.delete({ where: { id: d.userId } });
+      },
+      { timeout: 60_000 },
+    );
 
     await this.audit.log({
       actorUserId,
